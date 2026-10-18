@@ -1,0 +1,38 @@
+# Self-hosted LORE: `docker compose up -d`, then open http://localhost:8080.
+# Put it behind HTTPS (Caddy, Traefik, a cloud load balancer) before real use;
+# session cookies are Secure in production. For a quick plain-http trial on your
+# own machine, set COOKIE_SECURE=false below.
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: lore
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lore -d lore']
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://lore:${POSTGRES_PASSWORD}@db:5432/lore
+      WEB_ORIGINS: ${PUBLIC_URL:-http://localhost:8080}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    ports:
+      - '8080:8080'
+    volumes:
+      - media:/data
+
+volumes:
+  db:
+  media:

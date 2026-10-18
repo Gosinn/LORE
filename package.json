@@ -1,0 +1,56 @@
+{
+  "name": "lore",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LORE: no scrolling, only rolling. Plan experiences together and preserve the stories.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "imports": {
+    "#shared": "./packages/shared/src/index.ts"
+  },
+  "scripts": {
+    "dev": "node tools/dev.mjs",
+    "dev:api": "node --watch --env-file-if-exists=.env apps/api/src/server.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
+    "build": "vite build --config apps/web/vite.config.ts",
+    "start": "node apps/api/src/server.ts",
+    "test": "vitest run --config apps/api/vitest.config.ts",
+    "test:watch": "vitest --config apps/api/vitest.config.ts",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/api && tsc -p apps/web",
+    "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts",
+    "db:migrate": "node --env-file-if-exists=.env apps/api/src/db/migrate-cli.ts",
+    "seed": "node --env-file-if-exists=.env apps/api/src/seed.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/multipart": "^10.1.4",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/static": "^10.1.6",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.7",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
+    "@tanstack/react-query": "^5.104.4",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "drizzle-kit": "^0.31.11",
+    "lucide-react": "^1.59.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router": "^8.4.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}
