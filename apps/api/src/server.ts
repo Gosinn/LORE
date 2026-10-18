@@ -13,7 +13,7 @@ await database.migrate();
 
 const storage =
   config.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(config.mediaDir);
-const app = await buildApp({ db: database.db, config, storage });
+const app = await buildApp({ db: database.db, config, storage, dbKind: database.kind });
 
 const shutdown = async () => {
   await app.close();

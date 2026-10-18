@@ -104,7 +104,12 @@ export async function buildApp(ctx: AppContext) {
     return reply.status(500).send({ error: { code: 'server_error', message: 'Something went wrong on our side.' } });
   });
 
-  app.get('/api/health', async () => ({ ok: true }));
+  // "embedded" in production means DATABASE_URL is missing and data won't survive a restart.
+  app.get('/api/health', async () => ({
+    ok: true,
+    database: ctx.dbKind === 'pglite' ? 'embedded' : (ctx.dbKind ?? 'unknown'),
+    photos: config.mediaStorage,
+  }));
 
   await app.register(
     async (api) => {

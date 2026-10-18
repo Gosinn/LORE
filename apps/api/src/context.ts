@@ -8,6 +8,8 @@ export interface AppContext {
   db: Db;
   config: Config;
   storage: MediaStorage;
+  /** Which database is in use, reported by /api/health so a deploy can be checked from outside. */
+  dbKind?: 'postgres' | 'pglite';
 }
 
 declare module 'fastify' {
