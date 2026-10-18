@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -17,7 +18,7 @@ const Env = z.object({
   PGLITE_DIR: z.string().default(path.join(repoRoot, '.data', 'pglite')),
   MEDIA_DIR: z.string().default(path.join(repoRoot, '.data', 'media')),
   /** Where photo files go: `disk` (MEDIA_DIR) or `database` (hosts without a lasting disk). */
-  MEDIA_STORAGE: z.enum(['disk', 'database']).default('disk'),
+  MEDIA_STORAGE: z.enum(['disk', 'database']).optional(),
   /** Built web app to serve (production single-server deploy). */
   PUBLIC_DIR: z.string().default(path.join(repoRoot, 'apps', 'web', 'dist')),
   /** Browser origins allowed to make cookie-authenticated writes. Comma separated. */
@@ -27,15 +28,15 @@ const Env = z.object({
   /** Signs photo links; set it in production so links survive restarts. */
   MEDIA_URL_SECRET: z.string().min(16).optional(),
   COOKIE_SECURE: bool.optional(),
-  TRUST_PROXY: bool.default(false),
+  TRUST_PROXY: bool.optional(),
   SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(60),
   /**
    * scrypt cost (power of two) and parallelism. The default (2^17, p=1) needs 128 MB
    * per hash; small servers can trade memory for CPU at equal strength per OWASP,
    * e.g. 2^15 with p=3 (32 MB). Lowered further only in tests.
    */
-  SCRYPT_COST: z.coerce.number().int().default(2 ** 17),
-  SCRYPT_PARALLELISM: z.coerce.number().int().min(1).max(16).default(1),
+  SCRYPT_COST: z.coerce.number().int().optional(),
+  SCRYPT_PARALLELISM: z.coerce.number().int().min(1).max(16).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -71,6 +72,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid environment: ${z.prettifyError(parsed.error)}`);
   }
   const e = parsed.data;
+  // Render sets RENDER=true. Its free tier has 512 MB of RAM, a disk that's wiped on
+  // restart and a proxy in front, so pick fitting defaults there: then the only
+  // thing to configure is DATABASE_URL. Explicit variables still win.
+  const onRender = env.RENDER === 'true';
   return {
     env: e.NODE_ENV,
     host: e.HOST,
@@ -78,16 +83,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     databaseUrl: e.DATABASE_URL,
     pgliteDir: e.PGLITE_DIR,
     mediaDir: e.MEDIA_DIR,
-    mediaStorage: e.MEDIA_STORAGE,
+    mediaStorage: e.MEDIA_STORAGE ?? (onRender ? 'database' : 'disk'),
     publicDir: e.PUBLIC_DIR,
     webOrigins: list(e.WEB_ORIGINS),
     nativeOrigins: list(e.NATIVE_ORIGINS),
-    mediaUrlSecret: e.MEDIA_URL_SECRET,
+    // Without an explicit secret, derive a stable one from the (secret) database
+    // URL so photo links survive restarts.
+    mediaUrlSecret:
+      e.MEDIA_URL_SECRET ??
+      (e.DATABASE_URL ? createHash('sha256').update(`lore-media-links:${e.DATABASE_URL}`).digest('hex') : undefined),
     cookieSecure: e.COOKIE_SECURE ?? e.NODE_ENV === 'production',
-    trustProxy: e.TRUST_PROXY,
+    trustProxy: e.TRUST_PROXY ?? onRender,
     sessionDays: e.SESSION_DAYS,
-    scryptCost: e.SCRYPT_COST,
-    scryptParallelism: e.SCRYPT_PARALLELISM,
+    scryptCost: e.SCRYPT_COST ?? (onRender ? 2 ** 15 : 2 ** 17),
+    scryptParallelism: e.SCRYPT_PARALLELISM ?? (onRender ? 3 : 1),
     logLevel: e.LOG_LEVEL,
   };
 }
