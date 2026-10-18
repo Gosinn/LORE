@@ -1,5 +1,19 @@
 # Putting LORE online for free, no card (Render + Neon)
 
+## What are these, in plain words?
+LORE has two halves that need a home on the internet:
+
+- **The app itself**: the program people's phones and browsers talk to.
+  **Render** is a company that runs programs like this for you. You point it at the LORE code on
+  GitHub, it builds it, and gives it a web address like `https://lore-abcd.onrender.com`.
+- **The memory**: every account, plan, idea, chapter and photo has to be saved somewhere.
+  **Neon** is a company that runs the database (Postgres) where all of that is stored.
+- **UptimeRobot** just visits LORE every 5 minutes. On the free plan Render puts an app to sleep after
+  15 quiet minutes; these visits keep it awake so it opens instantly.
+
+All three have free plans, you sign in to them with your GitHub account, and none asks for a card
+(as far as we know; tell Claude if one does). Everything below works from a phone browser.
+
 Three free services, all signed into with your GitHub account. No payment card.
 
 | Piece | Service | Free limits that matter |
