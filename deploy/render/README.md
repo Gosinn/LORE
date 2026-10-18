@@ -32,10 +32,16 @@ Prerequisite: the code is on GitHub (private repo `LORE`).
 
 ## 2. App: Render (5 minutes + first build ~5–10 minutes)
 1. Sign in at **render.com** with GitHub and allow access to the `LORE` repo.
-2. **New → Blueprint** → choose `LORE`. Render reads `render.yaml` from the repo.
-3. When it asks for `DATABASE_URL`, paste the Neon connection string. Apply.
-4. Wait for the first deploy to finish. Your app is at `https://lore-xxxx.onrender.com`
+2. **New → Web Service** → choose `LORE`. **Language:** Docker. **Instance type:** Free.
+3. Under **Environment Variables**, add one: key `DATABASE_URL`, value = the Neon connection string.
+   That's the only setting: on Render, LORE picks the right defaults itself (photos in the database,
+   lighter password hashing, proxy settings).
+4. **Deploy** and wait until it says **Live**. Your app is at `https://lore-xxxx.onrender.com`
    (shown at the top of the service page). Open it and create your account.
+5. Check `https://lore-xxxx.onrender.com/api/health`: it must say `"database":"postgres"`. If it says
+   `"embedded"`, `DATABASE_URL` is missing, and data would be lost on the next restart.
+
+(Alternative: **New → Blueprint** reads `render.yaml` from the repo and asks for `DATABASE_URL`.)
 
 Every push to `main` on GitHub redeploys automatically.
 

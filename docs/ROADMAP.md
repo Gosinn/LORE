@@ -35,8 +35,9 @@ exercised in the browser with demo data.
 **Phase 1 gaps to close before real users** (in order):
 
 1. ✅ Account deletion (shared history kept anonymised) and JSON data export: tested.
-2. 🟡 Go live: Oracle Always Free kit written (`deploy/oracle`): HTTPS, Postgres, nightly backups,
-   push-to-deploy. Waiting on the owner's Oracle server and DuckDNS name; not run against a real server yet.
+2. ✅ Live at **https://lore-g8co.onrender.com** (Render free + Neon free, no card; `deploy/render`).
+   Checked from outside: app, deep links, manifest, sign-in required, CORS for the app, cross-site
+   writes blocked. Oracle kit (`deploy/oracle`) kept for when it outgrows the free tiers.
 3. ⬜ Password reset and email verification (needs an email provider; free tiers exist).
 4. ⬜ Reporting and moderation basics beyond blocking.
 5. ⬜ Calendar day/week views, event reminders.

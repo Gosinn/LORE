@@ -5,6 +5,14 @@ Newest first within each list.
 
 ## Taken
 
+**D22 · Live on Render + Neon (free, no card).** The owner's bank blocked Oracle's card check, so LORE
+runs on a Render free web service (Docker) at https://lore-g8co.onrender.com with Neon free Postgres
+(1 GB). On Render, config defaults adapt automatically (`RENDER=true`): photos stored in Postgres
+(the disk is wiped on restart), trusted proxy, scrypt 2^15/p=3 for 512 MB RAM; photo links are signed
+with a key derived from `DATABASE_URL` unless `MEDIA_URL_SECRET` is set. Only `DATABASE_URL` needs
+configuring. UptimeRobot pings `/api/health` every 5 minutes to stop the free service sleeping.
+Oracle (D19) remains the upgrade path when photos outgrow 1 GB.
+
 **D21 · Android app = Capacitor with the web app bundled inside.** The APK carries the built web app
 and talks to the server over HTTPS with a bearer token (cookies don't cross from the app's
 `https://localhost` origin). The API allows CORS for the app origins only (`NATIVE_ORIGINS`) and never

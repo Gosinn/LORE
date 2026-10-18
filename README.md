@@ -71,8 +71,14 @@ The Android app (`apps/android`, Capacitor) is the same web app bundled inside a
 
 ## Deploy
 
-**Free, on Oracle Cloud:** follow [deploy/oracle/README.md](deploy/oracle/README.md). One small server
-runs HTTPS (Caddy), LORE, Postgres and nightly backups; deploying is `git push oracle main`.
+**Live:** https://lore-g8co.onrender.com, deployed automatically from `main` on GitHub.
+
+**Free, no card (current):** Render + Neon, see [deploy/render/README.md](deploy/render/README.md). The
+only setting is `DATABASE_URL`.
+
+**Free, on Oracle Cloud (more room, needs a card check):** follow
+[deploy/oracle/README.md](deploy/oracle/README.md). One small server runs HTTPS (Caddy), LORE, Postgres
+and nightly backups; deploying is `git push oracle main`.
 
 **Anywhere else with Docker:** the root `docker-compose.yml` runs LORE + Postgres.
 
