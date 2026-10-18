@@ -1,0 +1,79 @@
+# LORE on one server: HTTPS (Caddy) → app → Postgres, plus nightly backups.
+# Lives at ~/lore/deploy/oracle on the server; secrets come from ~/lore-config/.env
+# (created by server-setup.sh, never committed).
+name: lore
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+  app:
+    build:
+      context: ../..
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://lore:${POSTGRES_PASSWORD}@db:5432/lore
+      WEB_ORIGINS: https://${DOMAIN}
+      TRUST_PROXY: 'true'
+      COOKIE_SECURE: 'true'
+      MEDIA_URL_SECRET: ${MEDIA_URL_SECRET}
+      LOG_LEVEL: warn
+    volumes:
+      - media:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lore
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lore -d lore']
+      interval: 5s
+      retries: 20
+
+  # One compressed dump per night, the last 14 kept, in ~/lore-backups on the server.
+  backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${HOME}/lore-backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          pg_dump -h db -U lore -d lore -Fc -f /backups/lore-$$(date +%Y%m%d-%H%M).dump \
+            && find /backups -name 'lore-*.dump' -mtime +14 -delete \
+            && echo "backup ok $$(date)"
+          sleep 86400
+        done
+
+volumes:
+  caddy-data:
+  caddy-config:
+  db:
+  media:

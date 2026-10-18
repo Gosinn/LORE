@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronRight, LogOut, Users } from 'lucide-react';
+import { Camera, ChevronRight, Download, LogOut, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { Me, MediaRef } from '#shared';
@@ -19,6 +19,7 @@ export function MyProfile() {
   const crews = useCrews();
   const lore = useChapters({ personId: me.id });
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme());
   const fileRef = useRef<HTMLInputElement>(null);
   const incoming = (requests.data ?? []).filter((r) => r.direction === 'incoming').length;
@@ -31,6 +32,7 @@ export function MyProfile() {
     },
     { onSuccess: (updated) => qc.setQueryData(['me'], updated) },
   );
+  const exportData = useAction(() => api.download('/me/export', `lore-${me.username}.json`));
   const logout = useAction(() => api.post('/auth/logout'), {
     onSuccess: () => {
       setNativeToken(null);
@@ -139,8 +141,70 @@ export function MyProfile() {
         </div>
       </Section>
 
+      <Section title="Your data">
+        <div className="stack">
+          <p className="small muted">Everything you’ve put into LORE belongs to you.</p>
+          <div className="row-wrap">
+            <button className="btn btn-secondary btn-sm" onClick={() => exportData.mutate(undefined)} disabled={exportData.isPending}>
+              <Download size={15} /> {exportData.isPending ? 'Preparing…' : 'Download my data'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setDeleting(true)}>
+              Delete my account
+            </button>
+          </div>
+          <ErrorNote error={exportData.error} />
+        </div>
+      </Section>
+
       {editing && <EditProfileSheet me={me} onClose={() => setEditing(false)} />}
+      {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
     </>
+  );
+}
+
+function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [password, setPassword] = useState('');
+  const remove = useAction(() => api.del('/me', { password }), {
+    onSuccess: () => {
+      setNativeToken(null);
+      qc.clear();
+      qc.setQueryData(['me'], null);
+      navigate('/welcome', { replace: true });
+    },
+  });
+  return (
+    <Sheet title="Delete your account" onClose={onClose}>
+      <form
+        className="form-grid"
+        onSubmit={(e) => {
+          e.preventDefault();
+          remove.mutate(undefined);
+        }}
+      >
+        <div className="stack small">
+          <p>This can’t be undone.</p>
+          <p className="muted">
+            <strong>Goes:</strong> your profile, friends, crew memberships, private calendar, private chapters and ideas
+            only you could see.
+          </p>
+          <p className="muted">
+            <strong>Stays, anonymised as “a former member”:</strong> stories, quotes, photos and messages you added to
+            chapters and plans shared with other people, so their history stays whole. Crews, plans and chapters you ran
+            are handed to someone else in them.
+          </p>
+          <p className="muted">Want a copy first? Use “Download my data”.</p>
+        </div>
+        <Field label="Your password" htmlFor="delpw">
+          <input id="delpw" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </Field>
+        <ErrorNote error={remove.error} />
+        <button className="btn btn-danger btn-block" disabled={!password || remove.isPending}>
+          {remove.isPending ? 'Deleting…' : 'Delete my account for good'}
+        </button>
+      </form>
+    </Sheet>
   );
 }
 

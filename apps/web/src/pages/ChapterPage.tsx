@@ -5,7 +5,7 @@ import type { ChapterDetail, Contribution, MediaRef } from '#shared';
 import { CommentThread } from '../components/CommentThread.tsx';
 import { CrewTag } from '../components/cards.tsx';
 import { PeoplePicker } from '../components/pickers.tsx';
-import { Avatar, AvatarStack, ErrorNote, Field, Loading, PageError, PrivacyBadge, Section, Sheet, TopBar } from '../components/ui.tsx';
+import { Avatar, AvatarStack, ErrorNote, Field, FORMER_MEMBER, Loading, PageError, PrivacyBadge, Section, Sheet, TopBar } from '../components/ui.tsx';
 import { api, mediaSrc } from '../lib/api.ts';
 import { fmtChapterDate, timeAgo } from '../lib/dates.ts';
 import { prepareImage } from '../lib/images.ts';
@@ -103,7 +103,7 @@ function ChapterView({ c }: { c: ChapterDetail }) {
           <div className="photo-grid">
             {photos.map((p) => (
               <figure key={p.id} className="photo" onClick={() => setLightbox(p.media)}>
-                <img src={mediaSrc(p.media!.url)} alt={p.caption ?? `Photo by ${p.author.displayName}`} loading="lazy" />
+                <img src={mediaSrc(p.media!.url)} alt={p.caption ?? `Photo by ${(p.author ?? FORMER_MEMBER).displayName}`} loading="lazy" />
                 {p.caption && <figcaption>{p.caption}</figcaption>}
               </figure>
             ))}
@@ -178,10 +178,10 @@ function ContributionView({ chapterId, x }: { chapterId: string; x: Contribution
 
   const byline = (
     <div className="contribution-by">
-      <Avatar user={x.author} size="sm" />
+      <Avatar user={x.author ?? FORMER_MEMBER} size="sm" />
       <span className="grow">
         {x.type === 'quote' ? 'Remembered by ' : ''}
-        <strong style={{ color: 'var(--ink-2)' }}>{x.author.displayName}</strong> · {timeAgo(x.createdAt)}
+        <strong style={{ color: 'var(--ink-2)' }}>{(x.author ?? FORMER_MEMBER).displayName}</strong> · {timeAgo(x.createdAt)}
         {x.updatedAt !== x.createdAt && ' · edited'}
       </span>
       {x.canEdit && !editing && (

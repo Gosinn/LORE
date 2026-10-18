@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import type { Me } from '#shared';
 import { Backronym, Field, Loading, Wordmark } from '../components/ui.tsx';
-import { api, ApiError } from '../lib/api.ts';
+import { api, ApiError, setNativeToken } from '../lib/api.ts';
 import { useMe } from '../lib/queries.ts';
 
 export function Welcome() {
@@ -28,13 +28,14 @@ export function Welcome() {
     try {
       const res =
         mode === 'login'
-          ? await api.post<{ user: Me }>('/auth/login', { login: form.login, password: form.password })
-          : await api.post<{ user: Me }>('/auth/register', {
+          ? await api.post<{ user: Me; token?: string }>('/auth/login', { login: form.login, password: form.password })
+          : await api.post<{ user: Me; token?: string }>('/auth/register', {
               username: form.username,
               displayName: form.displayName,
               email: form.email,
               password: form.password,
             });
+      if (res.token) setNativeToken(res.token);
       qc.setQueryData(['me'], res.user);
       navigate(from, { replace: true });
     } catch (err) {

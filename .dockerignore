@@ -9,3 +9,4 @@ apps/web/dist
 .claude
 docs
 apps/api/test
+apps/android

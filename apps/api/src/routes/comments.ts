@@ -55,7 +55,7 @@ export async function commentRoutes(app: FastifyInstance, { db }: AppContext) {
     const rows = await db
       .select({ id: comments.id, body: comments.body, createdAt: comments.createdAt, authorId: comments.authorId, author: userColumns })
       .from(comments)
-      .innerJoin(users, eq(users.id, comments.authorId))
+      .leftJoin(users, eq(users.id, comments.authorId))
       .where(eq(target.column, targetId))
       .orderBy(desc(comments.createdAt))
       .limit(200);
@@ -63,7 +63,7 @@ export async function commentRoutes(app: FastifyInstance, { db }: AppContext) {
       id: r.id,
       body: r.body,
       createdAt: iso(r.createdAt),
-      author: toUserSummary(r.author),
+      author: r.author?.id ? toUserSummary(r.author) : null,
       canDelete: r.authorId === viewerId || moderator,
     }));
   }

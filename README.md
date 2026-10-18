@@ -54,24 +54,40 @@ development only).
 | `npm run db:generate` | new SQL migration after editing `apps/api/src/db/schema.ts` |
 | `npm run db:migrate` | apply migrations (the server also does this on start) |
 | `npm run seed` | demo data through the running API |
-| `node tools/make-icons.mjs` | regenerate the app icons |
+| `node tools/make-icons.mjs` | regenerate the web and Android icons |
+| `node tools/android.mjs dev` | Android test app that loads this computer's dev server over Wi-Fi |
+| `node tools/android.mjs release --api https://…` | signed Android app (APK + AAB) for a live server |
+
+## Android app
+
+The Android app (`apps/android`, Capacitor) is the same web app bundled inside a native shell.
+
+- **Try it before the server is live:** `node tools/android.mjs dev`, then `npm run dev -- --lan`, and
+  install `dist-android/LORE-dev.apk` on a phone on the same Wi-Fi (allow "install unknown apps"; allow
+  Node.js through the Windows firewall on private networks when asked).
+- **The real app:** once the server is online, `node tools/android.mjs release --api https://<your domain>`
+  produces a signed `LORE-<version>.apk` (to share directly) and `.aab` (for Google Play). The signing
+  key is created outside the repo; back it up, since updates must be signed with the same key.
 
 ## Deploy
 
-One container runs the API and serves the web app; it needs PostgreSQL.
+**Free, on Oracle Cloud:** follow [deploy/oracle/README.md](deploy/oracle/README.md). One small server
+runs HTTPS (Caddy), LORE, Postgres and nightly backups; deploying is `git push oracle main`.
+
+**Anywhere else with Docker:** the root `docker-compose.yml` runs LORE + Postgres.
 
 ```bash
 cp .env.example .env    # set POSTGRES_PASSWORD and PUBLIC_URL
 docker compose up -d
 ```
 
-Put HTTPS in front of it (Caddy, Traefik or the host's load balancer) and set `TRUST_PROXY=true`.
-Session cookies are `Secure` in production, so plain http only works with `COOKIE_SECURE=false` for local
-trials. Uploaded photos live in the `/data` volume; use S3-compatible storage once you run more than one
-instance (see roadmap).
+Put HTTPS in front of it and set `TRUST_PROXY=true`. Session cookies are `Secure` in production, so
+plain http only works with `COOKIE_SECURE=false` for local trials. Set `MEDIA_URL_SECRET` so photo links
+survive restarts.
 
-The Docker image hasn't been built on the development machine yet (Docker would write to the full C:
-drive). The production server mode it runs (`npm start`) has been tested.
+Not yet verified: the Docker image hasn't been built on the development machine (Docker would write
+to the full C: drive) and the Oracle kit hasn't run against a real server. The production server mode it
+runs (`npm start`) has been tested.
 
 ## Project rules
 

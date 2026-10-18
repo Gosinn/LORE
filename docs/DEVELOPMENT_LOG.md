@@ -1,5 +1,48 @@
 # LORE — Development log
 
+## 2026-10-18 (later) — Going live and going native
+
+**Owner decisions:** hosting on Oracle Cloud Always Free (free), Android first, deleted accounts keep
+their shared contributions anonymised, code goes to a private GitHub repo.
+
+**Built**
+
+- Git repository (first commit: Phase 1 foundation).
+- Account deletion (`DELETE /api/me`, password required) and data export (`GET /api/me/export`), with
+  the hand-over rules in `apps/api/src/lib/accounts.ts`; migration `0001` makes authors nullable.
+  Profile → "Your data" in the app; anonymised posts show "A former member".
+- Native support in the API: CORS for app origins, signed short-lived photo links.
+- Android: portable JDK 21 + Android SDK 36 in `D:\toolchains` (checksum-verified downloads; SDK
+  license accepted with the owner's approval), Capacitor 8 project in `apps/android`, LORE launcher
+  icons (legacy, round, adaptive) and splash screens, back button and status bar handling,
+  `tools/android.mjs` for dev and signed release builds.
+- Oracle deployment kit in `deploy/oracle` (Caddy + app + Postgres 18 + nightly backups, one-time
+  `server-setup.sh`, push-to-deploy hook, step-by-step guide). Deploy SSH key generated in
+  `D:\LORE-devenv\ssh` (outside the repo).
+
+**Verified**
+
+- 41 API tests pass (auth 8, privacy 14, lifecycle 10, account 9), run file by file.
+- Migration 0001 applied to the existing development database; sessions survived.
+- In the browser: sign-up, Profile → delete account → back to sign-in, account gone.
+- `dist-android/LORE-dev.apk` builds; `aapt2` shows `com.gosinn.lore`, label LORE, target SDK 36.
+
+**Not verified**
+
+- The APK hasn't run on a phone or emulator yet (no emulator image; little free RAM).
+- The Oracle kit hasn't run against a real server yet.
+- "Download my data" in the Android WebView (blob downloads may need a native share sheet).
+
+**Problems hit**
+
+- The `D:\dev` JDK/Android folders seen at the start had disappeared → fresh portable toolchain.
+- `sdkmanager.bat` splits `platforms;android-36` at the `;` → package list file.
+- Memory: a 2.4 GB process not started by me left ~1.2 GB allocatable; a full test run crashed with
+  "AlignedAlloc failed" → test files run one at a time; Gradle capped at 1 GB, no daemon.
+- `cmd.exe` here doesn't search the current folder for programs → `.\gradlew.bat`.
+- A second PowerShell edit re-garbled one test file's curly quotes → repaired; edits since use the
+  Edit tool or explicit UTF-8.
+
 ## 2026-10-18 — Phase 1 foundation
 
 **Built**

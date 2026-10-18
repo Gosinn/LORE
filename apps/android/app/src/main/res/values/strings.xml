@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LORE</string>
+    <string name="title_activity_main">LORE</string>
+    <string name="package_name">com.gosinn.lore</string>
+    <string name="custom_url_scheme">com.gosinn.lore</string>
+</resources>

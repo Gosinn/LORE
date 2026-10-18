@@ -19,6 +19,7 @@ import {
 } from '../lib/access.ts';
 import { badRequest, forbidden, notFound } from '../lib/errors.ts';
 import { sniffImage } from '../lib/images.ts';
+import { verifyMediaSignature } from '../lib/mediaUrls.ts';
 import { toMediaRef } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
@@ -80,15 +81,23 @@ export async function mediaRoutes(app: FastifyInstance, { db, storage }: AppCont
     return toMediaRef(row!);
   });
 
-  /** Files are never public URLs: every read re-checks who may see what it belongs to. */
+  /**
+   * Files are never public. A request needs either a signature the API issued to
+   * someone allowed to see the photo (lib/mediaUrls.ts) or a session that passes the
+   * same access check as the thing the photo belongs to.
+   */
   app.get('/media/:id', async (req, reply) => {
-    const me = requireUser(req);
     const id = idParam(req.params);
+    const { exp, sig } = (req.query ?? {}) as Record<string, unknown>;
+    const signed = verifyMediaSignature(id, exp, sig);
+    const me = signed ? null : requireUser(req);
     const [m] = await db.select().from(media).where(eq(media.id, id)).limit(1);
     if (!m) throw notFound('That file');
 
     let allowed = true;
-    if (m.chapterId) {
+    if (me === null) {
+      // Signature already proves access.
+    } else if (m.chapterId) {
       const [c] = await db
         .select({ id: chapters.id })
         .from(chapters)
@@ -110,7 +119,7 @@ export async function mediaRoutes(app: FastifyInstance, { db, storage }: AppCont
     reply
       .header('content-type', m.mimeType)
       .header('content-length', m.byteSize)
-      .header('cache-control', 'private, max-age=86400, immutable')
+      .header('cache-control', 'private, max-age=3600')
       .header('x-content-type-options', 'nosniff')
       .header('content-security-policy', "default-src 'none'");
     return reply.send(storage.get(m.storageKey));

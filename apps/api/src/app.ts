@@ -9,6 +9,8 @@ import { MAX_MEDIA_BYTES } from '#shared';
 import { resolveSession, SESSION_COOKIE } from './auth/sessions.ts';
 import type { AppContext } from './context.ts';
 import { forbidden, HttpError } from './lib/errors.ts';
+import { setMediaUrlSecret } from './lib/mediaUrls.ts';
+import { accountRoutes } from './routes/account.ts';
 import { authRoutes } from './routes/auth.ts';
 import { chapterRoutes } from './routes/chapters.ts';
 import { commentRoutes } from './routes/comments.ts';
@@ -39,10 +41,27 @@ export async function buildApp(ctx: AppContext) {
   app.decorateRequest('userId', null);
   app.decorateRequest('sessionToken', null);
 
+  setMediaUrlSecret(config.mediaUrlSecret);
+
   const sameOrigin = (req: FastifyRequest, origin: string) =>
-    config.webOrigins.includes(origin) || origin === `${req.protocol}://${req.host}`;
+    config.webOrigins.includes(origin) ||
+    config.nativeOrigins.includes(origin) ||
+    origin === `${req.protocol}://${req.host}`;
 
   app.addHook('onRequest', async (req, reply) => {
+    // Native apps (Capacitor) call the API cross-origin with bearer tokens. They get
+    // CORS headers; browsers on other sites don't, and never get credentials.
+    const origin = req.headers.origin;
+    if (origin && config.nativeOrigins.includes(origin)) {
+      reply
+        .header('access-control-allow-origin', origin)
+        .header('vary', 'Origin')
+        .header('access-control-allow-headers', 'authorization, content-type, x-lore-client')
+        .header('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+        .header('access-control-max-age', '600');
+      if (req.method === 'OPTIONS') return reply.status(204).send();
+    }
+
     const bearer = req.headers.authorization?.startsWith('Bearer ')
       ? req.headers.authorization.slice(7).trim()
       : null;
@@ -91,6 +110,7 @@ export async function buildApp(ctx: AppContext) {
     async (api) => {
       for (const routes of [
         authRoutes,
+        accountRoutes,
         userRoutes,
         friendRoutes,
         crewRoutes,

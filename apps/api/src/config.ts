@@ -20,6 +20,10 @@ const Env = z.object({
   PUBLIC_DIR: z.string().default(path.join(repoRoot, 'apps', 'web', 'dist')),
   /** Browser origins allowed to make cookie-authenticated writes. Comma separated. */
   WEB_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
+  /** Origins of the native apps (Capacitor WebViews). They authenticate with bearer tokens. */
+  NATIVE_ORIGINS: z.string().default('https://localhost,capacitor://localhost,http://localhost'),
+  /** Signs photo links; set it in production so links survive restarts. */
+  MEDIA_URL_SECRET: z.string().min(16).optional(),
   COOKIE_SECURE: bool.optional(),
   TRUST_PROXY: bool.default(false),
   SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(60),
@@ -37,12 +41,20 @@ export interface Config {
   mediaDir: string;
   publicDir: string;
   webOrigins: string[];
+  nativeOrigins: string[];
+  mediaUrlSecret: string | undefined;
   cookieSecure: boolean;
   trustProxy: boolean;
   sessionDays: number;
   scryptCost: number;
   logLevel: string;
 }
+
+const list = (v: string) =>
+  v
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.safeParse(env);
@@ -58,9 +70,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     pgliteDir: e.PGLITE_DIR,
     mediaDir: e.MEDIA_DIR,
     publicDir: e.PUBLIC_DIR,
-    webOrigins: e.WEB_ORIGINS.split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
+    webOrigins: list(e.WEB_ORIGINS),
+    nativeOrigins: list(e.NATIVE_ORIGINS),
+    mediaUrlSecret: e.MEDIA_URL_SECRET,
     cookieSecure: e.COOKIE_SECURE ?? e.NODE_ENV === 'production',
     trustProxy: e.TRUST_PROXY,
     sessionDays: e.SESSION_DAYS,

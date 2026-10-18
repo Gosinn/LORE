@@ -5,6 +5,32 @@ Newest first within each list.
 
 ## Taken
 
+**D21 · Android app = Capacitor with the web app bundled inside.** The APK carries the built web app
+and talks to the server over HTTPS with a bearer token (cookies don't cross from the app's
+`https://localhost` origin). The API allows CORS for the app origins only (`NATIVE_ORIGINS`) and never
+with credentials. A separate *dev* APK loads the Vite dev server over Wi-Fi for testing before a server
+exists. App id `com.gosinn.lore` (change it before the first Play Store upload if wanted; impossible after).
+
+**D20 · Photo links are signed and short-lived.** Every media URL carries an expiry (1–2 hours,
+rounded to the hour) and an HMAC; the file route accepts a valid signature instead of a session, because
+`<img>` can't send a bearer token. Only people who can see a photo ever receive its link; a forwarded
+link stops working within two hours. Unsigned requests still go through the full access check. Set
+`MEDIA_URL_SECRET` in production so links survive restarts.
+
+**D19 · Hosting: Oracle Cloud Always Free.** Owner's choice (2026-10-18; no paid hosting). One Ampere
+VM (2 OCPU / 12 GB) runs Caddy (HTTPS) + the app + Postgres + nightly backups via
+`deploy/oracle/docker-compose.yml`; a free DuckDNS name provides the domain. Deploys are `git push oracle
+main` to a bare repo on the server, whose hook rebuilds and restarts. Fly.io (no free tier any more) and
+Render (sleeps, free database deleted after 30 days) were ruled out.
+
+**D18 · Account deletion keeps shared history, anonymised.** Owner's choice (answers Q1). Deleted: the
+account, sessions, friendships, blocks, memberships, RSVPs, personal calendar, notifications, private
+(`only_me`) chapters, chapters nobody else was part of, ideas only they or their friends could see,
+profile pictures and unused uploads. Kept with the author set to null ("a former member"):
+contributions, comments, and the photos used in shared chapters. Crews pass to the longest-standing
+admin (else member); events and chapters get a new organizer; anything left with nobody in it is
+deleted. Deletion requires the password. A JSON export (`GET /api/me/export`) is offered first.
+
 **D17 · Notifications only for things that change your plans or your history.** Invitations, crew
 invites, plan changes, cancellations, being added to a chapter, new contributions to a chapter you're in,
 friend requests. *Not* for discussion messages or RSVPs (would be noise). Several contributions to one
@@ -30,12 +56,13 @@ without forcing friendship.
 **D12 · One chapter per event.** Multiple perspectives live inside the chapter as contributions, not as
 competing chapters (brief part X).
 
-**D11 · Media is never public.** Files are served through the API, which re-checks access on every
-request. Photos are re-encoded on the device, which strips EXIF/GPS. File types are detected from bytes.
-*Next:* signed short-lived URLs once native apps need to load images without cookies.
+**D11 · Media is never public.** Files are served through the API, which checks access (see D20 for
+signed links). Photos are re-encoded on the device, which strips EXIF/GPS. File types are detected
+from bytes.
 
 **D10 · Deletion rules in the schema.** Personal data cascades with the account; shared records keep
-existing with `created_by = null`. Account deletion itself isn't exposed yet (see open question Q1).
+existing with `created_by = null`; contributions, comments and their photos keep existing with the author
+set to null (D18).
 
 **D9 · Audiences, not ad-hoc ACL lists.** Each item has one audience (`only_me`, `participants`,
 `friends`, `crew`) plus the explicit people attached to it. This covers every Phase 1 sharing case in the
@@ -76,20 +103,19 @@ cross-app messages. Nothing is built for it yet, deliberately.
 
 ## Open questions for the product owner
 
-**Q1 · Account deletion.** The brief requires that users can request deletion. The schema is ready
-(personal data cascades, shared records survive anonymised). Decide: delete immediately or after a grace
-period? Should the person's *contributions* to shared chapters be deleted (current default) or kept
-anonymised ("a former member")? Should private `only_me` chapters be deleted with the account (recommended)?
+**Q1 · ~~Account deletion~~** Answered: D18. Still open: immediate deletion (current) or a grace
+period to change your mind?
 
-**Q2 · Data export format.** JSON + photos in a zip is the obvious first version. Printable Lorebook PDF later?
+**Q2 · Data export format.** A JSON export exists (D18); photos are linked, not bundled. A zip with the
+photos, or a printable Lorebook PDF, later?
 
 **Q3 · Discussion notifications.** Currently silent (D17). Options: notify organizers only, or let each
 person "follow" a thread.
 
 **Q4 · Crew size limit and public crews.** No limit and no discovery today (all crews are private).
 
-**Q5 · Hosting.** Any container host works (Fly.io, Railway, Render, Hetzner/VPS + docker compose). Needs a
-domain and HTTPS. Budget decides; a small VPS with docker compose is the cheapest predictable option.
+**Q5 · ~~Hosting~~** Answered: D19 (Oracle Cloud Always Free + DuckDNS). Later: a real domain name
+(~€10/year) would look better than `*.duckdns.org` and is needed for Play Store links.
 
 **Q6 · Brand.** The current identity (Fraunces + Instrument Sans, paper/ink/ember palette, compass-needle
 emblem) is a proposal. Replace or keep.

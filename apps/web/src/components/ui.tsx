@@ -36,6 +36,9 @@ export function Avatar({ user, size = 'md' }: { user: Pick<UserSummary, 'display
   );
 }
 
+/** Someone who has deleted their account. Their contributions stay, anonymised. */
+export const FORMER_MEMBER = { id: 'former-member', displayName: 'A former member', avatarUrl: null } as const;
+
 export function AvatarStack({ users, max = 5 }: { users: UserSummary[]; max?: number }) {
   const shown = users.slice(0, max);
   return (

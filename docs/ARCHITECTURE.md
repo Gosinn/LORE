@@ -116,6 +116,11 @@ quotes as their own archive, and capsules each become a table that references th
   `SameSite=Lax` adds a second layer. Bearer requests are exempt because other sites can't attach them.
 - **Abuse**: sign-in and registration are rate-limited per IP; failed sign-ins for unknown accounts burn
   the same hashing time, and wrong-password and unknown-user errors are identical.
+- **Native apps**: the Android app runs at origin `https://localhost`. The API answers CORS for the
+  configured app origins (`NATIVE_ORIGINS`), never with credentials; the app authenticates with its
+  bearer token. Photos are loaded through signed links that expire within two hours (see DECISIONS D20).
+- **Leaving**: `DELETE /api/me` (password required) deletes the account; shared contributions stay,
+  anonymised; `GET /api/me/export` returns everything the person added, as JSON (DECISIONS D18).
 - **Later**: email verification and password reset need an email provider. "Sign in with Cardboard" (OIDC
   with PKCE) is planned for the end of the roadmap and will add a `user_identities` table linking external
   subjects to accounts.
@@ -192,9 +197,12 @@ LORE APP/
 ├─ package.json            scripts, all dependencies, "#shared" import alias
 ├─ tsconfig.base.json      strict TypeScript settings shared by every part
 ├─ Dockerfile, docker-compose.yml, .env.example
+├─ capacitor.config.json   Android app settings (app id, web build location)
 ├─ CLAUDE.md               working rules for this repo
+├─ deploy/oracle/          free hosting: compose (Caddy + app + Postgres + backups), setup script, guide
 ├─ docs/                   MASTER_BRIEF, ARCHITECTURE, DECISIONS, ROADMAP, DEVELOPMENT_LOG
-├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), make-icons.mjs
+├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), android.mjs (builds the app), make-icons.mjs
+├─ apps/android/           Capacitor Android project (generated, plus icons, splash and signing setup)
 ├─ packages/shared/src/    vocabulary.ts (enums + labels), inputs.ts (Zod schemas), types.ts (DTOs)
 ├─ apps/api/
 │  ├─ src/

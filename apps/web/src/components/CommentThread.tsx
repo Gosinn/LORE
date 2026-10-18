@@ -4,7 +4,7 @@ import type { Comment } from '#shared';
 import { api } from '../lib/api.ts';
 import { timeAgo } from '../lib/dates.ts';
 import { useAction, useComments, type CommentKind } from '../lib/queries.ts';
-import { Avatar, ErrorNote } from './ui.tsx';
+import { Avatar, ErrorNote, FORMER_MEMBER } from './ui.tsx';
 
 export function CommentThread({ kind, id, placeholder = 'Say something…' }: { kind: CommentKind; id: string; placeholder?: string }) {
   const comments = useComments(kind, id);
@@ -19,10 +19,10 @@ export function CommentThread({ kind, id, placeholder = 'Say something…' }: { 
       {comments.data?.length === 0 && <p className="small muted">No messages yet.</p>}
       {comments.data?.map((c) => (
         <div className="comment" key={c.id}>
-          <Avatar user={c.author} size="sm" />
+          <Avatar user={c.author ?? FORMER_MEMBER} size="sm" />
           <div className="stack" style={{ gap: 4 }}>
             <span className="tiny muted">
-              <strong style={{ color: 'var(--ink-2)' }}>{c.author.displayName}</strong> · {timeAgo(c.createdAt)}
+              <strong style={{ color: 'var(--ink-2)' }}>{(c.author ?? FORMER_MEMBER).displayName}</strong> · {timeAgo(c.createdAt)}
               {c.canDelete && (
                 <button
                   className="btn btn-ghost btn-sm"

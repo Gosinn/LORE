@@ -1,10 +1,12 @@
 // The LORE database. Every table is listed here; migrations in ../../drizzle are
 // generated from this file with `npm run db:generate`.
 //
-// Deletion rules follow the brief (part XXVIII): when an account goes, its personal
-// data goes with it (sessions, friendships, its own contributions and media), while
-// shared records that other people rely on (crews, events, chapters, ideas) survive
-// with their creator set to null.
+// Deletion rules follow the brief (part XXVIII) and the owner's decision: when an
+// account goes, its personal data goes with it (sessions, friendships, private
+// calendar), while shared history survives anonymised: contributions, comments and
+// the photos in them keep existing with their author set to null, and shared
+// records (crews, events, chapters, ideas) keep existing with their creator set to
+// null. The account deletion service (lib/accounts.ts) handles the rest.
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
@@ -336,9 +338,8 @@ export const media = pgTable(
   'media',
   {
     id: id(),
-    ownerId: uuid('owner_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Null once the uploader has deleted their account (shared photos stay). */
+    ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
     storageKey: text('storage_key').notNull().unique(),
     mimeType: text('mime_type').notNull(),
     byteSize: integer('byte_size').notNull(),
@@ -364,9 +365,8 @@ export const contributions = pgTable(
     chapterId: uuid('chapter_id')
       .notNull()
       .references(() => chapters.id, { onDelete: 'cascade' }),
-    authorId: uuid('author_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Null once the author has deleted their account: shown as "a former member". */
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
     type: contributionType('type').notNull(),
     title: text('title'),
     body: text('body'),
@@ -394,9 +394,7 @@ export const comments = pgTable(
   'comments',
   {
     id: id(),
-    authorId: uuid('author_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
     body: text('body').notNull(),
     eventId: uuid('event_id').references(() => events.id, { onDelete: 'cascade' }),
     ideaId: uuid('idea_id').references(() => ideas.id, { onDelete: 'cascade' }),

@@ -28,8 +28,9 @@ import {
   users,
 } from '../db/schema.ts';
 import { chapterVisible, eventVisible, ideaVisible } from './access.ts';
+import { signedMediaPath } from './mediaUrls.ts';
 
-export const mediaUrl = (id: string) => `/api/media/${id}`;
+export const mediaUrl = (id: string) => signedMediaPath(id);
 
 export const iso = (d: Date | string) => (d instanceof Date ? d : new Date(d)).toISOString();
 export const isoOrNull = (d: Date | string | null | undefined) => (d == null ? null : iso(d));

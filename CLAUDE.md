@@ -21,7 +21,15 @@ C: is nearly full (≈6 GB free). Installs, downloads, caches, temp files and bu
 
 ## Commands
 - Tests: `npm test` (Vitest, in-memory PGlite, files run serially with `--liftoff-only --no-turbofan`
-  because the machine is short on RAM).
+  because the machine is short on RAM). If memory is very tight, run files one by one:
+  `npx vitest run --config apps/api/vitest.config.ts <auth|privacy|lifecycle|account>`.
+- Android: `node tools/android.mjs dev` (Wi-Fi test app) or `release --api https://…` (signed APK +
+  AAB into `dist-android/`). Toolchain in `D:\toolchains` (JDK 21, Android SDK 36, Gradle home); the
+  env scripts set JAVA_HOME/ANDROID_HOME/ANDROID_USER_HOME/GRADLE_USER_HOME. Gradle is capped at 1 GB.
+  `cmd.exe` here won't run programs from the current folder without `.\`.
+- `sdkmanager.bat` mangles package names with `;` on the command line; use `--package_file`.
+- Deploy: `deploy/oracle/README.md`. SSH key `D:\LORE-devenv\ssh\lore_oracle` (outside the repo);
+  release signing key `D:\LORE-devenv\keystore` (outside the repo; must be backed up).
 - Typecheck: `npm run typecheck`. Build: `npm run build`. Dev: `npm run dev` (or the `lore-api` /
   `lore-web` entries in `.claude/launch.json`). Demo data: `npm run seed` while the API runs.
 - Schema change: edit `apps/api/src/db/schema.ts`, then `npm run db:generate`. Never hand-edit

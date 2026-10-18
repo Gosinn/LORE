@@ -1,0 +1,18 @@
+{
+  "appId": "com.gosinn.lore",
+  "appName": "LORE",
+  "webDir": "apps/web/dist",
+  "android": {
+    "path": "apps/android"
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#f4eee3",
+      "showSpinner": false
+    }
+  }
+}

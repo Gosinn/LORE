@@ -10,7 +10,7 @@ beforeAll(async () => {
   t = await createTestApp();
   [ari, bea, cal, dan] = (await Promise.all(['ari', 'bea', 'cal', 'dan'].map((u) => t.signUp(u)))) as [Client, Client, Client, Client];
   await t.befriend(ari, bea);
-  const crew = await ari.post('/api/crews', { name: 'The Absolute Legends', emoji: 'ðŸ”ï¸' });
+  const crew = await ari.post('/api/crews', { name: 'The Absolute Legends', emoji: '🏔️' });
   crewId = crew.body.id;
   await ari.post(`/api/crews/${crewId}/invites`, { userIds: [bea.user.id] });
   await bea.post(`/api/crews/${crewId}/accept`);
@@ -52,7 +52,7 @@ describe('event audiences', () => {
     expect((await dan.get(`/api/events/${e.body.id}`)).status).toBe(404);
   });
 
-  it('friends: the creatorâ€™s friends can see and join it', async () => {
+  it('friends: the creator’s friends can see and join it', async () => {
     const e = await ari.post('/api/events', event({ audience: 'friends', title: 'Friends only' }));
     expect((await bea.get(`/api/events/${e.body.id}`)).status).toBe(200);
     expect((await cal.get(`/api/events/${e.body.id}`)).status).toBe(404);
@@ -75,12 +75,12 @@ describe('event audiences', () => {
     expect((await ella.get(`/api/events/${e.body.id}`)).status).toBe(200);
   });
 
-  it('canâ€™t be used to invite strangers', async () => {
+  it('can’t be used to invite strangers', async () => {
     const res = await ari.post('/api/events', event({ inviteUserIds: [dan.user.id] }));
     expect(res.status).toBe(400);
   });
 
-  it('canâ€™t be attached to a crew youâ€™re not in', async () => {
+  it('can’t be attached to a crew you’re not in', async () => {
     const res = await dan.post('/api/events', event({ crewId }));
     expect(res.status).toBe(400);
   });
@@ -124,19 +124,23 @@ describe('chapters and media', () => {
 
     expect((await bea.get(`/api/chapters/${id}`)).status).toBe(200);
     expect((await bea.get(upload.body.url)).status).toBe(200);
-    // Cal shares a crew with Ari, but the chapter isn't shared with the crew.
+    // Cal shares a crew with Ari, but the chapter isn't shared with the crew: he
+    // can't open it, so he never receives a signed link to its photos, and the
+    // file itself, asked for without a signature, is hidden from him too.
     expect((await cal.get(`/api/chapters/${id}`)).status).toBe(404);
-    expect((await cal.get(upload.body.url)).status).toBe(404);
-    expect((await dan.get(upload.body.url)).status).toBe(404);
+    const unsigned = upload.body.url.split('?')[0];
+    expect((await bea.get(unsigned)).status).toBe(200);
+    expect((await cal.get(unsigned)).status).toBe(404);
+    expect((await dan.get(unsigned)).status).toBe(404);
   });
 
-  it('rejects files that arenâ€™t images, whatever they claim to be', async () => {
+  it('rejects files that aren’t images, whatever they claim to be', async () => {
     const ch = await ari.post('/api/chapters', { title: 'Uploads', occurredOn: '2025-01-01' });
     const res = await ari.upload(`/api/media?chapterId=${ch.body.id}`, Buffer.from('<script>alert(1)</script>'), 'x.png');
     expect(res.status).toBe(400);
   });
 
-  it('donâ€™t let outsiders add photos', async () => {
+  it('don’t let outsiders add photos', async () => {
     const ch = await ari.post('/api/chapters', { title: 'Closed', occurredOn: '2025-01-02' });
     expect((await dan.upload(`/api/media?chapterId=${ch.body.id}`, PNG_1X1)).status).toBe(404);
   });

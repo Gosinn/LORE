@@ -170,7 +170,8 @@ export interface ChapterSummary {
 export interface Contribution {
   id: string;
   type: ContributionType;
-  author: UserSummary;
+  /** Null when the author has deleted their account ("a former member"). */
+  author: UserSummary | null;
   title: string | null;
   body: string | null;
   caption: string | null;
@@ -200,7 +201,8 @@ export interface ChapterDetail extends ChapterSummary {
 
 export interface Comment {
   id: string;
-  author: UserSummary;
+  /** Null when the author has deleted their account. */
+  author: UserSummary | null;
   body: string;
   createdAt: string;
   canDelete: boolean;

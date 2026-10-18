@@ -1,12 +1,18 @@
 // `npm run dev`: runs the API (with auto-restart) and the Vite dev server together.
 // Open http://localhost:5173. Ctrl+C stops both.
+// `npm run dev -- --lan` also exposes the web server to phones on the same Wi-Fi
+// (for the dev build of the Android app, see tools/android.mjs).
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const procs = [
   { name: 'api', color: 33, args: ['--watch', '--env-file-if-exists=.env', 'apps/api/src/server.ts'] },
-  { name: 'web', color: 36, args: ['node_modules/vite/bin/vite.js', '--config', 'apps/web/vite.config.ts'] },
+  {
+    name: 'web',
+    color: 36,
+    args: ['node_modules/vite/bin/vite.js', '--config', 'apps/web/vite.config.ts', ...(process.argv.includes('--lan') ? ['--host'] : [])],
+  },
 ].map(({ name, color, args }) => {
   const child = spawn(process.execPath, args, { cwd: root, env: process.env });
   const tag = `\x1b[${color}m${name.padEnd(3)}\x1b[0m │ `;

@@ -34,23 +34,28 @@ exercised in the browser with demo data.
 
 **Phase 1 gaps to close before real users** (in order):
 
-1. Account deletion and data export (decisions Q1, Q2).
-2. Password reset and email verification (pick an email provider).
-3. Deploy: domain, HTTPS, managed Postgres or VPS; S3-compatible storage for photos; backups.
-4. Reporting and moderation basics beyond blocking.
-5. Calendar day/week views, event reminders.
+1. ✅ Account deletion (shared history kept anonymised) and JSON data export: tested.
+2. 🟡 Go live: Oracle Always Free kit written (`deploy/oracle`): HTTPS, Postgres, nightly backups,
+   push-to-deploy. Waiting on the owner's Oracle server and DuckDNS name; not run against a real server yet.
+3. ⬜ Password reset and email verification (needs an email provider; free tiers exist).
+4. ⬜ Reporting and moderation basics beyond blocking.
+5. ⬜ Calendar day/week views, event reminders.
 
-## Next: the real app (owner priority: "as soon as possible")
+## The real app (owner priority: "as soon as possible")
 
 | Step | Status |
 |---|---|
 | API accepts bearer tokens for native clients | ✅ tested |
-| Add Capacitor (`@capacitor/core`, `cli`, `android`, `ios`), point it at the built web app | ⬜ |
-| CORS for the Capacitor origins; token storage on the device (Capacitor Preferences or secure storage) | ⬜ |
-| Signed media URLs (images can't send bearer headers) | ⬜ |
-| Android build on this machine (JDK and Android SDK already on `D:\dev`) | ⬜ |
-| iOS build (needs a Mac or a cloud build service) | ⬜ |
-| Push notifications (FCM/APNs) | ⬜ |
+| CORS for the app origins (no credentials) | ✅ tested |
+| Signed, short-lived photo links (images can't send bearer headers) | ✅ tested |
+| Capacitor Android project (`apps/android`), LORE icons and splash, back button, status bar | ✅ builds |
+| Portable Android toolchain on D: (JDK 21, SDK 36) | ✅ |
+| `node tools/android.mjs dev`: Wi-Fi test app against this PC | ✅ builds (`dist-android/LORE-dev.apk`); not yet run on a phone |
+| `node tools/android.mjs release --api https://…`: signed APK + AAB | 🟡 written; needs the server's address |
+| Run on a real phone (layout under system bars, sign-in, photos) | ⬜ owner's phone |
+| Google Play listing (developer account is a one-time $25) | ⬜ |
+| iOS build (needs a Mac or a cloud build service + Apple's $99/year) | ⬜ |
+| Push notifications (FCM) | ⬜ |
 | Offline cache of upcoming plans | ⬜ |
 
 ## Phase 2 — Spontaneity and identity

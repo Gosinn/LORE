@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance } from 'fastify';
 import {
@@ -78,7 +78,7 @@ export async function loadChapterDetail(db: Db, viewerId: string, chapterId: str
       mediaHeight: media.height,
     })
     .from(contributions)
-    .innerJoin(author, eq(author.id, contributions.authorId))
+    .leftJoin(author, eq(author.id, contributions.authorId))
     .leftJoin(speaker, eq(speaker.id, contributions.speakerUserId))
     .leftJoin(media, eq(media.id, contributions.mediaId))
     .where(eq(contributions.chapterId, chapterId))
@@ -97,12 +97,15 @@ export async function loadChapterDetail(db: Db, viewerId: string, chapterId: str
     contributions: rows.map((r) => ({
       id: r.c.id,
       type: r.c.type,
-      author: toUserSummary({
-        id: r.authorId,
-        username: r.authorUsername,
-        displayName: r.authorName,
-        avatarMediaId: r.authorAvatar,
-      }),
+      author:
+        r.authorId && r.authorUsername && r.authorName
+          ? toUserSummary({
+              id: r.authorId,
+              username: r.authorUsername,
+              displayName: r.authorName,
+              avatarMediaId: r.authorAvatar,
+            })
+          : null,
       title: r.c.title,
       body: r.c.body,
       caption: r.c.caption,
@@ -359,7 +362,13 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
     const [others] = await db
       .select({ id: contributions.id })
       .from(contributions)
-      .where(and(eq(contributions.chapterId, chapterId), ne(contributions.authorId, me)))
+      .where(
+        and(
+          eq(contributions.chapterId, chapterId),
+          // Former members' contributions count as other people's too.
+          or(isNull(contributions.authorId), ne(contributions.authorId, me)),
+        ),
+      )
       .limit(1);
     if (others) throw conflict('Other people have added to this chapter, so it belongs to them too.');
     await deleteMediaFiles(db, storage, eq(media.chapterId, chapterId));
