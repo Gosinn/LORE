@@ -17,6 +17,7 @@ export async function loadMe(db: Db, userId: string): Promise<Me> {
 }
 
 export async function authRoutes(app: FastifyInstance, { db, config }: AppContext) {
+  const hashCost = { cost: config.scryptCost, parallelism: config.scryptParallelism };
   const limit = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
 
   /** Browsers get an httpOnly cookie. Native apps ask for the token in the body. */
@@ -45,7 +46,7 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
       if (taken.some((t) => t.email === input.email)) fields.email = 'An account with that email already exists';
       throw conflict(Object.values(fields)[0]!, fields);
     }
-    const passwordHash = await hashPassword(input.password, config.scryptCost);
+    const passwordHash = await hashPassword(input.password, hashCost);
     const [user] = await db
       .insert(users)
       .values({ username: input.username, displayName: input.displayName, email: input.email, passwordHash })
@@ -66,16 +67,16 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
       .where(or(eq(users.username, input.login), eq(users.email, input.login)))
       .limit(1);
     if (!user) {
-      await burnPasswordCheck(input.password, config.scryptCost);
+      await burnPasswordCheck(input.password, hashCost);
       throw new HttpError(401, 'invalid_login', 'That username and password don’t match.');
     }
     if (!(await verifyPassword(input.password, user.passwordHash))) {
       throw new HttpError(401, 'invalid_login', 'That username and password don’t match.');
     }
-    if (needsRehash(user.passwordHash, config.scryptCost)) {
+    if (needsRehash(user.passwordHash, hashCost)) {
       await db
         .update(users)
-        .set({ passwordHash: await hashPassword(input.password, config.scryptCost) })
+        .set({ passwordHash: await hashPassword(input.password, hashCost) })
         .where(eq(users.id, user.id));
     }
     return startSession(req, reply, user.id);

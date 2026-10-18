@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  customType,
   date,
   index,
   integer,
@@ -356,6 +357,18 @@ export const media = pgTable(
     check('media_single_scope', sql`num_nonnulls(${t.chapterId}, ${t.eventId}, ${t.crewId}) <= 1`),
   ],
 );
+
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataType: () => 'bytea' });
+
+/**
+ * File contents, for hosts without lasting disk storage (MEDIA_STORAGE=database).
+ * Keyed like files on disk; `media` rows point here through `storage_key`.
+ */
+export const mediaBlobs = pgTable('media_blobs', {
+  key: text('key').primaryKey(),
+  data: bytea('data').notNull(),
+  createdAt: createdAt(),
+});
 
 /** One person's piece of a chapter: their story, a quote they remember, a photo. */
 export const contributions = pgTable(

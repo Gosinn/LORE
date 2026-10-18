@@ -1,0 +1,32 @@
+# Render Blueprint: free hosting without a payment card.
+# Render → New → Blueprint → pick the LORE GitHub repo. It asks for DATABASE_URL
+# (paste the Neon connection string); everything else is set here.
+# Guide: deploy/render/README.md
+services:
+  - type: web
+    name: lore
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      # Render's free disk is wiped on every restart, so photos live in Postgres.
+      - key: MEDIA_STORAGE
+        value: database
+      - key: MEDIA_URL_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: 'true'
+      - key: COOKIE_SECURE
+        value: 'true'
+      # 512 MB of RAM: equal-strength scrypt settings that need 32 MB per hash.
+      - key: SCRYPT_COST
+        value: '32768'
+      - key: SCRYPT_PARALLELISM
+        value: '3'
+      - key: LOG_LEVEL
+        value: warn

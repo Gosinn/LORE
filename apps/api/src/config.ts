@@ -16,6 +16,8 @@ const Env = z.object({
   DATABASE_URL: z.string().optional(),
   PGLITE_DIR: z.string().default(path.join(repoRoot, '.data', 'pglite')),
   MEDIA_DIR: z.string().default(path.join(repoRoot, '.data', 'media')),
+  /** Where photo files go: `disk` (MEDIA_DIR) or `database` (hosts without a lasting disk). */
+  MEDIA_STORAGE: z.enum(['disk', 'database']).default('disk'),
   /** Built web app to serve (production single-server deploy). */
   PUBLIC_DIR: z.string().default(path.join(repoRoot, 'apps', 'web', 'dist')),
   /** Browser origins allowed to make cookie-authenticated writes. Comma separated. */
@@ -27,8 +29,13 @@ const Env = z.object({
   COOKIE_SECURE: bool.optional(),
   TRUST_PROXY: bool.default(false),
   SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(60),
-  /** scrypt CPU/memory cost (power of two). Lowered only in tests. */
+  /**
+   * scrypt cost (power of two) and parallelism. The default (2^17, p=1) needs 128 MB
+   * per hash; small servers can trade memory for CPU at equal strength per OWASP,
+   * e.g. 2^15 with p=3 (32 MB). Lowered further only in tests.
+   */
   SCRYPT_COST: z.coerce.number().int().default(2 ** 17),
+  SCRYPT_PARALLELISM: z.coerce.number().int().min(1).max(16).default(1),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -39,6 +46,7 @@ export interface Config {
   databaseUrl: string | undefined;
   pgliteDir: string;
   mediaDir: string;
+  mediaStorage: 'disk' | 'database';
   publicDir: string;
   webOrigins: string[];
   nativeOrigins: string[];
@@ -47,6 +55,7 @@ export interface Config {
   trustProxy: boolean;
   sessionDays: number;
   scryptCost: number;
+  scryptParallelism: number;
   logLevel: string;
 }
 
@@ -69,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     databaseUrl: e.DATABASE_URL,
     pgliteDir: e.PGLITE_DIR,
     mediaDir: e.MEDIA_DIR,
+    mediaStorage: e.MEDIA_STORAGE,
     publicDir: e.PUBLIC_DIR,
     webOrigins: list(e.WEB_ORIGINS),
     nativeOrigins: list(e.NATIVE_ORIGINS),
@@ -77,6 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: e.TRUST_PROXY,
     sessionDays: e.SESSION_DAYS,
     scryptCost: e.SCRYPT_COST,
+    scryptParallelism: e.SCRYPT_PARALLELISM,
     logLevel: e.LOG_LEVEL,
   };
 }

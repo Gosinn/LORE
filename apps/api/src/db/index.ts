@@ -30,7 +30,13 @@ const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url)
  */
 export async function openDatabase(opts: { url?: string; pgliteDir?: string }): Promise<Database> {
   if (opts.url) {
-    const pool = new pg.Pool({ connectionString: opts.url, max: 10 });
+    const pool = new pg.Pool({
+      connectionString: opts.url,
+      max: 10,
+      // Hosted Postgres (e.g. Neon) asks for SCRAM channel binding in its URLs;
+      // node-postgres ignores the URL parameter but supports the option.
+      enableChannelBinding: /[?&]channel_binding=require/.test(opts.url),
+    } as pg.PoolConfig);
     const db = drizzlePg(pool, { schema });
     return {
       db,

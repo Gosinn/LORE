@@ -1,7 +1,7 @@
 import { buildApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { openDatabase } from './db/index.ts';
-import { LocalDiskStorage } from './lib/storage.ts';
+import { DatabaseStorage, LocalDiskStorage } from './lib/storage.ts';
 
 const config = loadConfig();
 if (config.env === 'production' && !config.databaseUrl) {
@@ -11,7 +11,9 @@ if (config.env === 'production' && !config.databaseUrl) {
 const database = await openDatabase({ url: config.databaseUrl, pgliteDir: config.pgliteDir });
 await database.migrate();
 
-const app = await buildApp({ db: database.db, config, storage: new LocalDiskStorage(config.mediaDir) });
+const storage =
+  config.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(config.mediaDir);
+const app = await buildApp({ db: database.db, config, storage });
 
 const shutdown = async () => {
   await app.close();

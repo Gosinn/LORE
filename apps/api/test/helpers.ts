@@ -4,9 +4,9 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Me } from '#shared';
 import { buildApp } from '../src/app.ts';
-import { testConfig } from '../src/config.ts';
-import { openDatabase } from '../src/db/index.ts';
-import { LocalDiskStorage } from '../src/lib/storage.ts';
+import { testConfig, type Config } from '../src/config.ts';
+import { openDatabase, type Db } from '../src/db/index.ts';
+import { DatabaseStorage, LocalDiskStorage } from '../src/lib/storage.ts';
 
 /** A 1×1 PNG, for upload tests. */
 export const PNG_1X1 = Buffer.from(
@@ -39,13 +39,16 @@ export interface TestApp {
   close(): Promise<void>;
 }
 
-export async function createTestApp(): Promise<TestApp> {
+export async function createTestApp(
+  opts: { mediaStorage?: 'disk' | 'database'; config?: Partial<Config> } = {},
+): Promise<TestApp & { db: Db }> {
   // TEST_DATABASE_URL runs a file against a real Postgres server (fresh, empty
   // database) through the production `pg` driver instead of in-memory PGlite.
   const database = await openDatabase({ url: process.env.TEST_DATABASE_URL });
   await database.migrate();
   const mediaDir = mkdtempSync(path.join(tmpdir(), 'lore-media-'));
-  const app = await buildApp({ db: database.db, config: testConfig(), storage: new LocalDiskStorage(mediaDir) });
+  const storage = opts.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(mediaDir);
+  const app = await buildApp({ db: database.db, config: testConfig(opts.config), storage });
   await app.ready();
 
   const request = async (method: string, url: string, cookie: string | undefined, body?: unknown): Promise<Response> => {
@@ -87,6 +90,7 @@ export async function createTestApp(): Promise<TestApp> {
 
   return {
     app,
+    db: database.db,
     async signUp(username, displayName = username[0]!.toUpperCase() + username.slice(1)) {
       const res = await app.inject({
         method: 'POST',

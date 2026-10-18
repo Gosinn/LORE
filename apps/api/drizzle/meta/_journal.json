@@ -15,6 +15,13 @@
       "when": 1792342500997,
       "tag": "0001_keep_shared_history",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792357801268,
+      "tag": "0002_media_blobs",
+      "breakpoints": true
     }
   ]
 }
