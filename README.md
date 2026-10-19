@@ -65,9 +65,12 @@ The Android app (`apps/android`, Capacitor) is the same web app bundled inside a
 - **Try it before the server is live:** `node tools/android.mjs dev`, then `npm run dev -- --lan`, and
   install `dist-android/LORE-dev.apk` on a phone on the same Wi-Fi (allow "install unknown apps"; allow
   Node.js through the Windows firewall on private networks when asked).
-- **The real app:** once the server is online, `node tools/android.mjs release --api https://<your domain>`
-  produces a signed `LORE-<version>.apk` (to share directly) and `.aab` (for Google Play). The signing
-  key is created outside the repo; back it up, since updates must be signed with the same key.
+- **The real app:** `node tools/android.mjs release --api https://lore-g8co.onrender.com` produces a
+  signed `LORE-<version>.apk` (to share directly) and `.aab` (for Google Play). The signing key is
+  created outside the repo; back it up, since APK updates must be signed with the same key.
+- **Live updates:** installed apps pick up every web change deployed to the server by themselves (they
+  check on launch and switch at the next background). A new APK is only needed when native parts change
+  (new Capacitor plugins, Android settings). Profile shows the running version and build.
 
 ## Deploy
 

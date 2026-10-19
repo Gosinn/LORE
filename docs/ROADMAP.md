@@ -52,7 +52,8 @@ exercised in the browser with demo data.
 | Capacitor Android project (`apps/android`), LORE icons and splash, back button, status bar | ✅ builds |
 | Portable Android toolchain on D: (JDK 21, SDK 36) | ✅ |
 | `node tools/android.mjs dev`: Wi-Fi test app against this PC | ✅ builds (`dist-android/LORE-dev.apk`); not yet run on a phone |
-| `node tools/android.mjs release --api https://…`: signed APK + AAB | 🟡 written; needs the server's address |
+| `node tools/android.mjs release --api https://…`: signed APK + AAB | ✅ 0.1.0 and 0.2.0 built for the live server |
+| Live updates: web changes reach installed apps without a new APK | ✅ server side tested (zip, checksum, `unzip -t`); on-phone update not yet observed |
 | Run on a real phone (layout under system bars, sign-in, photos) | ⬜ owner's phone |
 | Google Play listing (developer account is a one-time $25) | ⬜ |
 | iOS build (needs a Mac or a cloud build service + Apple's $99/year) | ⬜ |

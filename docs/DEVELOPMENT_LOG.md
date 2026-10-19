@@ -1,5 +1,20 @@
 # LORE — Development log
 
+## 2026-10-19 — Live, and self-updating
+
+- **Live** at https://lore-g8co.onrender.com (Render free web service, Neon free Postgres). The owner's
+  bank blocked Oracle's card check, so the no-card route was used. On Render, LORE configures itself
+  (`RENDER=true`); only `DATABASE_URL` is set. `/api/health` now reports the database and photo
+  storage in use; live it says `postgres` / `database`.
+- Checked from outside (no accounts created on the live server): app, deep links, manifest, sign-in
+  required, CORS for the app origin, cross-site writes blocked.
+- **Android 0.1.0** built for the live server: signed (verified with `apksigner`), server address
+  bundled. Sent to the owner.
+- **Live updates (0.2.0):** Capacitor Updater, self-hosted (D23). Server-side flow verified against a
+  local production server: update check → 595 KB zip → checksum matches → `unzip -t` clean → address
+  written into `index.html` → "up to date" once current. 50 API tests.
+- Not verified yet: an update actually landing on a phone.
+
 ## 2026-10-18 (later) — Going live and going native
 
 **Owner decisions:** hosting on Oracle Cloud Always Free (free), Android first, deleted accounts keep

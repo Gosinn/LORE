@@ -5,6 +5,16 @@ Newest first within each list.
 
 ## Taken
 
+**D23 · The Android app updates itself from our server.** Capacitor Updater (MPL-2.0), self-hosted:
+on launch the app POSTs to `/api/app/updates`; if the server's web build (`build.json`) differs from
+the one running, it answers with a zip URL and SHA-256. The plugin downloads, verifies and switches at
+the next background (`autoUpdate: atBackground`), and rolls back by itself if the new build never
+calls `notifyAppReady()`. The server zips `apps/web/dist` on demand, writing its own address into
+`index.html` (`<meta name="lore-api-base">`), so updates know which server to talk to. Capgo's cloud,
+channel and stats endpoints are all disabled: no data leaves for third parties. Allowed by Google
+Play (web code in a WebView). Native changes still need a new APK; installing one resets to its
+built-in web app (`resetWhenUpdate`), which then updates again.
+
 **D22 · Live on Render + Neon (free, no card).** The owner's bank blocked Oracle's card check, so LORE
 runs on a Render free web service (Docker) at https://lore-g8co.onrender.com with Neon free Postgres
 (1 GB). On Render, config defaults adapt automatically (`RENDER=true`): photos stored in Postgres
