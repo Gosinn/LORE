@@ -13,6 +13,16 @@
       "launchAutoHide": false,
       "backgroundColor": "#f4eee3",
       "showSpinner": false
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": "off",
+      "updateUrl": "",
+      "channelUrl": "",
+      "statsUrl": "",
+      "appReadyTimeout": 10000,
+      "autoDeleteFailed": true,
+      "autoDeletePrevious": true,
+      "resetWhenUpdate": true
     }
   }
 }

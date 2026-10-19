@@ -7,10 +7,16 @@ export const isNative = Capacitor.isNativePlatform();
 /**
  * Browsers talk to the same origin (the API serves the web app in production, and
  * Vite proxies /api in development) and authenticate with an httpOnly cookie.
- * The native app is built with VITE_API_URL pointing at the server and uses a
- * bearer token instead, since cookies don't cross from the app's own origin.
+ * The native app talks to the server over HTTPS with a bearer token, since cookies
+ * don't cross from the app's own origin. Where that server is comes from the build
+ * (VITE_API_URL, for the copy inside the APK) or from a meta tag the server fills in
+ * when it packages a live update.
  */
-const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+const BASE = (
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  document.querySelector<HTMLMetaElement>('meta[name="lore-api-base"]')?.content ||
+  ''
+).replace(/\/$/, '');
 const TOKEN_KEY = 'lore.token';
 
 export class ApiError extends Error {

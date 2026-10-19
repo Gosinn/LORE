@@ -156,6 +156,10 @@ export function MyProfile() {
         </div>
       </Section>
 
+      <p className="tiny muted" style={{ textAlign: 'center', marginTop: 32 }}>
+        LORE {__LORE_VERSION__} · build {__LORE_BUILD__}
+      </p>
+
       {editing && <EditProfileSheet me={me} onClose={() => setEditing(false)} />}
       {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
     </>

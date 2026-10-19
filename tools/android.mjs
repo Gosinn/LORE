@@ -4,8 +4,11 @@
 //       An app that loads LORE live from this computer's dev server over Wi-Fi.
 //       Start the servers with `npm run dev -- --lan` and keep the phone on the same Wi-Fi.
 //
-//   node tools/android.mjs release --api https://lore-yourname.duckdns.org [--version 0.1.0]
+//   node tools/android.mjs release --api https://lore-g8co.onrender.com [--version 0.2.0]
 //       The real app: the web app is bundled inside and talks to the server at --api.
+//       It also updates itself: every web build the server deploys reaches installed
+//       apps as a live update (see apps/api/src/routes/appUpdates.ts). Only native
+//       changes (new Capacitor plugins, Android settings) need a new APK.
 //       Signed with a release key kept outside the repo (D:\LORE-devenv\keystore by
 //       default, or LORE_KEYSTORE_DIR). Back that folder up: updates must be signed
 //       with the same key.
@@ -106,6 +109,18 @@ if (mode === 'dev') {
   const versionCode = major * 10000 + minor * 100 + patch;
   viteBuild({ VITE_API_URL: api });
   capSync();
+  // Live updates come from our own server only: checks on launch, downloads the new
+  // web build, switches to it the next time the app goes to the background.
+  const assetConfig = path.join(androidDir, 'app/src/main/assets/capacitor.config.json');
+  const config = JSON.parse(readFileSync(assetConfig, 'utf8'));
+  config.plugins.CapacitorUpdater = {
+    ...config.plugins.CapacitorUpdater,
+    autoUpdate: 'atBackground',
+    updateUrl: `${api.replace(/\/$/, '')}/api/app/updates`,
+    statsUrl: '',
+    channelUrl: '',
+  };
+  writeFileSync(assetConfig, JSON.stringify(config, null, 2));
   const signing = ensureKeystore();
   const props = [`-PloreVersionName=${version}`, `-PloreVersionCode=${versionCode}`];
   gradle('assembleRelease', signing, props);

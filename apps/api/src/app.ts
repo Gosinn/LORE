@@ -11,6 +11,7 @@ import type { AppContext } from './context.ts';
 import { forbidden, HttpError } from './lib/errors.ts';
 import { setMediaUrlSecret } from './lib/mediaUrls.ts';
 import { accountRoutes } from './routes/account.ts';
+import { appUpdateRoutes } from './routes/appUpdates.ts';
 import { authRoutes } from './routes/auth.ts';
 import { chapterRoutes } from './routes/chapters.ts';
 import { commentRoutes } from './routes/comments.ts';
@@ -115,6 +116,7 @@ export async function buildApp(ctx: AppContext) {
     async (api) => {
       for (const routes of [
         authRoutes,
+        appUpdateRoutes,
         accountRoutes,
         userRoutes,
         friendRoutes,

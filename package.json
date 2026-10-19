@@ -1,7 +1,7 @@
 {
   "name": "lore",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "LORE: no scrolling, only rolling. Plan experiences together and preserve the stories.",
   "type": "module",
   "engines": {
@@ -41,6 +41,7 @@
     "@capacitor/core": "^8.5.3",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
+    "@capgo/capacitor-updater": "^8.53.0",
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource-variable/instrument-sans": "^5.3.0",
     "@tanstack/react-query": "^5.104.4",
