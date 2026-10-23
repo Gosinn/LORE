@@ -3,6 +3,7 @@ import { App } from '@capacitor/app';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { isDarkTheme } from './theme.ts';
 
 interface MinimalRouter {
   state: { location: { pathname: string } };
@@ -25,9 +26,7 @@ export async function setupNativeShell(router: MinimalRouter) {
   // Match the status bar to the theme, now and when it changes.
   const dark = window.matchMedia('(prefers-color-scheme: dark)');
   const sync = () => {
-    const theme = document.documentElement.getAttribute('data-theme');
-    const isDark = theme ? theme === 'dark' : dark.matches;
-    void StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => undefined);
+    void StatusBar.setStyle({ style: isDarkTheme() ? Style.Dark : Style.Light }).catch(() => undefined);
   };
   sync();
   dark.addEventListener('change', sync);

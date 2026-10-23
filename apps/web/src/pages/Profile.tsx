@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronRight, Download, LogOut, Users } from 'lucide-react';
+import { Camera, ChevronRight, Dices, Download, LogOut, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { Me, MediaRef } from '#shared';
@@ -8,7 +8,14 @@ import { Avatar, Empty, ErrorNote, Field, Section, Sheet, TopBar } from '../comp
 import { api, setNativeToken } from '../lib/api.ts';
 import { prepareImage } from '../lib/images.ts';
 import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useMe } from '../lib/queries.ts';
-import { applyTheme, loadTheme, type ThemeChoice } from '../lib/theme.ts';
+import { applyTheme, loadTheme, rollNeon, type ThemeChoice } from '../lib/theme.ts';
+
+const THEME_LABELS: Record<ThemeChoice, string> = {
+  system: 'Match device',
+  light: 'Paper',
+  dark: 'Campfire',
+  crazy: 'Crazy',
+};
 
 export function MyProfile() {
   const me = useMe().data!;
@@ -117,8 +124,8 @@ export function MyProfile() {
       <Section title="Settings">
         <div className="stack">
           <span className="label">Appearance</span>
-          <div className="chips">
-            {(['system', 'light', 'dark'] as const).map((t) => (
+          <div className="chips wrap">
+            {(['system', 'light', 'dark', 'crazy'] as const).map((t) => (
               <button
                 key={t}
                 className="chip"
@@ -128,10 +135,16 @@ export function MyProfile() {
                   applyTheme(t);
                 }}
               >
-                {t === 'system' ? 'Match device' : t === 'light' ? 'Paper' : 'Campfire'}
+                {THEME_LABELS[t]}
               </button>
             ))}
+            {theme === 'crazy' && (
+              <button className="chip" onClick={rollNeon} aria-label="Roll new colors">
+                <Dices size={15} /> Roll
+              </button>
+            )}
           </div>
+          {theme === 'crazy' && <p className="tiny muted">New colors every time you open LORE. Or roll them yourself.</p>}
           <p className="small muted" style={{ marginTop: 8 }}>
             Everything you create starts private. You choose who sees each event, idea and chapter.
           </p>
