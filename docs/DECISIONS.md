@@ -13,9 +13,7 @@ fires on time even offline or with the app closed; the list re-syncs whenever it
 background alerts (no push yet). Notification permission is asked for when the first reminder is set.
 Inexact timing (no exact-alarm permission), so a reminder can arrive a few minutes late.
 
-**D24 · Crazy theme.** A fourth appearance: neon on near-black, each container's hue from its kind and
-position, the palette rotated randomly on every visit (`--shift`). oklch at fixed lightness keeps every hue
-readable; animation respects reduced motion.
+**D24 · Crazy theme.** Owner's idea, revised after the first take (neon glow on dark) missed: every part of the page (sections, cards, chips, buttons, tabs, calendar days, notes) is a solid block of one bright colour, and every piece of text gets its own colour as a highlighter patch. Ten colours (purple, red, green, yellow, cyan, blue, orange, pink, lime, white), each with its own text colour for contrast. Painted at random by lib/crazy.ts as elements appear, never matching the block around or before; re-rolled every visit or with Roll.
 
 **D23 · The Android app updates itself from our server.** Capacitor Updater (MPL-2.0), self-hosted:
 on launch the app POSTs to `/api/app/updates`; if the server's web build (`build.json`) differs from

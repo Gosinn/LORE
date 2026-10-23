@@ -8,7 +8,7 @@ import { Avatar, Empty, ErrorNote, Field, Section, Sheet, TopBar } from '../comp
 import { api, setNativeToken } from '../lib/api.ts';
 import { prepareImage } from '../lib/images.ts';
 import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useMe } from '../lib/queries.ts';
-import { applyTheme, loadTheme, rollNeon, type ThemeChoice } from '../lib/theme.ts';
+import { applyTheme, loadTheme, rollColors, type ThemeChoice } from '../lib/theme.ts';
 
 const THEME_LABELS: Record<ThemeChoice, string> = {
   system: 'Match device',
@@ -139,12 +139,12 @@ export function MyProfile() {
               </button>
             ))}
             {theme === 'crazy' && (
-              <button className="chip" onClick={rollNeon} aria-label="Roll new colors">
+              <button className="chip" onClick={rollColors} aria-label="Roll new colors">
                 <Dices size={15} /> Roll
               </button>
             )}
           </div>
-          {theme === 'crazy' && <p className="tiny muted">New colors every time you open LORE. Or roll them yourself.</p>}
+          {theme === 'crazy' && <p className="tiny muted">Every part gets its own bright color, new every time. Or roll them yourself.</p>}
           <p className="small muted" style={{ marginTop: 8 }}>
             Everything you create starts private. You choose who sees each event, idea and chapter.
           </p>

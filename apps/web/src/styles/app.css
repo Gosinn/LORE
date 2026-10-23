@@ -1534,185 +1534,144 @@ details.more-options[open] > summary::before {
 }
 
 /* ------------------------------------------------------------------ CRAZY
-   Neon on near-black. Every container (section, card, chip, button, tab,
-   calendar day…) takes its own hue from its position, and the whole wheel is
-   rotated by --shift, which is rolled again on every visit (lib/theme.ts).
-   Colours are oklch at a fixed lightness, so every hue is equally readable. */
+   Bright, solid colour everywhere. Every part of the page (sections, cards,
+   chips, buttons, tabs, calendar days…) is a block of one vivid colour, and
+   every piece of text gets its own colour as a highlighter patch. Colours are
+   picked at random by lib/crazy.ts (data-c="0".."9"; data-t marks text), so
+   neighbours differ and it changes every visit. Each colour has its own text
+   colour, so everything stays readable. */
 
 :root[data-theme='crazy'] {
-  --shift: 0;
-  --hue: var(--shift);
-  --bg: #0a0612;
-  --surface: #120a1f;
-  --surface-2: #1b102e;
-  --ink: #fbf8ff;
-  --ink-2: #ddd2f5;
-  --muted: #a99bc8;
-  --danger: oklch(0.72 0.22 15);
-  --danger-soft: oklch(0.72 0.22 15 / 0.16);
-  --shadow-sm: 0 1px 0 rgb(0 0 0 / 0.4);
-  --shadow: 0 14px 40px -16px rgb(0 0 0 / 0.8);
-  color-scheme: dark;
+  --bg: #f1f1f1;
+  --surface: #ffffff;
+  --surface-2: #ececec;
+  --ink: #111111;
+  --ink-2: #1c1c1c;
+  --muted: #454545;
+  --line: #dddddd;
+  --line-strong: #c4c4c4;
+  --ember: #ff2a4f;
+  --ember-hover: #e3173b;
+  --ember-ink: #ffffff;
+  --ember-soft: #ffe0e6;
+  --fjord: #2f6bff;
+  --fjord-soft: #e0e8ff;
+  --gold: #8b2cf5;
+  --gold-soft: #eedfff;
+  color-scheme: light;
 }
 
-/* Re-derived on every element from the --hue it inherits or sets itself. */
-:root[data-theme='crazy'],
-:root[data-theme='crazy'] *,
-:root[data-theme='crazy'] *::before,
-:root[data-theme='crazy'] *::after {
-  --ember: oklch(0.8 0.2 var(--hue));
-  --ember-hover: oklch(0.88 0.17 var(--hue));
-  --ember-ink: #0a0612;
-  --ember-soft: oklch(0.8 0.2 var(--hue) / 0.16);
-  --fjord: oklch(0.82 0.18 calc(var(--hue) + 120));
-  --fjord-soft: oklch(0.82 0.18 calc(var(--hue) + 120) / 0.16);
-  --gold: oklch(0.86 0.18 calc(var(--hue) + 240));
-  --gold-soft: oklch(0.86 0.18 calc(var(--hue) + 240) / 0.16);
-  --line: oklch(0.8 0.2 var(--hue) / 0.3);
-  --line-strong: oklch(0.8 0.2 var(--hue) / 0.55);
+/* The palette: purple, red, green, yellow, cyan, blue, orange, pink, lime, white. */
+:root[data-theme='crazy'] [data-c='0'] {
+  --block: #8b2cf5;
+  --block-ink: #ffffff;
+}
+:root[data-theme='crazy'] [data-c='1'] {
+  --block: #ff2a4f;
+  --block-ink: #ffffff;
+}
+:root[data-theme='crazy'] [data-c='2'] {
+  --block: #1fdc5a;
+  --block-ink: #04210e;
+}
+:root[data-theme='crazy'] [data-c='3'] {
+  --block: #ffe100;
+  --block-ink: #1f1a00;
+}
+:root[data-theme='crazy'] [data-c='4'] {
+  --block: #1fd1ff;
+  --block-ink: #032029;
+}
+:root[data-theme='crazy'] [data-c='5'] {
+  --block: #2f6bff;
+  --block-ink: #ffffff;
+}
+:root[data-theme='crazy'] [data-c='6'] {
+  --block: #ff8a00;
+  --block-ink: #261300;
+}
+:root[data-theme='crazy'] [data-c='7'] {
+  --block: #ff3dcf;
+  --block-ink: #2a0022;
+}
+:root[data-theme='crazy'] [data-c='8'] {
+  --block: #b8ff1f;
+  --block-ink: #1b2700;
+}
+:root[data-theme='crazy'] [data-c='9'] {
+  --block: #ffffff;
+  --block-ink: #111111;
 }
 
-/* Containers pick a hue from their kind (--type) and their position among siblings
-   (--nth); everything inside inherits it. */
-:root[data-theme='crazy'] :is(.section, .card, .chip, .crew-chip, .create-tile, .pill, .btn, .tab, .rail-link, .timeline-item, .list-item, .notification, .comment, .photo, .day, .checklist-item, .personal-row, .quote, article) {
-  --type: 0;
-  --nth: 0;
-  --hue: calc(var(--shift) + var(--type) + var(--nth));
+/* Inside a block (or a text patch) everything takes that block's text colour. */
+:root[data-theme='crazy'] [data-c] {
+  --ink: var(--block-ink);
+  --ink-2: var(--block-ink);
+  --muted: color-mix(in srgb, var(--block-ink) 78%, transparent);
+  --line: color-mix(in srgb, var(--block-ink) 22%, transparent);
+  --line-strong: color-mix(in srgb, var(--block-ink) 38%, transparent);
+  --surface: var(--block);
+  --surface-2: color-mix(in srgb, var(--block-ink) 12%, var(--block));
+  --ember: var(--block-ink);
+  --ember-hover: var(--block-ink);
+  --ember-ink: var(--block);
+  --ember-soft: color-mix(in srgb, var(--block-ink) 14%, transparent);
+  --fjord: var(--block-ink);
+  --fjord-soft: color-mix(in srgb, var(--block-ink) 14%, transparent);
+  --gold: var(--block-ink);
+  --gold-soft: color-mix(in srgb, var(--block-ink) 14%, transparent);
+  background: var(--block);
+  color: var(--block-ink);
+  border-color: transparent;
 }
-:root[data-theme='crazy'] :is(.card, .crew-chip, .create-tile, .quote, article) {
-  --type: 45;
-}
-:root[data-theme='crazy'] :is(.chip, .pill, .btn) {
-  --type: 105;
-}
-:root[data-theme='crazy'] :is(.tab, .rail-link, .list-item, .notification, .comment, .checklist-item, .personal-row) {
-  --type: 170;
-}
-:root[data-theme='crazy'] :is(.timeline-item, .photo) {
-  --type: 230;
-}
-:root[data-theme='crazy'] :is(.section, .card, .chip, .crew-chip, .create-tile, .pill, .btn, .tab, .rail-link, .timeline-item, .list-item, .notification, .comment, .photo, .day, .checklist-item, .personal-row, .quote, article):nth-child(6n + 2) {
-  --nth: 60;
-}
-:root[data-theme='crazy'] :is(.section, .card, .chip, .crew-chip, .create-tile, .pill, .btn, .tab, .rail-link, .timeline-item, .list-item, .notification, .comment, .photo, .day, .checklist-item, .personal-row, .quote, article):nth-child(6n + 3) {
-  --nth: 150;
-}
-:root[data-theme='crazy'] :is(.section, .card, .chip, .crew-chip, .create-tile, .pill, .btn, .tab, .rail-link, .timeline-item, .list-item, .notification, .comment, .photo, .day, .checklist-item, .personal-row, .quote, article):nth-child(6n + 4) {
-  --nth: 210;
-}
-:root[data-theme='crazy'] :is(.section, .card, .chip, .crew-chip, .create-tile, .pill, .btn, .tab, .rail-link, .timeline-item, .list-item, .notification, .comment, .photo, .day, .checklist-item, .personal-row, .quote, article):nth-child(6n + 5) {
-  --nth: 280;
-}
-:root[data-theme='crazy'] :is(.section, .card, .chip, .crew-chip, .create-tile, .pill, .btn, .tab, .rail-link, .timeline-item, .list-item, .notification, .comment, .photo, .day, .checklist-item, .personal-row, .quote, article):nth-child(6n + 6) {
-  --nth: 330;
+:root[data-theme='crazy'] [data-c='9']:not([data-t]) {
+  box-shadow: inset 0 0 0 2px #e2e2e2;
 }
 
-:root[data-theme='crazy'] body {
-  background:
-    radial-gradient(60vmax 40vmax at 0% 0%, oklch(0.6 0.25 var(--shift) / 0.18), transparent 70%),
-    radial-gradient(50vmax 40vmax at 100% 100%, oklch(0.6 0.25 calc(var(--shift) + 160) / 0.16), transparent 70%),
-    var(--bg);
-  background-attachment: fixed;
+/* Text: a patch of colour hugging the words. */
+:root[data-theme='crazy'] [data-t] {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.04em 0.32em;
+  border-radius: 0.3em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  text-shadow: none;
+}
+:root[data-theme='crazy'] :is(h1, h2, h3, p, label)[data-t] {
+  margin-block: 0.08em;
+}
+
+/* Blocks that are just spacing elsewhere become real tiles here. */
+:root[data-theme='crazy'] .section[data-c] {
+  padding: 14px;
+  border-radius: 22px;
+}
+:root[data-theme='crazy'] .tab[data-c] {
+  margin: 6px 3px;
+  border-radius: 14px;
+}
+:root[data-theme='crazy'] .tabbar {
+  background: #ffffff;
 }
 :root[data-theme='crazy'] .topbar {
-  background: linear-gradient(rgb(10 6 18 / 0.92) 70%, transparent);
+  background: linear-gradient(#f1f1f1 70%, transparent);
 }
-:root[data-theme='crazy'] :is(.hero h1, .topbar h1, .greeting, .welcome h1, .chapter-title, .timeline-year) {
-  background: linear-gradient(95deg, var(--ember), var(--gold) 55%, var(--fjord));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  /* Room for descenders, which background-clip would otherwise cut off. */
-  padding-bottom: 0.12em;
+:root[data-theme='crazy'] .day.out[data-c] {
+  opacity: 0.4;
 }
-:root[data-theme='crazy'] .greeting em,
-:root[data-theme='crazy'] .welcome h1 em {
-  color: inherit;
+:root[data-theme='crazy'] .day .dots i {
+  background: var(--block-ink);
 }
-:root[data-theme='crazy'] :is(.card, .crew-chip, .create-tile, .tabbar, .rail, .sheet, .input, .textarea, .select, .seg) {
-  border-color: var(--line-strong);
+
+/* Selected / current things: a thick outline in their own text colour. */
+:root[data-theme='crazy'] :is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .selected, .active)[data-c] {
+  box-shadow: inset 0 0 0 3px var(--block-ink);
+  font-weight: 800;
 }
-:root[data-theme='crazy'] :is(.card, .crew-chip, .create-tile) {
-  box-shadow:
-    0 0 0 1px oklch(0.8 0.2 var(--hue) / 0.25),
-    0 12px 32px -18px var(--ember);
-}
-:root[data-theme='crazy'] .card-link:hover {
-  box-shadow:
-    0 0 0 1px var(--ember),
-    0 0 28px -6px var(--ember);
-}
-:root[data-theme='crazy'] .eyebrow,
-:root[data-theme='crazy'] .chapter-date {
-  color: var(--ember);
-  text-shadow: 0 0 12px oklch(0.8 0.2 var(--hue) / 0.6);
-}
-:root[data-theme='crazy'] .section-head::after {
-  background: linear-gradient(90deg, var(--ember), transparent);
-}
-:root[data-theme='crazy'] :is(.btn-primary, .chip[aria-pressed='true'], .seg button[aria-pressed='true']) {
-  background: var(--ember);
-  border-color: var(--ember);
-  color: var(--ember-ink);
-  box-shadow: 0 0 18px -4px var(--ember);
-}
-:root[data-theme='crazy'] .chip {
-  border-color: var(--line-strong);
-  color: var(--ember);
-}
-:root[data-theme='crazy'] .pill {
-  background: var(--ember-soft);
-  color: var(--ember);
-}
-:root[data-theme='crazy'] .date-tile {
-  background: var(--ember-soft);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-}
-:root[data-theme='crazy'] .date-tile .m {
-  color: var(--ember);
-}
-:root[data-theme='crazy'] .tab.active {
-  color: var(--ember);
-  text-shadow: 0 0 10px var(--ember);
-}
-:root[data-theme='crazy'] .tab-create {
-  background: conic-gradient(from 0deg, var(--ember), var(--gold), var(--fjord), var(--ember));
-  color: #0a0612;
-  box-shadow: 0 0 26px -2px var(--ember);
-  animation: neon-pulse 2.4s ease-in-out infinite alternate;
-}
-:root[data-theme='crazy'] .day .dots i,
-:root[data-theme='crazy'] .day .dots i.personal {
-  box-shadow: 0 0 8px var(--ember);
-}
-:root[data-theme='crazy'] .day.selected {
-  background: var(--ember);
-  color: var(--ember-ink);
-}
-:root[data-theme='crazy'] .quote {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--line-strong), 0 0 24px -12px var(--gold);
-}
-:root[data-theme='crazy'] .timeline::before {
-  border-left-color: var(--ember);
-  opacity: 0.6;
-}
-:root[data-theme='crazy'] .timeline-year::before {
-  background: var(--gold);
-  box-shadow: 0 0 14px var(--gold);
-}
-:root[data-theme='crazy'] .wordmark-name .o {
-  color: var(--ember);
-  text-shadow: 0 0 14px var(--ember);
-}
-:root[data-theme='crazy'] ::selection {
-  background: var(--ember);
-  color: #0a0612;
-}
-@keyframes neon-pulse {
-  to {
-    box-shadow: 0 0 40px 2px var(--fjord);
-  }
+:root[data-theme='crazy'] .day.today[data-c] .num {
+  text-decoration: underline 3px;
+  text-underline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
