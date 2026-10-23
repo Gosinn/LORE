@@ -5,6 +5,7 @@ import type { HomeData } from '#shared';
 import { requireUser, type AppContext } from '../context.ts';
 import { chapterPeople, chapters, eventParticipants, events, ideaInterest, ideas, notifications } from '../db/schema.ts';
 import { isActiveMember } from '../lib/access.ts';
+import { upcomingReminders } from './notes.ts';
 import { chapterSummaries, crewSummaries, eventSummaries, ideaSummaries } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
@@ -90,6 +91,7 @@ export async function homeRoutes(app: FastifyInstance, { db }: AppContext) {
       .where(and(eq(notifications.userId, me), isNull(notifications.readAt)));
 
     return {
+      reminders: await upcomingReminders(db, me),
       invitations,
       comingUp,
       continuePlanning,

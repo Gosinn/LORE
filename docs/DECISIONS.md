@@ -5,6 +5,18 @@ Newest first within each list.
 
 ## Taken
 
+**D25 · Notes to self and reminders are one thing.** A note with a time is a reminder (`notes` table).
+Private to the owner like the personal calendar; linked optionally to an event ("Remind me 1 hour / 1 day
+before"). Due-within-a-day reminders show on Home; reminders sit on the Calendar's personal layer. In the
+Android app (0.3.0+) each upcoming reminder is scheduled as a local notification on the device, so it
+fires on time even offline or with the app closed; the list re-syncs whenever it changes. Browsers get no
+background alerts (no push yet). Notification permission is asked for when the first reminder is set.
+Inexact timing (no exact-alarm permission), so a reminder can arrive a few minutes late.
+
+**D24 · Crazy theme.** A fourth appearance: neon on near-black, each container's hue from its kind and
+position, the palette rotated randomly on every visit (`--shift`). oklch at fixed lightness keeps every hue
+readable; animation respects reduced motion.
+
 **D23 · The Android app updates itself from our server.** Capacitor Updater (MPL-2.0), self-hosted:
 on launch the app POSTs to `/api/app/updates`; if the server's web build (`build.json`) differs from
 the one running, it answers with a zip URL and SHA-256. The plugin downloads, verifies and switches at

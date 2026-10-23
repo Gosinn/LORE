@@ -1,5 +1,18 @@
 # LORE — Development log
 
+## 2026-10-23 — Crazy theme, notes and reminders (0.3.0)
+
+- **Crazy theme** (owner's idea): random neon per container, re-rolled per visit or with the Roll button.
+  Checked in the browser on Welcome, Home and Calendar.
+- **Notes to self and reminders**: one quick box on Home and on the Notes page (one-tap times: in 1 hour,
+  this evening, tomorrow 9:00, or pick), reminders on Home and in the Calendar, "Remind me" on events,
+  export and account deletion included. 5 new API tests (55 total). Checked in the browser: added a
+  reminder from Home, saw it on Home, Notes and set an event reminder.
+- **Android 0.3.0**: local notifications for reminders (`@capacitor/local-notifications`), LORE status-bar
+  icon, tap opens the reminder's event or Notes. Not yet observed on a phone.
+- Local dev server needed a restart to pick up migration 0003 (it had restarted on the route change before
+  the migration file existed).
+
 ## 2026-10-19 — Live, and self-updating
 
 - **Live** at https://lore-g8co.onrender.com (Render free web service, Neon free Postgres). The owner's

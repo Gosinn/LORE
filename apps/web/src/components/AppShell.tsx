@@ -1,7 +1,9 @@
 import { BookOpen, CalendarDays, Home, Plus, UserRound } from 'lucide-react';
 import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
-import { useMe } from '../lib/queries.ts';
+import { isNative } from '../lib/api.ts';
+import { useMe, useNotes } from '../lib/queries.ts';
+import { syncReminderNotifications } from '../lib/reminders.ts';
 import { Avatar, Backronym, Loading, Wordmark } from './ui.tsx';
 
 const NAV = [
@@ -11,6 +13,15 @@ const NAV = [
   { to: '/lorebook', label: 'Lorebook', icon: BookOpen },
   { to: '/profile', label: 'Profile', icon: UserRound },
 ] as const;
+
+/** Keeps the phone's scheduled reminder notifications in step with the server. */
+function ReminderSync() {
+  const notes = useNotes(isNative);
+  useEffect(() => {
+    if (notes.data) void syncReminderNotifications(notes.data.reminders);
+  }, [notes.data]);
+  return null;
+}
 
 export function AppShell() {
   const me = useMe();
@@ -48,6 +59,7 @@ export function AppShell() {
       <main className="main">
         <Outlet />
       </main>
+      {isNative && <ReminderSync />}
 
       <nav className="tabbar" aria-label="Main">
         {NAV.map((item) =>

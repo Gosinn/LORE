@@ -1,6 +1,7 @@
 import { Compass, Feather, Plus } from 'lucide-react';
 import { Link } from 'react-router';
 import { ChapterCard, CrewChip, EventCard, IdeaCard } from '../components/cards.tsx';
+import { NoteItem, QuickNote } from '../components/notes.tsx';
 import { Empty, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { fmtLongDay, greeting } from '../lib/dates.ts';
@@ -28,6 +29,20 @@ export function HomePage() {
           {greeting()}, <em>{firstName}</em>.
         </p>
       </div>
+
+      <div className="section" style={{ marginTop: 16 }}>
+        <QuickNote />
+      </div>
+
+      {h.reminders.length > 0 && (
+        <Section title="Reminders" more={<Link to="/notes" className="more">All notes</Link>}>
+          <div className="list">
+            {h.reminders.map((n) => (
+              <NoteItem key={n.id} note={n} />
+            ))}
+          </div>
+        </Section>
+      )}
 
       {h.crewInvites.map((c) => (
         <div className="banner section" key={c.id} style={{ marginTop: 18 }}>

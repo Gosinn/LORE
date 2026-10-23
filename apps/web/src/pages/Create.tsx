@@ -1,4 +1,4 @@
-import { BookOpen, CalendarPlus, Lightbulb, Users } from 'lucide-react';
+import { BookOpen, CalendarPlus, Lightbulb, NotebookPen, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { TopBar } from '../components/ui.tsx';
 
@@ -30,6 +30,13 @@ const OPTIONS = [
     title: 'Start a crew',
     text: 'The people you make lore with.',
     tone: ['var(--surface-2)', 'var(--ink-2)'],
+  },
+  {
+    to: '/notes?new',
+    icon: NotebookPen,
+    title: 'Note to self',
+    text: 'Jot it down, or set a quick reminder. Only you see it.',
+    tone: ['var(--ember-soft)', 'var(--ember)'],
   },
 ];
 

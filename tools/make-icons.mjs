@@ -1,6 +1,6 @@
 // Draws the LORE emblem (a compass needle on ember) into every icon the PWA and the
 // Android app need. Pure Node, no image libraries: `node tools/make-icons.mjs`.
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
 const EMBER = [212, 70, 29];
@@ -138,6 +138,13 @@ if (existsSync(res)) {
     write(new URL(`drawable-land-${d}/splash.png`, res), h, w, splashOpts);
   }
   write(new URL('drawable/splash.png', res), 480, 320, splashOpts);
+  // Status-bar icon for reminder notifications: Android only uses its alpha, so
+  // the emblem on transparent works as a silhouette.
+  for (const [d, k] of Object.entries(densities)) {
+    const dir = new URL(`drawable-${d}/`, res);
+    mkdirSync(dir, { recursive: true });
+    write(new URL('ic_stat_lore.png', dir), 24 * k, 24 * k, { shape: 'square', bg: null, scale: 1.2 });
+  }
   writeFileSync(
     new URL('values/ic_launcher_background.xml', res),
     '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#D4461D</color>\n</resources>\n',

@@ -1,14 +1,21 @@
 import { ChevronLeft, ChevronRight, Lock, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import type { EventSummary, PersonalEntry } from '#shared';
+import type { EventSummary, Note, PersonalEntry } from '#shared';
 import { EventCard } from '../components/cards.tsx';
+import { NoteItem } from '../components/notes.tsx';
 import { Empty, ErrorNote, Field, Section, Sheet, TopBar } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { dateKey, fmtLongDay, fmtMonthYear, fmtTime, fromDateInput, fromLocalInput, todayISO, toLocalInput } from '../lib/dates.ts';
-import { useAction, useEvents, usePersonal } from '../lib/queries.ts';
+import { useAction, useEvents, useNotes, usePersonal } from '../lib/queries.ts';
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+interface DaySlot {
+  events: EventSummary[];
+  personal: PersonalEntry[];
+  reminders: Note[];
+}
 
 function monthGrid(month: Date): Date[] {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -55,14 +62,19 @@ export function CalendarPage() {
 
   const events = useEvents(range.from, range.to);
   const personal = usePersonal(range.from, range.to, showPersonal);
+  const notes = useNotes(showPersonal);
 
   const byDay = useMemo(() => {
-    const map = new Map<string, { events: EventSummary[]; personal: PersonalEntry[] }>();
-    const slot = (k: string) => map.get(k) ?? map.set(k, { events: [], personal: [] }).get(k)!;
+    const map = new Map<string, DaySlot>();
+    const slot = (k: string) => map.get(k) ?? map.set(k, { events: [], personal: [], reminders: [] }).get(k)!;
     if (showLore) for (const e of events.data ?? []) for (const k of daysTouched(e)) slot(k).events.push(e);
-    if (showPersonal) for (const p of personal.data ?? []) for (const k of daysTouched(p)) slot(k).personal.push(p);
+    if (showPersonal) {
+      for (const p of personal.data ?? []) for (const k of daysTouched(p)) slot(k).personal.push(p);
+      // Reminders are private too: they sit on the personal layer.
+      for (const n of notes.data?.reminders ?? []) if (n.remindAt) slot(dateKey(n.remindAt)).reminders.push(n);
+    }
     return map;
-  }, [events.data, personal.data, showLore, showPersonal]);
+  }, [events.data, personal.data, notes.data, showLore, showPersonal]);
 
   const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1));
   const today = todayISO();
@@ -128,6 +140,7 @@ export function CalendarPage() {
                   <span className="dots">
                     {items?.events.slice(0, 3).map((e) => <i key={e.id} />)}
                     {items?.personal.slice(0, 2).map((p) => <i key={p.id} className="personal" />)}
+                    {items?.reminders.slice(0, 1).map((n) => <i key={n.id} className="personal" />)}
                   </span>
                 </button>
               );
@@ -143,7 +156,13 @@ export function CalendarPage() {
           </div>
 
           <Section title={fmtLongDay(new Date(`${selected}T12:00`))}>
-            <DayAgenda date={selected} events={day?.events ?? []} personal={day?.personal ?? []} onEdit={setEditing} />
+            <DayAgenda
+              date={selected}
+              events={day?.events ?? []}
+              personal={day?.personal ?? []}
+              reminders={day?.reminders ?? []}
+              onEdit={setEditing}
+            />
           </Section>
         </>
       ) : (
@@ -160,22 +179,31 @@ function DayAgenda({
   date,
   events,
   personal,
+  reminders,
   onEdit,
 }: {
   date: string;
   events: EventSummary[];
   personal: PersonalEntry[];
+  reminders: Note[];
   onEdit: (e: PersonalEntry | 'new') => void;
 }) {
   return (
     <div className="stack">
+      {reminders.length > 0 && (
+        <div className="list">
+          {reminders.map((n) => (
+            <NoteItem key={n.id} note={n} />
+          ))}
+        </div>
+      )}
       {personal.map((p) => (
         <PersonalRow key={p.id} entry={p} onEdit={onEdit} />
       ))}
       {events.map((e) => (
         <EventCard key={e.id} event={e} />
       ))}
-      {!events.length && !personal.length && <p className="small muted">Nothing planned. Wide open.</p>}
+      {!events.length && !personal.length && !reminders.length && <p className="small muted">Nothing planned. Wide open.</p>}
       <div className="row-wrap" style={{ marginTop: 4 }}>
         <Link to={`/events/new?date=${date}`} className="btn btn-primary btn-sm">
           <Plus size={15} /> Plan something
@@ -192,7 +220,7 @@ function Agenda({
   byDay,
   onEdit,
 }: {
-  byDay: Map<string, { events: EventSummary[]; personal: PersonalEntry[] }>;
+  byDay: Map<string, DaySlot>;
   onEdit: (e: PersonalEntry | 'new') => void;
 }) {
   const days = [...byDay.keys()].filter((k) => k >= todayISO()).sort();
@@ -212,6 +240,13 @@ function Agenda({
         return (
           <Section key={k} title={fmtLongDay(new Date(`${k}T12:00`))}>
             <div className="stack">
+              {d.reminders.length > 0 && (
+                <div className="list">
+                  {d.reminders.map((n) => (
+                    <NoteItem key={n.id} note={n} />
+                  ))}
+                </div>
+              )}
               {d.personal.map((p) => (
                 <PersonalRow key={p.id} entry={p} onEdit={onEdit} />
               ))}

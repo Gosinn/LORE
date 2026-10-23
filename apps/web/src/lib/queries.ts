@@ -13,6 +13,7 @@ import type {
   IdeaDetail,
   IdeaSummary,
   Me,
+  NotesData,
   PersonalEntry,
   PublicProfile,
   UserSearchResult,
@@ -60,6 +61,9 @@ export const usePersonal = (from: string, to: string, enabled = true) =>
     queryFn: () => api.get<PersonalEntry[]>(`/personal${qs({ from, to })}`),
     enabled,
   });
+
+export const useNotes = (enabled = true) =>
+  useQuery({ queryKey: ['notes'], queryFn: () => api.get<NotesData>('/notes'), enabled });
 
 export const useIdeas = (crewId?: string, includeArchived = false) =>
   useQuery({

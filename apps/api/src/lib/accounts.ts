@@ -18,6 +18,7 @@ import {
   ideaInterest,
   ideas,
   media,
+  notes,
   personalEntries,
   users,
 } from '../db/schema.ts';
@@ -244,6 +245,12 @@ export async function exportAccount(db: Db, userId: string) {
     .where(eq(personalEntries.userId, userId))
     .orderBy(asc(personalEntries.startsAt));
 
+  const noteRows = await db
+    .select({ body: notes.body, remindAt: notes.remindAt, doneAt: notes.doneAt, pinned: notes.pinned, createdAt: notes.createdAt })
+    .from(notes)
+    .where(eq(notes.userId, userId))
+    .orderBy(asc(notes.createdAt));
+
   const commentRows = await db
     .select({ body: comments.body, createdAt: comments.createdAt })
     .from(comments)
@@ -267,6 +274,7 @@ export async function exportAccount(db: Db, userId: string) {
         })),
     })),
     personalCalendar: personal,
+    notesAndReminders: noteRows,
     comments: commentRows,
   };
 }

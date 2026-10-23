@@ -227,8 +227,31 @@ export interface PersonalEntry {
   notes: string | null;
 }
 
+/** A note to self; with `remindAt` it's a reminder. Only ever visible to its owner. */
+export interface Note {
+  id: string;
+  body: string;
+  remindAt: string | null;
+  doneAt: string | null;
+  pinned: boolean;
+  event: { id: string; title: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotesData {
+  /** Open reminders, soonest first (overdue ones included). */
+  reminders: Note[];
+  /** Open notes without a time, pinned first, then newest. */
+  notes: Note[];
+  /** The most recently finished, for a quick undo. */
+  done: Note[];
+}
+
 /** Every Home section is a short, finite list. There is no feed. */
 export interface HomeData {
+  /** Your reminders that are due or come up within a day. */
+  reminders: Note[];
   invitations: EventSummary[];
   comingUp: EventSummary[];
   continuePlanning: EventSummary[];

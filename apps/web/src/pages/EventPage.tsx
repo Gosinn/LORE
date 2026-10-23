@@ -1,9 +1,11 @@
-import { BookOpen, CalendarClock, Feather, Lightbulb, MapPin, Pencil, UserPlus } from 'lucide-react';
+import { BellRing, BookOpen, CalendarClock, Feather, Lightbulb, MapPin, Pencil, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { EVENT_CATEGORY_LABELS, type ChapterDetail, type EventDetail, type EventParticipant, type RsvpStatus } from '#shared';
+import { EVENT_CATEGORY_LABELS, type ChapterDetail, type EventDetail, type EventParticipant, type Note, type RsvpStatus } from '#shared';
 import { CommentThread } from '../components/CommentThread.tsx';
 import { CrewTag } from '../components/cards.tsx';
+import { whenLabel } from '../components/notes.tsx';
+import { ensureReminderPermission } from '../lib/reminders.ts';
 import { PeoplePicker } from '../components/pickers.tsx';
 import { Avatar, ErrorNote, EventStatusPill, Loading, PageError, Person, PrivacyBadge, Section, Sheet, TopBar } from '../components/ui.tsx';
 import { api, ApiError } from '../lib/api.ts';
@@ -109,6 +111,8 @@ function EventView({ event: e }: { event: EventDetail }) {
           )}
         </div>
       )}
+
+      {e.canRsvp && e.myRsvp && e.myRsvp !== 'declined' && <RemindMe event={e} />}
 
       {e.chapterId && (
         <Link to={`/chapters/${e.chapterId}`} className="card card-link row section" style={{ marginTop: 18, background: 'var(--gold-soft)', borderColor: 'transparent' }}>
@@ -228,6 +232,40 @@ function EventView({ event: e }: { event: EventDetail }) {
 
       {inviting && <InviteSheet event={e} onClose={() => setInviting(false)} />}
     </>
+  );
+}
+
+/** A private reminder about this plan, as a note to self linked to the event. */
+function RemindMe({ event }: { event: EventDetail }) {
+  const [setFor, setSetFor] = useState<string | null>(null);
+  const start = Date.parse(event.startsAt);
+  const options = [
+    { label: '1 hour before', at: start - 60 * 60 * 1000 },
+    { label: '1 day before', at: start - 24 * 60 * 60 * 1000 },
+  ].filter((o) => o.at > Date.now());
+  const remind = useAction(
+    (at: number) => api.post<Note>('/notes', { body: event.title, remindAt: new Date(at).toISOString(), eventId: event.id }),
+    {
+      onSuccess: (note) => {
+        setSetFor(note.remindAt);
+        void ensureReminderPermission();
+      },
+    },
+  );
+  if (!options.length) return null;
+  return (
+    <div className="section row-wrap" style={{ marginTop: 14 }}>
+      <span className="small muted row" style={{ gap: 6 }}>
+        <BellRing size={15} /> Remind me
+      </span>
+      {options.map((o) => (
+        <button key={o.label} className="chip" onClick={() => remind.mutate(o.at)} disabled={remind.isPending}>
+          {o.label}
+        </button>
+      ))}
+      {setFor && <span className="tiny muted">Set for {whenLabel(setFor)}. It’s in your notes.</span>}
+      <ErrorNote error={remind.error} />
+    </div>
   );
 }
 

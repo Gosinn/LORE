@@ -21,6 +21,7 @@ import { friendRoutes } from './routes/friends.ts';
 import { homeRoutes } from './routes/home.ts';
 import { ideaRoutes } from './routes/ideas.ts';
 import { mediaRoutes } from './routes/media.ts';
+import { noteRoutes } from './routes/notes.ts';
 import { notificationRoutes } from './routes/notifications.ts';
 import { personalRoutes } from './routes/personal.ts';
 import { userRoutes } from './routes/users.ts';
@@ -123,6 +124,7 @@ export async function buildApp(ctx: AppContext) {
         crewRoutes,
         eventRoutes,
         personalRoutes,
+        noteRoutes,
         ideaRoutes,
         chapterRoutes,
         mediaRoutes,

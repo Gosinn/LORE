@@ -1412,6 +1412,47 @@ details.more-options[open] > summary::before {
   text-decoration: line-through;
   color: var(--muted);
 }
+.note-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.note-row:last-child {
+  border-bottom: 0;
+}
+.note-row > input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  accent-color: var(--ember);
+}
+.note-body {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 15.5px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+.note-row.done .note-body {
+  text-decoration: line-through;
+  color: var(--muted);
+  cursor: default;
+}
+.note-row .meta a,
+.note-row .meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.quick-note {
+  display: block;
+}
 .notification {
   display: flex;
   align-items: center;

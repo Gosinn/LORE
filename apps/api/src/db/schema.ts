@@ -287,6 +287,29 @@ export const personalEntries = pgTable(
   (t) => [index('personal_entries_user_starts_idx').on(t.userId, t.startsAt)],
 );
 
+/**
+ * Notes to self. With a `remind_at` a note is a reminder. Private to its owner,
+ * like the personal calendar: never joined into anything shared.
+ */
+export const notes = pgTable(
+  'notes',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    remindAt: ts('remind_at'),
+    doneAt: ts('done_at'),
+    pinned: boolean('pinned').notNull().default(false),
+    /** Optional link, e.g. "remind me about this plan". */
+    eventId: uuid('event_id').references(() => events.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('notes_user_remind_idx').on(t.userId, t.remindAt), index('notes_user_created_idx').on(t.userId, t.createdAt)],
+);
+
 // ---------------------------------------------------------------------------
 // Lorebook
 

@@ -320,6 +320,26 @@ export const UpdateContributionInput = z.object({
 export type UpdateContributionInput = z.infer<typeof UpdateContributionInput>;
 
 // ---------------------------------------------------------------------------
+// Notes to self and reminders (always private)
+
+export const CreateNoteInput = z.object({
+  body: text(2000),
+  /** Set to make the note a reminder. */
+  remindAt: isoDateTime.nullable().optional(),
+  pinned: z.boolean().optional(),
+  eventId: id.nullable().optional(),
+});
+export type CreateNoteInput = z.infer<typeof CreateNoteInput>;
+
+export const UpdateNoteInput = z.object({
+  body: text(2000).optional(),
+  remindAt: isoDateTime.nullable().optional(),
+  pinned: z.boolean().optional(),
+  done: z.boolean().optional(),
+});
+export type UpdateNoteInput = z.infer<typeof UpdateNoteInput>;
+
+// ---------------------------------------------------------------------------
 // Discussion
 
 export const CreateCommentInput = z.object({ body: text(4000) });
