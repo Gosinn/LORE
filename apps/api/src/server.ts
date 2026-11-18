@@ -1,7 +1,6 @@
 import { buildApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { openDatabase } from './db/index.ts';
-import { ownerRecovery } from './lib/owner-recovery.ts';
 import { DatabaseStorage, LocalDiskStorage } from './lib/storage.ts';
 import { openDataWorld } from './lib/world.ts';
 
@@ -12,7 +11,6 @@ if (config.env === 'production' && !config.databaseUrl) {
 
 const database = await openDatabase({ url: config.databaseUrl, pgliteDir: config.pgliteDir });
 await database.migrate();
-await ownerRecovery(database.db).catch((err) => console.error('owner recovery failed:', err));
 
 const storage =
   config.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(config.mediaDir);
