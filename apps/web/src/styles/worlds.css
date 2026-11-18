@@ -102,6 +102,38 @@ html[data-theme='lore'] .world {
   contain: strict;
   will-change: transform;
 }
+/* Wide screens: the scenic worlds are painted for a phone held upright, so `cover` on a desktop blows them up
+   about three times (the sun cut off, the clouds and the city huge). There the scene keeps its own proportions,
+   full height in the middle, and the sides are the same scene softly blurred and dimmed, fading into it. The
+   layers are fixed and static, so the blur is drawn once, not on scroll. */
+@media (min-aspect-ratio: 1/1) and (min-width: 900px) {
+  html[data-theme='lore']:is([data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world {
+    background: none;
+    background-color: var(--world-bg, #030409);
+  }
+  html[data-theme='lore']:is([data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world::before,
+  html[data-theme='lore']:is([data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--world-art, none);
+  }
+  html[data-theme='lore']:is([data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world::before {
+    filter: blur(26px) brightness(0.62) saturate(1.1);
+    transform: scale(1.1);
+  }
+  html[data-theme='lore']:is([data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world::after {
+    background-size: auto 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    left: 50%;
+    right: auto;
+    width: calc(100lvh * 390 / 844);
+    transform: translateX(-50%);
+  }
+}
 /* Inside the Loracle the temple wall shows (body's background, which this layer would otherwise cover). */
 body:has(.oracle-page) > .world {
   visibility: hidden;
