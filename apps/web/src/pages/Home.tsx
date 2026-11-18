@@ -210,7 +210,7 @@ function OracleTeaser() {
         <StoneCircle />
       </span>
       <span className="teaser-text">
-        <span className="eyebrow">The Oracle</span>
+        <span className="eyebrow">The Loracle</span>
         <strong>{line}</strong>
         <span className="small">{sub}</span>
         <span className="teaser-enter">

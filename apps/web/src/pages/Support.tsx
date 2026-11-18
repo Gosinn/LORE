@@ -40,7 +40,7 @@ export function SupportPage() {
         </li>
         <li>
           <strong>Who can see what:</strong> every plan, idea and chapter shows its audience. Your calendar, notes and
-          Oracle realm are only ever yours.
+          Loracle realm are only ever yours.
         </li>
         <li>
           <strong>Forgot your password?</strong> Write to us below from the email address on your account.

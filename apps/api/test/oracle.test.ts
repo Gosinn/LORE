@@ -354,7 +354,7 @@ describe('the Oracle API', () => {
     expect(event.body.title).toBe(future.title);
     expect(event.body.startsAt).toBe(future.startsAt);
     expect(event.body.myRole).toBe('organizer');
-    expect(event.body.description).toContain('Revealed by the Oracle.');
+    expect(event.body.description).toContain('Revealed by The Loracle.');
     expect(event.body.locationName).toBe(future.place?.name ?? null);
     // The plan is Ana's; Bo isn't invited and can't see it.
     expect((await bo.get(`/api/events/${chosen.eventId}`)).status).toBe(404);

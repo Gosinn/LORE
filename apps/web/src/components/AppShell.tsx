@@ -10,7 +10,7 @@ const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   // Phones reach the Oracle from Home and Create; the tab bar keeps five tabs.
-  { to: '/oracle', label: 'Oracle', icon: Sparkles, railOnly: true },
+  { to: '/oracle', label: 'Loracle', icon: Sparkles, railOnly: true },
   { to: '/create', label: 'Create', icon: Plus, create: true },
   { to: '/lorebook', label: 'Lorebook', icon: BookOpen },
   { to: '/profile', label: 'Profile', icon: UserRound },

@@ -68,9 +68,9 @@ export function TermsPage() {
         without warning.
       </p>
 
-      <h2>The Oracle and real-world adventures</h2>
+      <h2>The Loracle and real-world adventures</h2>
       <p>
-        The Oracle suggests possible futures from public data (weather, the sky, notable places). It can be wrong and it
+        The Loracle suggests possible futures from public data (weather, the sky, notable places). It can be wrong and it
         doesn’t know about road closures, opening hours, private land, tides or danger. You decide what you do and you’re
         responsible for your own safety: check conditions, follow local rules and respect the places you visit.
       </p>
@@ -123,8 +123,8 @@ export function PrivacyPage() {
           private calendar, notes and reminders.
         </li>
         <li>
-          <strong>The Oracle:</strong> the town or area you set as your realm (its approximate coordinates), how far you’d
-          travel, your interests, and the futures the Oracle showed you.
+          <strong>The Loracle:</strong> the town or area you set as your realm (its approximate coordinates), how far you’d
+          travel, your interests, and the futures The Loracle showed you.
         </li>
         <li>
           <strong>Safety:</strong> reports you send, and messages you write to us.
@@ -138,7 +138,7 @@ export function PrivacyPage() {
       <h2>Who sees it</h2>
       <p>
         You decide: each plan, idea and chapter shows who can see it (only you, the people in it, your friends, or a crew).
-        Your private calendar, notes, reminders and Oracle realm are only ever visible to you. If something is reported,
+        Your private calendar, notes, reminders and Loracle realm are only ever visible to you. If something is reported,
         the people who moderate LORE can see the reported content and the accounts involved, only to decide what to do.
       </p>
 
@@ -149,7 +149,7 @@ export function PrivacyPage() {
           both in Frankfurt, Germany. They store data for us and may not use it for anything else.
         </li>
         <li>
-          For the Oracle, our server asks public data services about the area around your realm:{' '}
+          For The Loracle, our server asks public data services about the area around your realm:{' '}
           <strong>Wikidata</strong> (notable places), <strong>Open-Meteo</strong> (weather), <strong>NOAA</strong> (aurora
           forecast) and <strong>OpenStreetMap Nominatim</strong> (finding the town you type). They receive coordinates or
           the town name you searched for, never your name, account or device.

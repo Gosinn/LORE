@@ -6,7 +6,7 @@ const OPTIONS = [
   {
     to: '/oracle',
     icon: Sparkles,
-    title: 'Consult the Oracle',
+    title: 'Consult The Loracle',
     text: 'Possible futures from the sky, the weather and the wild places around you.',
     tone: ['#221a3d', '#ffb36b'],
   },

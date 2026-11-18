@@ -294,7 +294,7 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
       `The signs: ${future.signs.join(' · ')}`,
       future.place ? `Where: ${future.place.name}, ${future.place.distanceKm} km from home.` : null,
       future.place?.wikidataId ? `About the place: https://www.wikidata.org/wiki/${future.place.wikidataId}` : null,
-      'Revealed by the Oracle.',
+      'Revealed by The Loracle.',
     ]
       .filter(Boolean)
       .join('\n\n');

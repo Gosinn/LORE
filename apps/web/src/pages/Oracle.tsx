@@ -56,7 +56,7 @@ export function OraclePage() {
   if (oracle.isLoading)
     return (
       <div className="oracle-page">
-        <TopBar back title="The Oracle" />
+        <TopBar back title="The Loracle" />
         <div className="oracle-waking" role="status">
           <div className="stone-window" aria-hidden>
             <StoneCircle active />
@@ -81,7 +81,7 @@ export function OraclePage() {
     <div className="oracle-page">
       <TopBar
         back
-        title="The Oracle"
+        title="The Loracle"
         actions={
           setUp && (
             <button className="icon-btn" onClick={() => setEditing(true)} aria-label="Change your realm">
