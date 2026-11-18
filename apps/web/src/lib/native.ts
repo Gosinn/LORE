@@ -9,7 +9,11 @@ import { isDarkTheme } from './theme.ts';
 interface MinimalRouter {
   state: { location: { pathname: string } };
   navigate: { (to: number): unknown; (to: string): unknown };
+  subscribe(fn: () => void): unknown;
 }
+
+/** Pages drawn dark in every theme (the Oracle's stone temple), so the status bar needs light icons there. */
+const isAlwaysDark = (pathname: string) => pathname === '/oracle' || pathname.startsWith('/oracle/');
 
 const ROOTS = new Set(['/', '/welcome']);
 
@@ -30,14 +34,19 @@ export async function setupNativeShell(router: MinimalRouter) {
     void router.navigate(href ?? '/notes');
   }).catch(() => undefined);
 
-  // Match the status bar to the theme, now and when it changes.
+  // Match the status bar to the theme (or to an always-dark page), now and whenever either changes.
   const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  let current: Style | null = null;
   const sync = () => {
-    void StatusBar.setStyle({ style: isDarkTheme() ? Style.Dark : Style.Light }).catch(() => undefined);
+    const style = isDarkTheme() || isAlwaysDark(router.state.location.pathname) ? Style.Dark : Style.Light;
+    if (style === current) return;
+    current = style;
+    void StatusBar.setStyle({ style }).catch(() => undefined);
   };
   sync();
   dark.addEventListener('change', sync);
   new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  router.subscribe(sync);
 
   await SplashScreen.hide().catch(() => undefined);
 }

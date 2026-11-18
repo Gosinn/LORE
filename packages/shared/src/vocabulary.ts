@@ -89,6 +89,9 @@ export const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 // The Oracle: possible futures drawn from the world around you.
 
 /** What a lore maker is into. Each one is backed by data the Oracle can actually see. */
+/** The Oracle's realm with no limit: anywhere on Earth (half the planet's circumference is ~20,000 km). */
+export const NO_LIMIT_KM = 20000;
+
 export const INTERESTS = [
   'nature',
   'water',

@@ -2,7 +2,7 @@ import '@fontsource/cinzel/600.css';
 import '@fontsource/cinzel/700.css';
 import '@fontsource/im-fell-english/400.css';
 import '@fontsource/im-fell-english/400-italic.css';
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 
 const STONES = 11;
 
@@ -105,6 +105,84 @@ export function RuneRow({ active = false, className = '' }: { active?: boolean; 
   );
 }
 
+/** One rune, drawn (not typed) so it shows on every phone. */
+export function RuneGlyph({ c, className = '' }: { c: string; className?: string }) {
+  return (
+    <svg viewBox="-1 -1 12 18" className={`rune-glyph ${className}`} aria-hidden>
+      {(glyph(c) ?? []).map((line, j) => (
+        <polyline key={j} points={line.join(' ')} />
+      ))}
+    </svg>
+  );
+}
+
+// Sparks rising from the fire: [sideways drift in px, delay in s].
+const EMBERS: [x: number, delay: number][] = [
+  [-22, 0],
+  [14, 1.5],
+  [-6, 2.7],
+  [26, 0.8],
+  [-16, 2.1],
+  [4, 0.3],
+  [20, 1.8],
+  [-30, 2.9],
+  [9, 1.1],
+  [-12, 2.4],
+];
+
+/** Embers drifting up from the stone circle's fire: a few at rest, all of them while the stones speak. */
+export function Embers({ active = false }: { active?: boolean }) {
+  return (
+    <span className={`embers${active ? ' active' : ''}`} aria-hidden>
+      {EMBERS.map(([x, d], i) => (
+        <i key={i} style={{ '--x': `${x}px`, '--d': `${d}s` } as CSSProperties} />
+      ))}
+    </span>
+  );
+}
+
+const COUNTER_RUNES = ['f', 'r', 'l'];
+
+/** One rune tablet per reading today: lit while it's still yours, cracked once it's spent. */
+export function RuneCounter({ left, total }: { left: number; total: number }) {
+  return (
+    <div className="rune-counter" aria-hidden>
+      {Array.from({ length: total }, (_, i) => {
+        const lines = (glyph(COUNTER_RUNES[i % COUNTER_RUNES.length]!) ?? []).map((l) => l.join(' '));
+        return (
+          <span key={i} className={`rune-tablet ${i >= total - left ? 'lit' : 'spent'}`}>
+            <svg viewBox="0 0 24 32">
+              <g transform="translate(7 8)">
+                {lines.map((p, j) => (
+                  <polyline key={`d${j}`} points={p} className="rt-rune rt-dim" />
+                ))}
+                {lines.map((p, j) => (
+                  <polyline key={`l${j}`} points={p} className="rt-rune rt-lit" />
+                ))}
+              </g>
+              <path d="M5 2 9.5 10 7.5 14 14 21 12 30M9.5 10 14.5 12" className="rt-crack" />
+            </svg>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The Oracle's mark: raido (the journey) bound to laguz (the flow) in a ring. A crescent moon while the stones rest. */
+export function Sigil({ moon = false }: { moon?: boolean }) {
+  return (
+    <svg viewBox="0 0 22 22" className="sigil" aria-hidden>
+      <circle cx="11" cy="11" r="9.6" />
+      {moon ? (
+        <path d="M12.6 5.2A6 6 0 1 0 16.6 15A6.8 6.8 0 0 1 12.6 5.2Z" className="sigil-fill" />
+      ) : (
+        <path d="M10.5 17V5l4 3-4 3 4.5 6M10.5 5 6.5 9" />
+      )}
+    </svg>
+  );
+}
+
 /** A piece of parchment with rolled ends. */
 export function Scroll({ children, className = '', as: Tag = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'article' | 'section' }) {
   return <Tag className={`scroll ${className}`}>{children}</Tag>;
@@ -137,7 +215,7 @@ export function ReminderScroll({ collapsible = true }: { collapsible?: boolean }
   if (rolled) {
     return (
       <button className="scroll-rolled" onClick={toggle}>
-        <span aria-hidden>📜</span> A friendly reminder
+        <span className="seal" aria-hidden /> A friendly reminder
       </button>
     );
   }
@@ -156,7 +234,11 @@ export function ReminderScroll({ collapsible = true }: { collapsible?: boolean }
         By morning the armchair was empty. They had left everything as it was and run down the road after the company,
         and they turned out to be exactly the one the company needed.
       </p>
+      <div className="ink-rule" aria-hidden />
       <p className="scroll-moral">Every legend starts with someone who almost stayed home.</p>
+      <span className="seal scroll-seal" aria-hidden>
+        <RuneGlyph c="l" />
+      </span>
       {collapsible && (
         <button className="scroll-roll-up" onClick={toggle}>
           Roll it up

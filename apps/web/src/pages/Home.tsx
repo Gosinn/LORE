@@ -2,7 +2,7 @@ import { Compass, Feather, Plus } from 'lucide-react';
 import { Link } from 'react-router';
 import { ChapterCard, CrewChip, EventCard, IdeaCard } from '../components/cards.tsx';
 import { NoteItem, QuickNote } from '../components/notes.tsx';
-import { StoneCircle } from '../components/oracle.tsx';
+import { RuneRow, StoneCircle } from '../components/oracle.tsx';
 import { Empty, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { fmtLongDay, greeting } from '../lib/dates.ts';
@@ -209,11 +209,15 @@ function OracleTeaser() {
       <span className="stone-window">
         <StoneCircle />
       </span>
-      <span className="grow">
+      <span className="teaser-text">
         <span className="eyebrow">The Oracle</span>
         <strong>{line}</strong>
         <span className="small">{sub}</span>
+        <span className="teaser-enter">
+          Enter the circle <span aria-hidden>›</span>
+        </span>
       </span>
+      <RuneRow />
     </Link>
   );
 }

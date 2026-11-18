@@ -8,6 +8,7 @@ import {
   type FutureKind,
   type FuturePlace,
   type Interest,
+  NO_LIMIT_KM,
   type OracleMode,
 } from '#shared';
 import { distanceKm, moonIllumination, type DayWeather, type Forecast, type KpReading, type PlaceKind, type WorldPlace } from './world.ts';
@@ -92,6 +93,26 @@ const DAWN_SPOTS: Set<PlaceKind> = new Set(['lighthouse', 'mountain', 'volcano',
 const ANCIENT: Set<PlaceKind> = new Set(['archaeological_site', 'castle', 'ruins', 'lighthouse']);
 const MUSES: Set<PlaceKind> = new Set(['museum', 'art_museum', 'botanical_garden']);
 
+/** Beyond this a place is a journey (a weekend or longer away), never a day out or an evening. */
+const JOURNEY_KM = 250;
+/** Beyond this a journey takes two nights. */
+const LONG_JOURNEY_KM = 400;
+/** Beyond this no road gets you there and back in a weekend: a far shore, by air, a week away. */
+const FAR_SHORE_KM = 1500;
+/** As far as a weekday evening out goes. */
+const EVENING_KM = 60;
+
+const JOURNEYS: { template: string; kinds: Set<PlaceKind>; emoji: string; score: number }[] = [
+  { template: 'journey', kinds: new Set([...WILD, 'beach', 'lighthouse', 'hot_spring']), emoji: '🗺️', score: 5.5 },
+  { template: 'pilgrimage', kinds: new Set([...ANCIENT, ...MUSES]), emoji: '🧳', score: 5 },
+];
+
+/** Rough hours on the road for a straight-line distance: roads wind (×1.3), about 80 km/h with stops. */
+const roadHours = (km: number) => Math.max(1, Math.round((km * 1.3) / 80));
+/** Rough hours in the air, about 800 km an hour. */
+const flyHours = (km: number) => Math.max(1, Math.round(km / 800));
+const FAR_SHORE_KINDS: Set<PlaceKind> = new Set([...WILD, 'beach', 'lighthouse', 'hot_spring', ...ANCIENT, ...MUSES]);
+
 // ---------------------------------------------------------------------------
 // Small helpers
 
@@ -156,13 +177,24 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
     .map((p) => ({ ...p, distance: distanceKm(input.home.lat, input.home.lon, p.lat, p.lon) }))
     .filter((p) => p.distance <= input.radiusKm);
 
-  const pickPlace = (kinds: Set<PlaceKind>, minKm = 0, maxKm = input.radiusKm) => {
+  /** `notable`: only the best-known quarter (by Wikimedia pages), for places worth a journey. */
+  const pickPlace = (kinds: Set<PlaceKind>, minKm = 0, maxKm = input.radiusKm, notable = false) => {
     const options = nearby.filter((p) => kinds.has(p.kind) && p.distance >= minKm && p.distance <= maxKm);
     if (!options.length) return null;
     const fresh = options.filter((p) => !input.recentPlaceIds.has(p.id));
-    const pool = fresh.length ? fresh : options;
+    let pool = fresh.length ? fresh : options;
+    if (notable) {
+      pool = [...pool].sort((a, b) => (b.sitelinks ?? 0) - (a.sitelinks ?? 0)).slice(0, Math.max(5, Math.ceil(pool.length / 4)));
+    }
     return pool[Math.floor(rng() * pool.length)]!;
   };
+  const shiftDate = (date: string, days: number) => {
+    const d = new Date(`${date}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  /** Same-day futures stay within a day's reach, however wide the realm. */
+  const dayReach = Math.min(JOURNEY_KM, input.radiusKm);
   const asPlace = (p: (typeof nearby)[number]): FuturePlace => ({
     name: p.name,
     kind: p.kind,
@@ -274,7 +306,7 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
 
     // --- Day trips (weekends) ----------------------------------------------------
     if (weekend && isFair(w) && free(at(date, '10:00'), at(date, '17:00'))) {
-      const place = pickPlace(WILD, 10);
+      const place = pickPlace(WILD, 10, dayReach);
       if (place) {
         add({
           template: 'expedition',
@@ -294,7 +326,7 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
           score: 5 + (w ? (15 - w.windMax) / 5 : 0),
         });
       }
-      const far = pickPlace(new Set([...WILD, 'lighthouse', 'beach'] as PlaceKind[]), Math.min(80, input.radiusKm * 0.6));
+      const far = pickPlace(new Set([...WILD, 'lighthouse', 'beach'] as PlaceKind[]), Math.min(80, input.radiusKm * 0.6), dayReach);
       if (far && free(at(date, '08:00'), at(date, '20:00'))) {
         const stop = nearby
           .filter((p) => p.id !== far.id && p.distance < far.distance && distanceKm(p.lat, p.lon, far.lat, far.lon) < far.distance * 0.7)
@@ -317,7 +349,7 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
           score: 4 + (far.distance > 100 ? 1 : 0),
         });
       }
-      const ancient = pickPlace(ANCIENT);
+      const ancient = pickPlace(ANCIENT, 0, dayReach);
       if (ancient) {
         add({
           template: 'ancients',
@@ -337,7 +369,7 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
           score: 3.5,
         });
       }
-      const beach = pickPlace(new Set(['beach'] as PlaceKind[]));
+      const beach = pickPlace(new Set(['beach'] as PlaceKind[]), 0, dayReach);
       if (beach && w && w.tMax >= 8) {
         add({
           template: 'coast',
@@ -355,6 +387,101 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
           chapterId: null,
           interests: ['water', 'nature'],
           score: 3 + w.tMax / 10,
+        });
+      }
+    }
+
+    // --- Journeys: too far for a day, so a weekend (or a long one) away ------------
+    // Home's forecast says nothing about a place 600 km off, so no weather signs.
+    if (input.radiusKm > JOURNEY_KM && new Date(`${date}T12:00:00Z`).getUTCDay() === 6) {
+      for (const j of JOURNEYS) {
+        const place = pickPlace(j.kinds, JOURNEY_KM, Math.min(input.radiusKm, FAR_SHORE_KM), true);
+        if (!place) continue;
+        const nights = place.distance > LONG_JOURNEY_KM ? 2 : 1;
+        // One night: Saturday to Sunday. Two: Friday to Sunday, else Saturday to Monday.
+        const spans: [number, number][] = nights === 1 ? [[0, 1]] : [[-1, 1], [0, 2]];
+        const span = spans.find(([from, to]) => free(at(date, '08:00', from), at(date, '20:00', to)));
+        if (!span) continue;
+        const first = dayName(shiftDate(date, span[0]));
+        const last = dayName(shiftDate(date, span[1]));
+        const km = Math.round(place.distance);
+        const hours = roadHours(place.distance);
+        const road =
+          hours > 8
+            ? `about ${hours} hours by road each way, so a train or a flight may serve you better`
+            : `about ${hours} hours on the road each way`;
+        const plan =
+          nights === 1
+            ? `Leave ${first} morning, sleep near it, and come home ${last} evening.`
+            : `Go ${first}, stay two nights, and be home ${last} night.`;
+        add({
+          template: j.template,
+          kind: 'interest',
+          title: j.template === 'journey' ? `Beyond the Horizon: ${place.name}` : `Pilgrimage to ${place.name}`,
+          story:
+            j.template === 'journey'
+              ? `${place.name} is ${km} km away, ${road}. Too far for a day, so make it a journey. ${plan}`
+              : `Some places deserve more than an afternoon. ${place.name} is ${km} km away, ${road}. ${plan}`,
+          signs: [
+            `About ${hours} h each way by road`,
+            nights === 1 ? 'One night away' : 'Two nights away',
+            `You're free ${first} to ${last}`,
+            'Check the weather there before you go',
+          ],
+          emoji: j.emoji,
+          category: j.template === 'journey' && WILD.has(place.kind) ? 'expedition' : 'road_trip',
+          startsAt: at(date, '08:00', span[0]).toISOString(),
+          endsAt: at(date, '20:00', span[1]).toISOString(),
+          place: asPlace(place),
+          crew: crew(),
+          ideaId: null,
+          chapterId: null,
+          interests: ['road_trips', ...PLACE_INTERESTS[place.kind]],
+          score: j.score,
+        });
+      }
+    }
+
+    // --- A far shore: past where roads reach in a weekend. Fly, and give it a week. -----
+    if (input.radiusKm > FAR_SHORE_KM && new Date(`${date}T12:00:00Z`).getUTCDay() === 6) {
+      const place = pickPlace(FAR_SHORE_KINDS, FAR_SHORE_KM, input.radiusKm, true);
+      // Leaving needs a free weekend; the week after is yours to clear.
+      if (place && free(at(date, '08:00'), at(date, '20:00', 1))) {
+        const km = Math.round(place.distance).toLocaleString('en');
+        const hours = flyHours(place.distance);
+        const first = dayName(date);
+        const wild = WILD.has(place.kind) || place.kind === 'beach' || place.kind === 'hot_spring';
+        const stories = wild
+          ? [
+              `${place.name} is ${km} km from home. No road gets you there in a weekend, so take to the air. Fly out ${first}, give it a week, and let the place decide the rest.`,
+              `The map runs out of roads long before ${place.name}. ${km} km. Pack light, fly ${first}, and do not come home the same.`,
+            ]
+          : [
+              `Across the sea, ${place.name} has waited a long time for you. ${km} km. Fly out ${first}, give it a week, and come home with a story nobody else has.`,
+              `Some places are worth crossing the world for. ${place.name} is one: ${km} km away. Fly ${first}. Stay a week. Listen.`,
+            ];
+        add({
+          template: 'far_shore',
+          kind: 'interest',
+          title: `A Far Shore: ${place.name}`,
+          story: stories[Math.floor(rng() * stories.length)]!,
+          signs: [
+            `About ${hours} h in the air each way`,
+            'A week away: ask for the time off',
+            'Passport, and check visas and vaccines',
+            'Check the season there before you go',
+          ],
+          emoji: '🧭',
+          category: 'expedition',
+          startsAt: at(date, '08:00').toISOString(),
+          endsAt: at(date, '20:00', 8).toISOString(),
+          place: asPlace(place),
+          crew: crew(),
+          ideaId: null,
+          chapterId: null,
+          interests: PLACE_INTERESTS[place.kind],
+          // Whoever opens the realm to the whole world wants to be sent somewhere far.
+          score: input.radiusKm >= NO_LIMIT_KM ? 6.5 : 5.3,
         });
       }
     }
@@ -388,7 +515,7 @@ export function generateFutures(input: OracleInput): FutureDraft[] {
     const museStart = weekend ? '13:00' : '17:30';
     const museEnd = weekend ? '16:00' : '19:30';
     if (free(at(date, museStart), at(date, museEnd))) {
-      const muse = pickPlace(MUSES);
+      const muse = pickPlace(MUSES, 0, Math.min(weekend ? JOURNEY_KM : EVENING_KM, input.radiusKm));
       if (muse) {
         add({
           template: 'muses',
@@ -496,12 +623,18 @@ function deal(candidates: Candidate[], input: OracleInput, rng: () => number): F
       .map((x) => x.c);
 
   const chosen: Candidate[] = [];
+  // A far shore lasts a week, but it's a different life, not a clash with Tuesday's evening swim:
+  // for spacing the reading out it only claims its departure weekend.
+  const until = (c: Candidate) => {
+    const end = Date.parse(c.endsAt ?? c.startsAt);
+    return c.template === 'far_shore' ? Math.min(end, Date.parse(c.startsAt) + 2 * 86_400_000) : end;
+  };
   const fits = (c: Candidate) =>
     !chosen.some(
       (x) =>
         x.template === c.template ||
         (x.place && c.place && x.place.wikidataId === c.place.wikidataId) ||
-        (Date.parse(x.startsAt) < Date.parse(c.endsAt ?? c.startsAt) && Date.parse(c.startsAt) < Date.parse(x.endsAt ?? x.startsAt)),
+        (Date.parse(x.startsAt) < until(c) && Date.parse(c.startsAt) < until(x)),
     );
   const take = (pool: Candidate[], n: number, kind?: FutureKind) => {
     for (const c of pool) {

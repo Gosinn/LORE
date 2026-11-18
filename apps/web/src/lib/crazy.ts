@@ -84,6 +84,8 @@ function paint(root: Element) {
   // Document order: containers are painted before what's inside them.
   for (const el of found as HTMLElement[]) {
     if (el.dataset.c) continue;
+    // The Oracle's stone and scrolls are objects: they keep their own colours.
+    if (el.closest('.oracle-page, .oracle-teaser')) continue;
     el.dataset.c = pick(el);
     if (!el.matches(BLOCKS)) el.dataset.t = '';
   }

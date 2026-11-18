@@ -5,6 +5,11 @@ Newest first within each list.
 
 ## Taken
 
+**D30 · No limits on adventure.** The owner: "We only get one chance at life... putting a limit on
+adventure is not the way to go." The Oracle's realm goes to **No limit** (anywhere on Earth). Technical
+limits (Wikidata load, API cost) are solved behind the scenes (indexes, caching, back-off), never shown
+as a ceiling. Applies to future features too.
+
 **D29 · Safety for going public (App Store guideline 1.2).** Anyone can report a person, plan, idea,
 chapter, story or message they can see (and block the person in the same step); the report keeps a
 snapshot of what it said. Moderators are configured by username (`ADMIN_USERNAMES`), not stored in the

@@ -6,7 +6,7 @@
 // Every answer is cached in `world_cache`; when a service is down the last known
 // answer is used, and with nothing at all the Oracle works with what it has.
 // Each service's usage policy is respected: an identifying User-Agent, caching,
-// and at most one Nominatim request per second.
+// at most one Nominatim request per second, and waiting out Wikidata when it says 429.
 import { eq, sql } from 'drizzle-orm';
 import type { GeocodeResult } from '#shared';
 import type { Db } from '../db/index.ts';
@@ -36,6 +36,8 @@ export interface WorldPlace {
   kind: PlaceKind;
   lat: number;
   lon: number;
+  /** How many Wikimedia pages the place has: a rough measure of how notable it is. Places from the notable index carry it. */
+  sitelinks?: number;
 }
 
 export interface DayWeather {
@@ -104,8 +106,20 @@ async function fetchJson<T>(url: string, init: RequestInit = {}, timeoutMs = 20_
     headers: { 'user-agent': USER_AGENT, accept: 'application/json', ...init.headers },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status}`);
+  if (!res.ok) {
+    throw Object.assign(new Error(`${new URL(url).host} answered ${res.status}`), {
+      status: res.status,
+      retryAfter: res.headers.get('retry-after'),
+    });
+  }
   return (await res.json()) as T;
+}
+
+async function store(db: Db, key: string, data: unknown) {
+  await db
+    .insert(worldCache)
+    .values({ key, data: data as object, fetchedAt: new Date() })
+    .onConflictDoUpdate({ target: worldCache.key, set: { data: data as object, fetchedAt: sql`now()` } });
 }
 
 /** Fresh cache hit, else load and store; if loading fails, fall back to stale data. */
@@ -114,10 +128,7 @@ async function cached<T>(db: Db, key: string, ttlMs: number, load: () => Promise
   if (hit && Date.now() - hit.fetchedAt.getTime() < ttlMs) return hit.data as T;
   try {
     const data = await load();
-    await db
-      .insert(worldCache)
-      .values({ key, data: data as object, fetchedAt: new Date() })
-      .onConflictDoUpdate({ target: worldCache.key, set: { data: data as object, fetchedAt: sql`now()` } });
+    await store(db, key, data);
     return data;
   } catch {
     return hit ? (hit.data as T) : null;
@@ -133,47 +144,270 @@ async function nominatimSlot() {
 
 const average = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 100);
 
-export function openDataWorld(db: Db): WorldData {
+// ---------------------------------------------------------------------------
+// Places from Wikidata. Near home, a map search around the home cell; past 300 km,
+// the notable index (the best-known places of each kind on Earth).
+
+/** The near query (a map search around home) reaches this far. */
+export const NEAR_BAND_MAX_KM = 300;
+
+/**
+ * The notable index: one Wikidata query per kind of place, each giving every one on
+ * Earth with at least `minLinks` Wikipedia/Wikimedia pages (about 18,000 places in all).
+ *
+ * A map search can't reach past 300 km: in a dense area Wikidata has to look at every
+ * geotagged thing in the circle (listed buildings, shops…) before it can pick out the
+ * waterfalls, and it times out even 50 km wide around Frankfurt or London. One kind is a
+ * short list it sifts in seconds, and the same list serves every home, so the whole
+ * server asks these 16 queries once a month and a realm's far ring is a distance filter
+ * in memory: every notable place in reach, on land anywhere around, islands included.
+ *
+ * Counts and the time to sift each kind were measured on query.wikidata.org (2026-11-18).
+ * Cheapest first, so a new server has the first kinds within seconds; mountains last
+ * (513,000 on Wikidata, about 30 s to sift).
+ */
+export const NOTABLE_KINDS: readonly { type: string; minLinks: number }[] = [
+  { type: 'Q177380', minLinks: 2 }, // hot spring (129 with 3+ pages)
+  { type: 'Q83471', minLinks: 2 }, // geyser (~75)
+  { type: 'Q8072', minLinks: 3 }, // volcano (870)
+  { type: 'Q46169', minLinks: 8 }, // national park (1,509)
+  { type: 'Q167346', minLinks: 5 }, // botanical garden (555)
+  { type: 'Q40080', minLinks: 5 }, // beach (610)
+  { type: 'Q207694', minLinks: 8 }, // art museum (1,045)
+  { type: 'Q23413', minLinks: 8 }, // castle (1,362)
+  { type: 'Q35509', minLinks: 5 }, // cave (735)
+  { type: 'Q35666', minLinks: 8 }, // glacier (932)
+  { type: 'Q839954', minLinks: 8 }, // archaeological site (2,986)
+  { type: 'Q34038', minLinks: 5 }, // waterfall (1,229)
+  { type: 'Q39715', minLinks: 5 }, // lighthouse (942)
+  { type: 'Q109607', minLinks: 5 }, // ruins (409)
+  { type: 'Q33506', minLinks: 8 }, // museum (1,888)
+  { type: 'Q8502', minLinks: 12 }, // mountain (3,423)
+];
+/** The index is asked again after this long. */
+const NOTABLE_TTL = 30 * DAY;
+/** A kind whose query failed is left alone this long (remembered in world_cache, so across restarts too). */
+const NOTABLE_REST_MS = DAY;
+const LABEL_LANGUAGES = 'en,mul,de,fr,es,it,nl,pt,pl,is,no,sv,da,fi';
+
+const TYPES = Object.keys(WIKIDATA_TYPES)
+  .map((q) => `wd:${q}`)
+  .join(' ');
+
+type Bindings = Record<string, { value: string } | undefined>[];
+
+const notableKey = (kind: { type: string; minLinks: number }) => `places:notable:${kind.type}:${kind.minLinks}`;
+
+const notableQuery = (kind: { type: string; minLinks: number }) => `SELECT ?item ?itemLabel ?type ?loc ?links WHERE {
+  ?item wdt:P31 wd:${kind.type} ; wikibase:sitelinks ?links .
+  FILTER(?links >= ${kind.minLinks})
+  ?item wdt:P625 ?loc .
+  BIND(wd:${kind.type} AS ?type)
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "${LABEL_LANGUAGES}". }
+}`;
+
+/** An Earth coordinate from a WKT point ("Point(lon lat)"); null on another globe (Mars has volcanoes too). */
+function earthPoint(wkt: string): { lat: number; lon: number } | null {
+  const m = /^Point\(([-\d.eE+]+) ([-\d.eE+]+)\)$/.exec(wkt.trim());
+  if (!m) return null;
+  const lon = Number(m[1]);
+  const lat = Number(m[2]);
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null;
+}
+
+function toPlaces(bindings: Bindings): WorldPlace[] {
+  const seen = new Set<string>();
+  const places: WorldPlace[] = [];
+  for (const b of bindings) {
+    const id = b.item?.value.split('/').pop() ?? '';
+    const name = b.itemLabel?.value ?? '';
+    const kind = WIKIDATA_TYPES[b.type?.value.split('/').pop() ?? ''];
+    // Unlabelled items come back as their Q-number: not worth a journey.
+    if (!id || !kind || seen.has(id) || /^Q\d+$/.test(name)) continue;
+    const at = b.loc ? earthPoint(b.loc.value) : { lat: Number(b.lat?.value), lon: Number(b.lon?.value) };
+    if (!at || !Number.isFinite(at.lat) || !Number.isFinite(at.lon)) continue;
+    seen.add(id);
+    const links = b.links ? Number(b.links.value) : NaN;
+    places.push({
+      id,
+      name,
+      kind,
+      lat: Math.round(at.lat * 1e5) / 1e5,
+      lon: Math.round(at.lon * 1e5) / 1e5,
+      ...(Number.isFinite(links) && { sitelinks: links }),
+    });
+  }
+  return places;
+}
+
+/** Throttled or blocked by Wikidata: wait, don't count it against the query. */
+const throttled = (e: unknown) => {
+  const status = (e as { status?: number }).status;
+  return status === 429 || status === 403;
+};
+
+/** How long to leave Wikidata alone: what it asked (Retry-After), else a minute; a block (403) an hour at least. */
+export function backOffMs(status: number, retryAfter: string | null | undefined, now = Date.now()): number {
+  let asked = NaN;
+  if (retryAfter) asked = /^\d+$/.test(retryAfter.trim()) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - now;
+  const fallback = status === 403 ? HOUR : 60_000;
+  const wait = Number.isFinite(asked) && asked > 0 ? asked : fallback;
+  return Math.min(DAY, Math.max(status === 403 ? HOUR : 5_000, wait));
+}
+
+/**
+ * Wikidata's query service, shared by every reading on this server. It allows each
+ * client about a minute of query time per minute; when it answers 429 (or 403) every
+ * query waits out its Retry-After (meanwhile the near query falls back to the cache).
+ */
+function wikidataClient() {
+  let pausedUntil = 0;
   return {
-    async places(lat, lon, radiusKm) {
-      // One query per ~50 km cell and radius band, kept for 30 days.
-      const cellLat = Math.round(lat * 2) / 2;
-      const cellLon = Math.round(lon * 2) / 2;
-      const band = Math.min(300, Math.ceil((radiusKm + 40) / 100) * 100);
-      const types = Object.keys(WIKIDATA_TYPES)
-        .map((q) => `wd:${q}`)
-        .join(' ');
-      const query = `SELECT ?item ?itemLabel ?type ?lat ?lon WHERE {
-        VALUES ?type { ${types} }
-        SERVICE wikibase:around { ?item wdt:P625 ?loc . bd:serviceParam wikibase:center "Point(${cellLon} ${cellLat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "${band}" . }
-        ?item wdt:P31 ?type .
-        BIND(geof:latitude(?loc) AS ?lat) BIND(geof:longitude(?loc) AS ?lon)
-        SERVICE wikibase:label { bd:serviceParam wikibase:language "en,is,de,fr,es,no,sv,da". }
-      } LIMIT 2500`;
-      const data = await cached(db, `places:${cellLat}:${cellLon}:${band}`, 30 * DAY, async () => {
-        const body = await fetchJson<{ results: { bindings: Record<string, { value: string }>[] } }>(
+    paused: () => Date.now() < pausedUntil,
+    async sparql(query: string, timeoutMs: number): Promise<Bindings> {
+      if (Date.now() < pausedUntil) throw Object.assign(new Error('Wikidata asked us to wait'), { status: 429 });
+      try {
+        const body = await fetchJson<{ results: { bindings: Bindings } }>(
           'https://query.wikidata.org/sparql',
           {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/sparql-results+json' },
             body: new URLSearchParams({ query }),
           },
-          60_000,
+          timeoutMs,
         );
-        const seen = new Set<string>();
-        const places: WorldPlace[] = [];
-        for (const b of body.results.bindings) {
-          const id = b.item?.value.split('/').pop() ?? '';
-          const name = b.itemLabel?.value ?? '';
-          const kind = WIKIDATA_TYPES[b.type?.value.split('/').pop() ?? ''];
-          // Unlabelled items come back as their Q-number: not worth a journey.
-          if (!id || !kind || seen.has(id) || /^Q\d+$/.test(name)) continue;
-          seen.add(id);
-          places.push({ id, name, kind, lat: Number(b.lat!.value), lon: Number(b.lon!.value) });
+        return body.results.bindings;
+      } catch (e) {
+        if (throttled(e)) {
+          const { status, retryAfter } = e as { status: number; retryAfter?: string | null };
+          pausedUntil = Math.max(pausedUntil, Date.now() + backOffMs(status, retryAfter));
         }
-        return places;
-      });
-      return data ?? [];
+        throw e;
+      }
+    },
+  };
+}
+
+/** world_cache rows, remembered in memory (only this server writes them). For the few notable-index rows. */
+function rememberedRows(db: Db) {
+  const memo = new Map<string, { data: unknown; at: number } | null>();
+  return {
+    async read<T>(key: string): Promise<{ data: T; at: number } | null> {
+      if (!memo.has(key)) {
+        const [hit] = await db.select().from(worldCache).where(eq(worldCache.key, key)).limit(1);
+        if (!memo.has(key)) memo.set(key, hit ? { data: hit.data, at: hit.fetchedAt.getTime() } : null);
+      }
+      return memo.get(key) as { data: T; at: number } | null;
+    },
+    async write(key: string, data: unknown) {
+      await store(db, key, data);
+      memo.set(key, { data, at: Date.now() });
+    },
+  };
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
+  });
+
+/** Whichever comes first: the task, or `ms` passing (the task keeps going). */
+async function within(task: Promise<unknown>, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([task, new Promise<void>((resolve) => (timer = setTimeout(resolve, ms)))]);
+  clearTimeout(timer);
+}
+
+/**
+ * The real world, from open data. `farWaitMs`: how long a reading on a new server (no
+ * notable index yet) waits for its first kinds; the rest keep loading for the next reading.
+ */
+export function openDataWorld(db: Db, { farWaitMs = 25_000 }: { farWaitMs?: number } = {}): WorldData {
+  const wikidata = wikidataClient();
+  const rows = rememberedRows(db);
+
+  async function nearPlaces(cellLat: number, cellLon: number, radiusKm: number): Promise<WorldPlace[]> {
+    const band = Math.min(NEAR_BAND_MAX_KM, Math.ceil((radiusKm + 40) / 100) * 100);
+    const query = `SELECT ?item ?itemLabel ?type ?lat ?lon WHERE {
+        VALUES ?type { ${TYPES} }
+        SERVICE wikibase:around { ?item wdt:P625 ?loc . bd:serviceParam wikibase:center "Point(${cellLon} ${cellLat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "${band}" . }
+        ?item wdt:P31 ?type .
+        BIND(geof:latitude(?loc) AS ?lat) BIND(geof:longitude(?loc) AS ?lon)
+        SERVICE wikibase:label { bd:serviceParam wikibase:language "en,is,de,fr,es,no,sv,da". }
+      } LIMIT 2500`;
+    const data = await cached(db, `places:${cellLat}:${cellLon}:${band}`, 30 * DAY, async () =>
+      toPlaces(await wikidata.sparql(query, 60_000)),
+    );
+    return data ?? [];
+  }
+
+  /**
+   * Fills in the notable index, one kind at a time. A query that fails puts its kind to
+   * rest for a day and ends the round (Wikidata may be struggling; the next reading
+   * goes on from there). After each query, a rest as long as it took: the index uses at
+   * most half of Wikidata's budget for us, and near queries keep the other half.
+   */
+  async function notableRound() {
+    for (const kind of NOTABLE_KINDS) {
+      const key = notableKey(kind);
+      const have = await rows.read<WorldPlace[]>(key);
+      if (have && Date.now() - have.at < NOTABLE_TTL) continue;
+      const failed = await rows.read(`${key}:failed`);
+      if (failed && Date.now() - failed.at < NOTABLE_REST_MS) continue;
+      if (wikidata.paused()) return;
+      const started = Date.now();
+      let places: WorldPlace[];
+      try {
+        places = toPlaces(await wikidata.sparql(notableQuery(kind), 65_000));
+      } catch (e) {
+        if (!throttled(e)) await rows.write(`${key}:failed`, { error: String(e) });
+        return;
+      }
+      await rows.write(key, places);
+      await sleep(Date.now() - started);
+    }
+  }
+  /** One round at a time for the whole server: a kind is never asked for twice at once. */
+  let round: Promise<void> | null = null;
+  const refreshNotable = () =>
+    (round ??= notableRound()
+      .catch(() => {})
+      .finally(() => (round = null)));
+
+  async function notablePlaces(): Promise<WorldPlace[]> {
+    const read = () => Promise.all(NOTABLE_KINDS.map((kind) => rows.read<WorldPlace[]>(notableKey(kind))));
+    let lists = await read();
+    if (lists.some((list) => !list || Date.now() - list.at >= NOTABLE_TTL)) {
+      const refresh = refreshNotable();
+      // A new server knows no kind yet: wait a little for the first ones. Otherwise go
+      // with what's known (if old) and let the refresh land for the next reading.
+      if (lists.every((list) => !list)) {
+        await within(refresh, farWaitMs);
+        lists = await read();
+      }
+    }
+    return lists.flatMap((list) => list?.data ?? []);
+  }
+
+  return {
+    async places(lat, lon, radiusKm) {
+      // The near query: one per ~50 km cell and radius band (up to 300 km), kept for 30
+      // days. A wider realm adds every notable place in reach from the index.
+      const cellLat = Math.round(lat * 2) / 2;
+      const cellLon = Math.round(lon * 2) / 2;
+      const [nearby, notable] = await Promise.all([
+        nearPlaces(cellLat, cellLon, radiusKm),
+        radiusKm > NEAR_BAND_MAX_KM ? notablePlaces() : Promise.resolve([]),
+      ]);
+      // Merge, one entry per Wikidata item (a near place the index knows gets its notability).
+      const byId = new Map<string, WorldPlace>(nearby.map((place) => [place.id, place]));
+      for (const place of notable) {
+        if (distanceKm(lat, lon, place.lat, place.lon) > radiusKm) continue;
+        const known = byId.get(place.id);
+        byId.set(place.id, known ? { ...known, sitelinks: place.sitelinks } : place);
+      }
+      return [...byId.values()];
     },
 
     async forecast(lat, lon) {

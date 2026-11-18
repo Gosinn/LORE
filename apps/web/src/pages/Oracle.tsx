@@ -1,11 +1,13 @@
 import { Check, LocateFixed, Lock, MapPin, Search, Settings2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   INTEREST_LABELS,
   INTERESTS,
+  NO_LIMIT_KM,
   ORACLE_MODE_LABELS,
   ORACLE_MODES,
+  ORACLE_READINGS_PER_DAY,
   type Future,
   type GeocodeResult,
   type Interest,
@@ -13,8 +15,8 @@ import {
   type OracleReading,
   type OracleSettings,
 } from '#shared';
-import { ReminderScroll, RuneRow, StoneCircle } from '../components/oracle.tsx';
-import { ErrorNote, Field, Loading, PageError, Section, TopBar } from '../components/ui.tsx';
+import { Embers, ReminderScroll, RuneCounter, RuneGlyph, RuneRow, Sigil, StoneCircle } from '../components/oracle.tsx';
+import { ErrorNote, PageError, Section, TopBar } from '../components/ui.tsx';
 import { api, isNative, qs } from '../lib/api.ts';
 import { localTimeZone } from '../lib/dates.ts';
 import { useAction, useOracle } from '../lib/queries.ts';
@@ -26,20 +28,57 @@ const KIND_LABELS: Record<Future['kind'], string> = {
   memory: 'An echo',
 };
 
+/** Carved on each mode's stone: gebo (the gift) for mixed, raido (the road) for mine, hagalaz (the storm) for wild. */
+const MODE_RUNES: Record<OracleMode, string> = { mixed: 'g', mine: 'r', wild: 'h' };
+
+// How far the stones may look, in km. The slider moves through steps so short distances stay precise:
+// every 10 km up to 100, every 25 up to 300, every 50 up to 1000, then bigger leaps, and at the end
+// No limit: anywhere on Earth.
+const RADIUS_STEPS: number[] = [];
+for (let km = 10; km <= 1000; km += km < 100 ? 10 : km < 300 ? 25 : 50) RADIUS_STEPS.push(km);
+RADIUS_STEPS.push(1500, 2000, 3000, 5000, 10000, NO_LIMIT_KM);
+// Keep in step with JOURNEY_KM and FAR_SHORE_KM in apps/api/src/lib/oracle.ts.
+const JOURNEY_KM = 250;
+const FAR_SHORE_KM = 1500;
+const fmtRadius = (km: number) => (km >= NO_LIMIT_KM ? 'No limit' : `${km.toLocaleString('en')} km`);
+
+/** The slider's stops, plus the saved distance if it isn't one of them (older realms saved any 10 km), so it never moves by itself. */
+function radiusSteps(saved: number) {
+  return RADIUS_STEPS.includes(saved) ? RADIUS_STEPS : [...RADIUS_STEPS, saved].sort((a, b) => a - b);
+}
+
 export function OraclePage() {
   const oracle = useOracle();
   const [editing, setEditing] = useState(false);
   const [mode, setMode] = useState<OracleMode>('mixed');
   const read = useAction((m: OracleMode) => api.post<OracleReading>('/oracle/readings', { mode: m }));
 
-  if (oracle.isLoading) return <Loading />;
-  if (oracle.error || !oracle.data) return <PageError error={oracle.error} />;
+  if (oracle.isLoading)
+    return (
+      <div className="oracle-page">
+        <TopBar back title="The Oracle" />
+        <div className="oracle-waking" role="status">
+          <div className="stone-window" aria-hidden>
+            <StoneCircle active />
+            <Embers active />
+          </div>
+          <p>The stones are waking…</p>
+        </div>
+      </div>
+    );
+  if (oracle.error || !oracle.data)
+    return (
+      <div className="oracle-page">
+        <PageError error={oracle.error} />
+      </div>
+    );
   const { settings, reading } = oracle.data;
-  const left = reading?.readingsLeftToday ?? 3;
+  const left = reading?.readingsLeftToday ?? ORACLE_READINGS_PER_DAY;
   const setUp = !!settings.home && !editing;
+  const speaking = read.isPending;
 
   return (
-    <>
+    <div className="oracle-page">
       <TopBar
         back
         title="The Oracle"
@@ -52,17 +91,18 @@ export function OraclePage() {
         }
       />
 
-      <section className={`oracle-stone${read.isPending ? ' speaking' : ''}`}>
-        <RuneRow active={read.isPending} />
+      <section className={`oracle-stone${speaking ? ' speaking' : ''}`}>
+        <RuneRow active={speaking} />
         <div className="stone-window">
-          <StoneCircle active={read.isPending} />
+          <StoneCircle active={speaking} />
+          <Embers active={speaking} />
         </div>
         <h1>The stones see what you don’t</h1>
         <p>
           Possible futures from the sky, the weather, the wild places around you and your free time. Which one becomes lore is
           up to you.
         </p>
-        <RuneRow active={read.isPending} className="runes-low" />
+        <RuneRow active={speaking} className="runes-low" />
       </section>
 
       <ReminderScroll />
@@ -71,34 +111,44 @@ export function OraclePage() {
         <RealmForm settings={settings} onDone={() => setEditing(false)} onCancel={settings.home ? () => setEditing(false) : undefined} />
       ) : (
         <>
-          <p className="small muted row oracle-realm">
-            <MapPin size={14} />
-            <span className="grow">
-              Your realm: <strong>{settings.home!.label}</strong>, {settings.radiusKm} km around
-              {settings.interests.length ? ` · ${settings.interests.length} interests` : ''}
-            </span>
-          </p>
+          {/* The altar: one carved tablet holding the realm, the modes and the read. */}
+          <section className="oracle-altar" aria-label="Read the stones">
+            <p className="row oracle-realm">
+              <MapPin size={15} />
+              <span>
+                Your realm: <strong>{settings.home!.label}</strong>{settings.radiusKm >= NO_LIMIT_KM ? <>, and the whole world beyond</> : <>, {fmtRadius(settings.radiusKm)} around</>}
+                {settings.interests.length ? ` · ${settings.interests.length} interests` : ''}
+              </span>
+            </p>
 
-          <div className="seg" role="group" aria-label="Which futures">
-            {ORACLE_MODES.map((m) => (
-              <button key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
-                {ORACLE_MODE_LABELS[m].label}
-              </button>
-            ))}
-          </div>
-          <p className="small muted" style={{ margin: '8px 4px 14px' }}>
-            {mode === 'mine' && !settings.interests.length
-              ? 'Pick some interests first (gear icon), or the stones go wild.'
-              : ORACLE_MODE_LABELS[mode].hint}
-          </p>
+            <div className="seg" role="group" aria-label="Which futures">
+              {ORACLE_MODES.map((m) => (
+                <button key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
+                  <RuneGlyph c={MODE_RUNES[m]} className="seg-rune" />
+                  <span>{ORACLE_MODE_LABELS[m].label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="oracle-mode-hint">
+              {mode === 'mine' && !settings.interests.length
+                ? 'Pick some interests first (gear icon), or the stones go wild.'
+                : ORACLE_MODE_LABELS[mode].hint}
+            </p>
 
-          <button className="btn btn-primary btn-block oracle-read" disabled={left === 0 || read.isPending} onClick={() => read.mutate(mode)}>
-            {read.isPending ? 'The stones are listening…' : left === 0 ? 'The stones rest until tomorrow' : 'Read the stones'}
-          </button>
-          <p className="small muted center" style={{ marginTop: 8 }}>
-            {left} of 3 readings left today
-          </p>
-          <ErrorNote error={read.error} />
+            <button
+              className={`btn btn-block oracle-read${speaking ? ' pending' : ''}`}
+              disabled={left === 0 || speaking}
+              onClick={() => read.mutate(mode)}
+            >
+              <Sigil moon={left === 0 && !speaking} />
+              <span>{speaking ? 'The stones are listening…' : left === 0 ? 'The stones rest until tomorrow' : 'Read the stones'}</span>
+            </button>
+            <RuneCounter left={left} total={ORACLE_READINGS_PER_DAY} />
+            <p className="oracle-count">
+              {left} of {ORACLE_READINGS_PER_DAY} readings left today
+            </p>
+            <ErrorNote error={read.error} />
+          </section>
 
           {reading && (
             <Section title="What the stones reveal">
@@ -112,15 +162,15 @@ export function OraclePage() {
         </>
       )}
 
-      <p className="small muted row" style={{ gap: 6, marginTop: 28 }}>
-        <Lock size={14} /> Only you see your realm and your readings.
+      <p className="oracle-oath">
+        <Lock size={16} /> Only you see your realm and your readings.
       </p>
-      <p className="tiny muted" style={{ marginTop: 6 }}>
+      <p className="oracle-colophon">
         The stones read places from Wikidata, weather from Open-Meteo (CC BY 4.0), the aurora forecast from NOAA SWPC and
         place search from OpenStreetMap (© OpenStreetMap contributors). They can be wrong: check conditions, opening hours
         and safety before you go.
       </p>
-    </>
+    </div>
   );
 }
 
@@ -140,8 +190,10 @@ function FutureCard({ readingId, future: f }: { readingId: string; future: Futur
 
   if (f.status === 'dismissed') {
     return (
-      <article className="card future scroll dismissed">
-        <span className="future-emoji">{f.emoji}</span>
+      <article className="future scroll dismissed">
+        <span className="future-emoji seal" aria-hidden>
+          <span className="seal-mark">{f.emoji}</span>
+        </span>
         <span className="grow small muted">
           <s>{f.title}</s>. You let this one go.
         </span>
@@ -150,23 +202,23 @@ function FutureCard({ readingId, future: f }: { readingId: string; future: Futur
   }
 
   return (
-    <article className={`card future scroll ${f.status}`}>
+    <article className={`future scroll ${f.status}`} style={{ '--i': f.index } as CSSProperties}>
       <div className="future-head">
-        <span className="future-emoji" aria-hidden>
-          {f.emoji}
+        <span className={`future-emoji seal ${f.kind}`} aria-hidden>
+          <span className="seal-mark">{f.emoji}</span>
         </span>
         <div className="grow">
-          <span className={`pill future-kind ${f.kind}`}>{KIND_LABELS[f.kind]}</span>
+          <span className={`future-kind ${f.kind}`}>{KIND_LABELS[f.kind]}</span>
           <h3>{f.title}</h3>
-          <p className="small muted">{fmtFutureWhen(f)}</p>
+          <p className="future-when">{fmtFutureWhen(f)}</p>
         </div>
       </div>
 
       <p className="future-story">{f.story}</p>
 
       {f.place && (
-        <p className="small row future-place">
-          <MapPin size={14} />
+        <p className="row future-place">
+          <MapPin size={15} />
           <span className="grow">
             {f.place.name} · {f.place.distanceKm} km
           </span>
@@ -181,17 +233,24 @@ function FutureCard({ readingId, future: f }: { readingId: string; future: Futur
         </p>
       )}
 
-      <div className="chips wrap future-signs" aria-label="The signs">
-        {f.signs.map((s) => (
-          <span key={s} className="pill">
-            {s}
-          </span>
-        ))}
-      </div>
+      {f.signs.length > 0 && (
+        <>
+          <div className="ink-rule" aria-hidden />
+          <div className="chips wrap future-signs" aria-label="The signs">
+            {f.signs.map((s) => (
+              <span key={s} className="future-sign">
+                {s}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       {f.status === 'chosen' && f.eventId ? (
         <div className="row future-done">
-          <Check size={18} />
+          <span className="seal seal-ok" aria-hidden>
+            <Check size={22} strokeWidth={3} />
+          </span>
           <span className="grow">Destiny chosen.</span>
           <Link to={`/events/${f.eventId}`} className="btn btn-secondary btn-sm">
             Open the plan
@@ -201,12 +260,13 @@ function FutureCard({ readingId, future: f }: { readingId: string; future: Futur
         <>
           {f.crew && (
             <button className="chip future-crew" aria-pressed={withCrew} onClick={() => setWithCrew(!withCrew)}>
-              {withCrew ? <Check size={14} /> : null} With {f.crew.emoji} {f.crew.name}
+              With {f.crew.emoji} {f.crew.name}
             </button>
           )}
           <div className="future-actions">
-            <button className="btn btn-primary" disabled={busy} onClick={() => choose.mutate(undefined)}>
-              {choose.isPending ? 'Making it real…' : 'Choose this destiny'}
+            <button className={`btn btn-primary${choose.isPending ? ' pending' : ''}`} disabled={busy} onClick={() => choose.mutate(undefined)}>
+              <Sigil />
+              <span>{choose.isPending ? 'Making it real…' : 'Choose this destiny'}</span>
             </button>
             {f.status === 'saved' && f.savedIdeaId ? (
               <Link to={`/ideas/${f.savedIdeaId}`} className="btn btn-secondary">
@@ -234,17 +294,22 @@ function fmtFutureWhen(f: Future) {
   const start = new Date(f.startsAt);
   const end = f.endsAt ? new Date(f.endsAt) : null;
   const zone = f.timeZone !== localTimeZone() ? ` (${f.timeZone.split('/').pop()!.replace(/_/g, ' ')} time)` : '';
+  if (end && day.format(end) !== day.format(start)) {
+    return `${day.format(start)} ${time.format(start)} – ${day.format(end)} ${time.format(end)}${zone}`;
+  }
   return `${day.format(start)} · ${time.format(start)}${end ? `–${time.format(end)}` : ''}${zone}`;
 }
 
 function RealmForm({ settings, onDone, onCancel }: { settings: OracleSettings; onDone: () => void; onCancel?: () => void }) {
   const [home, setHome] = useState(settings.home);
-  const [radius, setRadius] = useState(settings.radiusKm);
+  const [steps] = useState(() => radiusSteps(settings.radiusKm));
+  const [step, setStep] = useState(() => steps.indexOf(settings.radiusKm));
   const [interests, setInterests] = useState<Interest[]>(settings.interests);
   const [q, setQ] = useState('');
   const [results, setResults] = useState<GeocodeResult[] | null>(null);
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const radius = steps[step]!;
 
   const search = useAction((query: string) => api.get<GeocodeResult[]>(`/oracle/geocode${qs({ q: query })}`), {
     onSuccess: (r) => setResults(r),
@@ -275,7 +340,7 @@ function RealmForm({ settings, onDone, onCancel }: { settings: OracleSettings; o
   const toggle = (i: Interest) => setInterests(interests.includes(i) ? interests.filter((x) => x !== i) : [...interests, i]);
 
   return (
-    <div className="card stack-lg oracle-realm-form">
+    <div className="oracle-realm-form">
       <div>
         <h2>Your realm</h2>
         <p className="small muted">Where should the stones look? A town is enough.</p>
@@ -306,12 +371,12 @@ function RealmForm({ settings, onDone, onCancel }: { settings: OracleSettings; o
               aria-label="Your town or area"
               autoFocus
             />
-            <button className="btn btn-secondary" disabled={search.isPending || q.trim().length < 2} aria-label="Search">
+            <button className="btn carved realm-search" disabled={search.isPending || q.trim().length < 2} aria-label="Search">
               <Search size={18} />
             </button>
           </form>
           {!isNative && 'geolocation' in navigator && (
-            <button className="btn btn-ghost btn-sm" onClick={locate} disabled={locating} style={{ alignSelf: 'flex-start' }}>
+            <button className="btn carved btn-sm realm-locate" onClick={locate} disabled={locating}>
               <LocateFixed size={16} /> {locating ? 'Finding you…' : 'Use my location'}
             </button>
           )}
@@ -332,18 +397,30 @@ function RealmForm({ settings, onDone, onCancel }: { settings: OracleSettings; o
         </>
       )}
 
-      <Field label={`How far will you go? ${radius} km`} htmlFor="realm-radius">
+      <div className="realm-distance">
+        <label htmlFor="realm-radius" className="realm-km">
+          How far will you go? <b>{fmtRadius(radius)}</b>
+        </label>
         <input
           id="realm-radius"
           type="range"
-          min={10}
-          max={300}
-          step={10}
-          value={radius}
-          onChange={(e) => setRadius(Number(e.target.value))}
+          min={0}
+          max={steps.length - 1}
+          step={1}
+          value={step}
+          onChange={(e) => setStep(Number(e.target.value))}
+          aria-valuetext={fmtRadius(radius)}
           className="range"
+          style={{ '--fill': `${(step / (steps.length - 1)) * 100}%` } as CSSProperties}
         />
-      </Field>
+        {radius >= NO_LIMIT_KM ? (
+          <p className="realm-far">The whole world. The stones may send you anywhere on Earth.</p>
+        ) : radius > FAR_SHORE_KM ? (
+          <p className="realm-far">Past the end of the roads: the stones may send you across seas.</p>
+        ) : radius > JOURNEY_KM ? (
+          <p className="realm-far">Far roads: the stones may send you on a journey of days.</p>
+        ) : null}
+      </div>
 
       <div>
         <p className="label">What calls to you?</p>
@@ -353,7 +430,10 @@ function RealmForm({ settings, onDone, onCancel }: { settings: OracleSettings; o
         <div className="chips wrap">
           {INTERESTS.map((i) => (
             <button key={i} className="chip" aria-pressed={interests.includes(i)} onClick={() => toggle(i)}>
-              {INTEREST_LABELS[i].emoji} {INTEREST_LABELS[i].label}
+              <span className="chip-mark" aria-hidden>
+                {INTEREST_LABELS[i].emoji}
+              </span>{' '}
+              {INTEREST_LABELS[i].label}
             </button>
           ))}
         </div>
@@ -365,7 +445,7 @@ function RealmForm({ settings, onDone, onCancel }: { settings: OracleSettings; o
           {save.isPending ? 'Saving…' : 'Set my realm'}
         </button>
         {onCancel && (
-          <button className="btn btn-ghost" onClick={onCancel}>
+          <button className="btn carved realm-cancel" onClick={onCancel}>
             Cancel
           </button>
         )}

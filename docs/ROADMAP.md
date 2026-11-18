@@ -72,6 +72,7 @@ exercised in the browser with demo data.
 |---|---|
 | **The Oracle**: realm (town + radius), interests, three possible futures a day from places, weather, sky, free time, crews, ideas and memories; Mixed / My path / Wild | ✅ 20 tests; tried in the browser with live open data (aurora night, hot soak, museum wildcard) |
 | Choose this destiny → real plan with place and coordinates · Save to vault · Not this path | ✅ tested; checked in the browser |
+| Oracle realm with **No limit** (journeys past 250 km, far shores by air past 1,500 km) and the full stone & scroll look | ✅ 99 tests; checked at phone width with a live reading |
 | Oracle on Home, Create and the desktop rail | ✅ checked in the browser (desktop and phone width) |
 | Oracle on a real phone (arrives by live update, no new APK) | ⬜ owner's phone |
 | **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |

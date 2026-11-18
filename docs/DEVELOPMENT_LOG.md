@@ -1,5 +1,22 @@
 # LORE — Development log
 
+## 2026-11-18 (night, later) — No limit on adventure; the Oracle in stone and scroll
+
+- **How far: no limit.** The realm now goes 10 km … 1,000 km … 10,000 km … **No limit** (anywhere on
+  Earth, `NO_LIMIT_KM` = 20,000). Past 300 km places come from an index of notable places worldwide
+  (one Wikidata query per kind of place, shared by every home, cached 30 days, with back-off on 429s);
+  the ≤300 km search is unchanged.
+- **Journeys:** past 250 km a place is a weekend (one night) or a long weekend (two nights) with road
+  hours; past 1,500 km it's **A Far Shore**: fly out Saturday, a week away, passport and visas. With No
+  limit, far shores get extra weight. Same-day futures keep their near caps (aurora, dawn, springs).
+- **Look:** the whole Oracle is carved stone and old parchment: stone altar for the controls, carved
+  mode stones, rune counter for readings left, scroll rods, wax seals, inked tick-box for the crew,
+  stone top bar and tab bar on the Oracle, sepia/wax emoji; reduced motion respected.
+- Checked: 99 tests; typecheck; build; in the browser at phone width (look, slider at No limit, a live
+  reading from Reykjavík offering "A Far Shore: White Desert", 5,408 km). **Not yet verified:** the
+  notable-places index on the live server's first run (the mountains query takes ~30 s), crazy theme
+  and the native status bar on a device.
+
 ## 2026-11-18 (night) — Getting back into an account
 
 - `npm run account:recover`: find an account by username, email or name and set a new password straight

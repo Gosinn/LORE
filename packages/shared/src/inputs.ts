@@ -9,6 +9,7 @@ import {
   IDEA_AUDIENCES,
   IDEA_STATUSES,
   INTERESTS,
+  NO_LIMIT_KM,
   ORACLE_MODES,
   REPORT_REASONS,
   REPORT_TARGETS,
@@ -363,7 +364,9 @@ export const OracleSettingsInput = z.object({
     })
     .nullable()
     .optional(),
-  radiusKm: z.number().int().min(10).max(300).optional(),
+  /** How far the lore maker will go. Beyond ~250 km the Oracle plans journeys (a weekend or longer), not day trips. */
+  /** Up to NO_LIMIT_KM, which means anywhere on Earth. */
+  radiusKm: z.number().int().min(10).max(NO_LIMIT_KM).optional(),
   interests: z.array(z.enum(INTERESTS)).max(INTERESTS.length).optional(),
   /** The reader's IANA time zone, e.g. "Atlantic/Reykjavik". */
   timeZone: z.string().trim().min(1).max(64).optional(),
