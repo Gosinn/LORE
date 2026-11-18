@@ -33,14 +33,14 @@ const MODE_RUNES: Record<OracleMode, string> = { mixed: 'g', mine: 'r', wild: 'h
 
 // How far the stones may look, in km. The slider moves through steps so short distances stay precise:
 // every 10 km up to 100, every 25 up to 300, every 50 up to 1000, then bigger leaps, and at the end
-// No limit: anywhere on Earth.
+// ANYWHERE: no limit, the whole Earth.
 const RADIUS_STEPS: number[] = [];
 for (let km = 10; km <= 1000; km += km < 100 ? 10 : km < 300 ? 25 : 50) RADIUS_STEPS.push(km);
 RADIUS_STEPS.push(1500, 2000, 3000, 5000, 10000, NO_LIMIT_KM);
 // Keep in step with JOURNEY_KM and FAR_SHORE_KM in apps/api/src/lib/oracle.ts.
 const JOURNEY_KM = 250;
 const FAR_SHORE_KM = 1500;
-const fmtRadius = (km: number) => (km >= NO_LIMIT_KM ? 'No limit' : `${km.toLocaleString('en')} km`);
+const fmtRadius = (km: number) => (km >= NO_LIMIT_KM ? 'ANYWHERE' : `${km.toLocaleString('en')} km`);
 
 /** The slider's stops, plus the saved distance if it isn't one of them (older realms saved any 10 km), so it never moves by itself. */
 function radiusSteps(saved: number) {
@@ -97,7 +97,7 @@ export function OraclePage() {
           <StoneCircle active={speaking} />
           <Embers active={speaking} />
         </div>
-        <h1>The stones see what you don’t</h1>
+        <h1>These stones see what you do not</h1>
         <p>
           Possible futures from the sky, the weather, the wild places around you and your free time. Which one becomes lore is
           up to you.
