@@ -82,6 +82,45 @@ stay ideas, events can end without a chapter.
 
 `WorldData` is injected through `AppContext`; tests pass a fake world, so they never touch the network.
 
+Since D31 the web app no longer shows the Futures above; their routes, tables and `lib/oracle.ts` stay for
+exports. **The Loracle** (wishes) replaced them on `/oracle`:
+
+```
+ web /oracle ──POST /api/loracle/wishes──> routes/loracle.ts
+                                             1. care floor (lib/loracle/care.ts, no model) ──> care screen, nothing stored
+                                             2. asleep? consent? realm? same wish today? hidden limits? far past the moon?
+                                             3. mind.weigh (Claude, effort low) ──> care | riddle | reroute | silent
+                                             4. quest: wishes + wish_roads (queued) ──202──> web polls GET /wishes/:id
+                                                │      (past LORACLE_MONTHLY_USD: status `moon`, read at the new moon)
+                                                ▼
+ lib/loracle/jobs.ts  (≤3 at once, one per Lorer, run_id guard, heartbeat, boot + lazy sweeps)
+     mind.cast ── two research passes with web search/fetch (streamed; signs → road.signs)
+              ── ledger.ts (code: only URLs the tools returned, dated, merged)
+              ── compose (structured output, effort high) ── checks.ts (+ one repair) ── draw.ts marks
+     ──> road `ready` + wish_waypoints ──> drawPins (Nominatim) ──> road `drawn` (the scroll is sealed)
+     every model request ──> loracle_spend (cost, tokens, no text)
+```
+
+- `AppContext.mind` is the `LoracleMind` (`lib/loracle/types.ts`): `claudeMind` (`mind.ts`, `client.ts`,
+  `prompts.ts`, `schema.ts`) when `ANTHROPIC_API_KEY` is set, `fakeMind` (`fake.ts`) when
+  `LORACLE_MIND=fake`, and undefined while the stone sleeps (`buildApp` makes it with the app's logger via
+  `mindFor`; `/api/health` reports `loracle`). Tests inject stub minds and a fake world, so they never
+  touch the network.
+- Money is counted per request, always: when a job or a weighing loses a race to an abort, it waits a moment
+  for the mind's own error, which carries what was already paid (`lateSpend`); a stream cut off part-way
+  (`CutOff` in `client.ts`) is counted from what had arrived. The app's error serializer
+  (`lib/safeLog.ts`) never logs a failed query's bound values.
+- What reaches Anthropic is listed in D31. The weighing, the ledger's dossiers, the forge and note ids stay
+  on the server; views are built field by field in `routes/loracle.ts`, and **sealed waypoints are sent
+  without their trial, keeper, earns, steps, ink and links**. Visibility is owner-only
+  (`wishVisible`, `loadVisibleWish/Road/Waypoint` in `lib/access.ts`; the quest log is
+  `wishSummaries` in `lib/queries.ts`).
+- Deeds reuse the existing models: a plan is a private all-day `events` row with the Lorer as organizer, the
+  vault is an `only_me` idea, "my week" is a `notes` reminder, "write the chapter" is a private chapter
+  linked back through `PUT /loracle/waypoints/:id/link`.
+- **Not verified against the live API** (no key has been used): the prompts, structured output with
+  fallbacks, the `_20260209` web tools' options and the real cost. See `tools/loracle-eval.mjs`.
+
 ## 3. Database schema
 
 Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` are generated from it
@@ -108,7 +147,11 @@ Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` ar
 | `comments` | Discussion threads | exactly one of event / idea / chapter |
 | `notifications` | In-app notifications | title rendered at creation, `href` to open |
 | `notes` | Notes to self and reminders | private to the owner; `remind_at` makes it a reminder; optional `event_id` |
-| `oracle_settings` | The Oracle: your realm | private; home label + rounded coordinates, `radius_km`, `interests[]`, `time_zone` |
+| `oracle_settings` | The Oracle / Loracle: the stone's questions | private; home label (town-level) + rounded coordinates + `home_country` (ISO-2), `loracle_reach_km` (the Loracle's reach; null = ANYWHERE), `time_zone`, `loracle_context` (age band, money, time, body, tongues, passport, callings), `loracle_consent_at`; `radius_km` and `interests[]` are the old Futures' |
+| `wishes` | The Loracle: a Lorer's wish | private to the Lorer, cascades with the account; `text`, `text_key` (same wish today), snapshot of `context` and `realm`, local `day`, status `listening` / `moon` / `revealed` / `faded` / `silent` / `fulfilled` / `released`; `weighing` and `ledger` are server-only |
+| `wish_roads` | The quest drawn for a wish (one per wish in phase A) | status `queued` → `searching` → `drawing` → `sealing` → `ready` → `drawn` (or `faded` / `silent`); `signs[]` for the wait; `quest` (JSON scroll); `run_id` + `heartbeat_at` guard the job; `attempts`, `failure`, `retried_on` (one "Try again" a day), `this_week_reminder_id` |
+| `wish_waypoints` | The waypoints of a road | position, kind, emblem, when/at, place/town/country + pin (`precision`), clue, trial, keeper, earns, steps, mystery; `seal_broken_at`, `inked_at`/`inked_on`/`note`; links to the event, idea, chapter and reminder that came of it (set null when those go) |
+| `loracle_spend` | One row per model request | stage, outcome, model, tokens, searches, fetches, `cost_micros`, `road_id` (no foreign key: a burn never refunds the hidden limit); **no text**; user and wish set null on delete so the month's spend survives burns and account deletion |
 | `oracle_readings` | The Oracle: what the stones showed | private; local `day` (for the 3-a-day limit), `mode`, `futures` (JSON, with each future's status and resulting event/idea) |
 | `world_cache` | Cached open-data answers | places, weather, Kp, place search; stale data is used when a service is down |
 
@@ -220,7 +263,7 @@ LORE APP/
 ├─ CLAUDE.md               working rules for this repo
 ├─ deploy/oracle/          free hosting: compose (Caddy + app + Postgres + backups), setup script, guide
 ├─ docs/                   MASTER_BRIEF, ARCHITECTURE, DECISIONS, ROADMAP, DEVELOPMENT_LOG
-├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), android.mjs (builds the app), make-icons.mjs
+├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), android.mjs (builds the app), make-icons.mjs, loracle-eval.mjs (live eval; costs money, owner only)
 ├─ apps/android/           Capacitor Android project (generated, plus icons, splash and signing setup)
 ├─ packages/shared/src/    vocabulary.ts (enums + labels), inputs.ts (Zod schemas), types.ts (DTOs)
 ├─ apps/api/
@@ -231,8 +274,9 @@ LORE APP/
 │  │  ├─ context.ts        AppContext, requireUser
 │  │  ├─ auth/             password.ts (scrypt), sessions.ts
 │  │  ├─ db/               schema.ts, index.ts (Postgres or PGlite), migrate-cli.ts
-│  │  ├─ lib/              access.ts (privacy), queries.ts (read models), notify.ts, storage.ts, images.ts, …
-│  │  ├─ routes/           auth, users, friends, crews, events, personal, ideas, chapters, media, comments, notifications, home
+│  │  ├─ lib/              access.ts (privacy), queries.ts (read models), notify.ts, storage.ts, images.ts, world.ts, oracle.ts, …
+│  │  │  └─ loracle/       the Loracle's mind and jobs: types, client, mind, prompts, schema, ledger, checks, draw, cost, fake, jobs
+│  │  ├─ routes/           auth, users, friends, crews, events, personal, ideas, chapters, media, comments, notifications, home, oracle, loracle
 │  │  └─ seed.ts           demo data through the HTTP API
 │  ├─ drizzle/             generated SQL migrations
 │  └─ test/                auth, privacy and full-lifecycle tests (Vitest, in-memory Postgres)

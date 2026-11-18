@@ -36,8 +36,21 @@ import {
   MEMBERSHIP_STATUSES,
   NOTIFICATION_TYPES,
   PARTICIPANT_ROLES,
+  ROAD_STATUSES,
   RSVP_STATUSES,
+  WISH_FAILURES,
+  WISH_STATUSES,
+  type Emblem,
+  type Keeper,
+  type LoracleContext,
+  type PinPrecision,
+  type RoadStatus,
+  type RoadStep,
+  type WaypointKind,
+  type WishFailure,
+  type WishStatus,
 } from '#shared';
+import type { LedgerRecord, StoredQuest, Weighing, WishRealm } from '../lib/loracle/types.ts';
 
 export const crewRole = pgEnum('crew_role', CREW_ROLES);
 export const membershipStatus = pgEnum('membership_status', MEMBERSHIP_STATUSES);
@@ -55,6 +68,8 @@ const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' 
 const id = () => uuid('id').primaryKey().defaultRandom();
 const createdAt = () => ts('created_at').notNull().defaultNow();
 const updatedAt = () => ts('updated_at').notNull().defaultNow();
+/** A quoted SQL list for `in (…)` checks, from one of the shared vocabularies. */
+const oneOf = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 // ---------------------------------------------------------------------------
 // People
@@ -380,6 +395,17 @@ export const oracleSettings = pgTable('oracle_settings', {
   /** The lore maker's own IANA zone, so "today" means their day. */
   timeZone: text('time_zone').notNull().default('UTC'),
   interests: text('interests').array().notNull().default(sql`'{}'::text[]`),
+  /** The Loracle: when the Lorer agreed to send wishes to Anthropic. Null = not agreed, or withdrawn. */
+  loracleConsentAt: ts('loracle_consent_at'),
+  /** ISO 3166-1 alpha-2 of the realm, from the geocoder. Goes to the mind with the realm's label. */
+  homeCountry: text('home_country'),
+  /** The Loracle: what the stone should know and what calls to the Lorer. Prefill and context only. */
+  loracleContext: jsonb('loracle_context').$type<LoracleContext>(),
+  /**
+   * The Loracle: "How far will you go?" in km. Null means ANYWHERE (the default: no limit on
+   * adventure, D30). Its own column, so the old Futures' day-trip radius never becomes a quest's reach.
+   */
+  loracleReachKm: integer('loracle_reach_km'),
   updatedAt: updatedAt(),
 });
 
@@ -406,6 +432,185 @@ export const worldCache = pgTable('world_cache', {
   data: jsonb('data').notNull(),
   fetchedAt: ts('fetched_at').notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// The Loracle: wishes and the roads the stones draw for them. Private to the Lorer (no
+// audience, no crew in phase A); deleted with the account. Status values come from the
+// shared vocabulary (WISH_STATUSES, ROAD_STATUSES, WISH_FAILURES).
+
+/** A wish the Lorer cast that the weighing sent on as a quest. Care, riddle and reroute answers store nothing. */
+export const wishes = pgTable(
+  'wishes',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** As cast; a riddle answer is appended ("I wish to be happy — like a roaring crowd"). */
+    text: text('text').notNull(),
+    /** sha256 of the normalised wish, for "the stone already drew this road" (same Lorer, same local day). */
+    textKey: text('text_key').notNull(),
+    /** What the stone was told about the Lorer at the cast. */
+    context: jsonb('context').$type<LoracleContext>().notNull(),
+    /** Where it was cast from: label, country, reach. No coordinates. */
+    realm: jsonb('realm').$type<WishRealm>().notNull(),
+    timeZone: text('time_zone').notNull(),
+    /** The Lorer's local day of the cast. */
+    day: date('day', { mode: 'string' }).notNull(),
+    status: text('status').$type<WishStatus>().notNull().default('listening'),
+    /** The weighing (tags, plans). Never sent to the client. */
+    weighing: jsonb('weighing').$type<Weighing>().notNull(),
+    /** What the stone found (notes, gaps, raw dossiers). Never sent to the client; notes and gaps are exported. */
+    ledger: jsonb('ledger').$type<LedgerRecord>(),
+    ledgerAt: ts('ledger_at'),
+    fulfilledAt: ts('fulfilled_at'),
+    releasedAt: ts('released_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('wishes_user_created_idx').on(t.userId, t.createdAt),
+    index('wishes_user_day_key_idx').on(t.userId, t.day, t.textKey),
+    index('wishes_status_idx').on(t.status),
+    check('wishes_status', sql`${t.status} in (${oneOf(WISH_STATUSES)})`),
+  ],
+);
+
+/** A road drawn for a wish: the scroll. One per wish in phase A (`n` = 1). */
+export const wishRoads = pgTable(
+  'wish_roads',
+  {
+    id: id(),
+    wishId: uuid('wish_id')
+      .notNull()
+      .references(() => wishes.id, { onDelete: 'cascade' }),
+    n: integer('n').notNull().default(1),
+    status: text('status').$type<RoadStatus>().notNull().default('queued'),
+    /** Why the last attempt failed. */
+    failure: text('failure').$type<WishFailure>(),
+    attempts: integer('attempts').notNull().default(0),
+    /** Set per job run; every write from a job is guarded by `where id = ? and run_id = ?`. */
+    runId: uuid('run_id'),
+    heartbeatAt: ts('heartbeat_at'),
+    /** The real signs of the wait, retold in-world (signLine). */
+    signs: text('signs').array().notNull().default(sql`'{}'::text[]`),
+    /** The checked quest minus its waypoints. Null until the road is ready. */
+    quest: jsonb('quest').$type<StoredQuest>(),
+    /** The mind's private working. Never sent to the client or exported. */
+    forge: jsonb('forge'),
+    faults: text('faults').array().notNull().default(sql`'{}'::text[]`),
+    /** Hard faults remained after the repair (for the owner's eval; never shown). */
+    rough: boolean('rough').notNull().default(false),
+    /** "Put it in my week" for the road's This week deed. */
+    thisWeekReminderId: uuid('this_week_reminder_id').references(() => notes.id, { onDelete: 'set null' }),
+    /** The Lorer's local day of the last "Try again": one free retry per road per day. */
+    retriedOn: date('retried_on', { mode: 'string' }),
+    readyAt: ts('ready_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('wish_roads_wish_n_idx').on(t.wishId, t.n),
+    index('wish_roads_status_idx').on(t.status),
+    check('wish_roads_status', sql`${t.status} in (${oneOf(ROAD_STATUSES)})`),
+    check('wish_roads_failure', sql`${t.failure} is null or ${t.failure} in (${oneOf(WISH_FAILURES)})`),
+  ],
+);
+
+/** A waypoint on a road. Sealed ones are sent without trial, person, earns and steps (lib/loracle view). */
+export const wishWaypoints = pgTable(
+  'wish_waypoints',
+  {
+    id: id(),
+    roadId: uuid('road_id')
+      .notNull()
+      .references(() => wishRoads.id, { onDelete: 'cascade' }),
+    wishId: uuid('wish_id')
+      .notNull()
+      .references(() => wishes.id, { onDelete: 'cascade' }),
+    /** 0-based order on the road. */
+    position: integer('position').notNull(),
+    kind: text('kind').$type<WaypointKind>().notNull(),
+    emblem: text('emblem').$type<Emblem>().notNull(),
+    name: text('name').notNull(),
+    when: text('when').notNull(),
+    /** 'YYYY-MM' | 'YYYY-MM-DD' | null (a trigger). */
+    at: text('at'),
+    place: text('place').notNull(),
+    town: text('town'),
+    country: text('country').notNull(),
+    geoQuery: text('geo_query').notNull(),
+    lat: doublePrecision('lat'),
+    lon: doublePrecision('lon'),
+    precision: text('precision').$type<PinPrecision>(),
+    clue: text('clue').notNull(),
+    lore: boolean('lore').notNull().default(false),
+    trial: text('trial').notNull(),
+    person: jsonb('person').$type<Keeper>(),
+    earns: text('earns'),
+    mystery: text('mystery'),
+    steps: jsonb('steps').$type<RoadStep[]>().notNull(),
+    /** Ledger note ids it rests on. Never sent to the client. */
+    noteIds: text('note_ids').array().notNull().default(sql`'{}'::text[]`),
+    sealBrokenAt: ts('seal_broken_at'),
+    inkedAt: ts('inked_at'),
+    inkedOn: date('inked_on', { mode: 'string' }),
+    /** The Lorer's own note. */
+    note: text('note'),
+    eventId: uuid('event_id').references(() => events.id, { onDelete: 'set null' }),
+    ideaId: uuid('idea_id').references(() => ideas.id, { onDelete: 'set null' }),
+    chapterId: uuid('chapter_id').references(() => chapters.id, { onDelete: 'set null' }),
+    reminderId: uuid('reminder_id').references(() => notes.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('wish_waypoints_road_position_idx').on(t.roadId, t.position),
+    index('wish_waypoints_wish_idx').on(t.wishId),
+  ],
+);
+
+/**
+ * What each request to the stone's mind cost: the throttle and the owner's monthly ceiling read
+ * this. Stores no text. Rows outlive their wish and their account (ids set to null), so burning a
+ * scroll or deleting an account doesn't hide what was spent. Care rows never carry a user id.
+ */
+export const loracleSpend = pgTable(
+  'loracle_spend',
+  {
+    id: id(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    wishId: uuid('wish_id').references(() => wishes.id, { onDelete: 'set null' }),
+    utcDay: date('utc_day', { mode: 'string' }).notNull(),
+    /** The Lorer's local day (null for care rows). */
+    day: date('day', { mode: 'string' }),
+    /** weigh | road | keepers | compose | repair (LORACLE_STAGES). */
+    stage: text('stage').notNull(),
+    /** ok | refusal | max_tokens | error | care | riddle | reroute | silent (SPEND_OUTCOMES). */
+    outcome: text('outcome').notNull(),
+    /** The model that served (fallbacks included); 'fake' for the dev mind. */
+    model: text('model').notNull(),
+    ms: integer('ms').notNull(),
+    inputTokens: integer('input_tokens').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+    cacheWriteTokens: integer('cache_write_tokens').notNull(),
+    cacheReadTokens: integer('cache_read_tokens').notNull(),
+    searches: integer('searches').notNull().default(0),
+    fetches: integer('fetches').notNull().default(0),
+    /** US$ × 1e6. */
+    costMicros: integer('cost_micros').notNull(),
+    requestId: text('request_id'),
+    /**
+     * The road a drawing request worked on (null for weighings). No foreign key on purpose: it
+     * outlives a burned scroll, so burning never refunds a cast toward the hidden limit.
+     */
+    roadId: uuid('road_id'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('loracle_spend_utc_day_idx').on(t.utcDay),
+    index('loracle_spend_user_created_idx').on(t.userId, t.createdAt),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // Lorebook

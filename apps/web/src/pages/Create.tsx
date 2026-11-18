@@ -1,13 +1,15 @@
-import { BookOpen, CalendarPlus, Lightbulb, NotebookPen, Sparkles, Users } from 'lucide-react';
+import { BookOpen, CalendarPlus, Flame, Lightbulb, NotebookPen, Users } from 'lucide-react';
 import { Link } from 'react-router';
+import { LORACLE_LINES } from '#shared';
 import { TopBar } from '../components/ui.tsx';
 
 const OPTIONS = [
   {
     to: '/oracle',
-    icon: Sparkles,
-    title: 'Consult The Loracle',
-    text: 'Possible futures from the sky, the weather and the wild places around you.',
+    // The fire in the stone circle (never the sparkles every app uses for AI).
+    icon: Flame,
+    title: LORACLE_LINES.createTitle,
+    text: LORACLE_LINES.createText,
     tone: ['#221a3d', '#ffb36b'],
   },
   {

@@ -79,13 +79,14 @@ const RUNES: Record<string, number[][]> = {
 const RUNE_LINE = ['r', 'a', 'i', 'd', 'o', '·', 'f', 'e', 'h', 'u', '·', 'l', 'o', 'r', 'e', '·', 'j', 'e', 'r', 'a', '·', 's', 'o', 'w', 'i', 'l', 'o'];
 const glyph = (c: string) => RUNES[c] ?? (c === 'w' ? [[3, 0, 3, 16], [3, 0, 8, 4, 3, 8]] : null);
 
-/** A carved line of runes that glows like embers; brighter while the stones speak. */
-export function RuneRow({ active = false, className = '' }: { active?: boolean; className?: string }) {
+/** A carved line of runes that glows like embers; brighter while the stones speak (or, under a wish, as it grows). */
+export function RuneRow({ active = false, className = '', style }: { active?: boolean; className?: string; style?: CSSProperties }) {
   const step = 15;
   return (
     <svg
       viewBox={`0 0 ${RUNE_LINE.length * step} 18`}
       className={`runes${active ? ' active' : ''} ${className}`}
+      style={style}
       aria-hidden
       preserveAspectRatio="xMidYMid meet"
     >
@@ -138,34 +139,6 @@ export function Embers({ active = false }: { active?: boolean }) {
         <i key={i} style={{ '--x': `${x}px`, '--d': `${d}s` } as CSSProperties} />
       ))}
     </span>
-  );
-}
-
-const COUNTER_RUNES = ['f', 'r', 'l'];
-
-/** One rune tablet per reading today: lit while it's still yours, cracked once it's spent. */
-export function RuneCounter({ left, total }: { left: number; total: number }) {
-  return (
-    <div className="rune-counter" aria-hidden>
-      {Array.from({ length: total }, (_, i) => {
-        const lines = (glyph(COUNTER_RUNES[i % COUNTER_RUNES.length]!) ?? []).map((l) => l.join(' '));
-        return (
-          <span key={i} className={`rune-tablet ${i >= total - left ? 'lit' : 'spent'}`}>
-            <svg viewBox="0 0 24 32">
-              <g transform="translate(7 8)">
-                {lines.map((p, j) => (
-                  <polyline key={`d${j}`} points={p} className="rt-rune rt-dim" />
-                ))}
-                {lines.map((p, j) => (
-                  <polyline key={`l${j}`} points={p} className="rt-rune rt-lit" />
-                ))}
-              </g>
-              <path d="M5 2 9.5 10 7.5 14 14 21 12 30M9.5 10 14.5 12" className="rt-crack" />
-            </svg>
-          </span>
-        );
-      })}
-    </div>
   );
 }
 

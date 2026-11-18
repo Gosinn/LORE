@@ -28,9 +28,14 @@ export async function syncReminderNotifications(reminders: Note[]): Promise<void
   if (!isNative) return;
   try {
     if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
-    const pending = await LocalNotifications.getPending();
-    if (pending.notifications.length) {
-      await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+    // Only reminders are replaced: the Loracle's "Tell me when it's sealed" notice (href
+    // /oracle/quest/…) is left alone.
+    const pending = (await LocalNotifications.getPending()).notifications.filter((n) => {
+      const href: unknown = (n.extra as { href?: unknown } | undefined)?.href;
+      return !(typeof href === 'string' && href.startsWith('/oracle/quest/'));
+    });
+    if (pending.length) {
+      await LocalNotifications.cancel({ notifications: pending.map((n) => ({ id: n.id })) });
     }
     const upcoming = reminders
       .filter((r) => r.remindAt && !r.doneAt && Date.parse(r.remindAt) > Date.now())

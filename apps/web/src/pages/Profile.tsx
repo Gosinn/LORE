@@ -2,12 +2,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Camera, ChevronRight, Dices, Download, KeyRound, LogOut, ShieldCheck, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { Me, MediaRef } from '#shared';
+import { LORACLE_LINES, type Me, type MediaRef } from '#shared';
 import { ChapterCard, CrewChip } from '../components/cards.tsx';
 import { Avatar, Empty, ErrorNote, Field, Section, Sheet, TopBar } from '../components/ui.tsx';
 import { api, setNativeToken } from '../lib/api.ts';
 import { prepareImage } from '../lib/images.ts';
-import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useMe } from '../lib/queries.ts';
+import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useLoracle, useMe } from '../lib/queries.ts';
 import { applyTheme, loadTheme, rollColors, type ThemeChoice } from '../lib/theme.ts';
 
 const THEME_LABELS: Record<ThemeChoice, string> = {
@@ -41,6 +41,9 @@ export function MyProfile() {
     { onSuccess: (updated) => qc.setQueryData(['me'], updated) },
   );
   const exportData = useAction(() => api.download('/me/export', `lore-${me.username}.json`));
+  // The Loracle: wishes go to Anthropic only while the Lorer agrees (Privacy Policy). Stopping keeps the scrolls.
+  const loracle = useLoracle();
+  const stopWishes = useAction(() => api.del<unknown>('/loracle/consent'));
   const logout = useAction(() => api.post('/auth/logout'), {
     onSuccess: () => {
       setNativeToken(null);
@@ -167,11 +170,19 @@ export function MyProfile() {
             <button className="btn btn-secondary btn-sm" onClick={() => exportData.mutate(undefined)} disabled={exportData.isPending}>
               <Download size={15} /> {exportData.isPending ? 'Preparing…' : 'Download my data'}
             </button>
+            {loracle.data?.consented && (
+              <button className="btn btn-ghost btn-sm" onClick={() => stopWishes.mutate(undefined)} disabled={stopWishes.isPending}>
+                {LORACLE_LINES.consentWithdraw}
+              </button>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={() => setDeleting(true)}>
               Delete my account
             </button>
           </div>
-          <ErrorNote error={exportData.error} />
+          {stopWishes.isSuccess && !loracle.data?.consented && (
+            <p className="small muted" role="status">The stone no longer reads your wishes. Your scrolls stay.</p>
+          )}
+          <ErrorNote error={exportData.error ?? stopWishes.error} />
         </div>
       </Section>
 

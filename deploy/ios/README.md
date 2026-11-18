@@ -3,7 +3,7 @@
 ## Right now, with no store at all
 
 LORE already works on any phone or computer in the browser: **https://lore-g8co.onrender.com**.
-Same account, same data, same Oracle.
+Same account, same data, same Loracle.
 
 On an iPhone, make it an app icon: open the link in **Safari** → **Share** button → **Add to Home
 Screen**. It opens full screen like an app. (Until the App Store version exists, reminders on iPhone
@@ -71,7 +71,8 @@ have extra rules.
 | App Privacy answers | ✅ below |
 | Forgot-password by email | ⬜ needs an email service; until then people write via the support page |
 | A demo account for the reviewer | ⬜ at submission time |
-| More than a website in a wrapper (4.2) | 🟡 notifications, live updates, the Oracle; Apple decides |
+| More than a website in a wrapper (4.2) | 🟡 notifications, live updates, The Loracle; Apple decides |
+| Explicit permission before personal data goes to a third-party AI (5.1.2(i)) | ✅ The Loracle shows a consent sheet before the first wish is sent to Claude (Anthropic); "Stop sending wishes" withdraws it |
 | Sign in with Apple | Not required: LORE has no Google/Facebook sign-in |
 
 ## Become the moderator
@@ -83,14 +84,25 @@ be handled within 24 hours.
 
 ## App Privacy answers (App Store Connect → App Privacy)
 
-- Tracking: **No**, LORE doesn't track people across apps or websites.
+- Tracking: **No**, LORE doesn't track people across apps or websites. Sending wishes to Anthropic as
+  a service provider (the mind behind The Loracle) is not tracking.
 - Data collected, all *linked to the user*, all used only for *App Functionality*:
   - Contact Info: **Name**, **Email Address**
-  - User Content: **Photos or Videos**, **Other User Content** (plans, stories, comments, notes)
-  - Location: **Coarse Location** (the Oracle's realm, which people type in themselves)
+  - User Content: **Photos or Videos**, **Other User Content** (plans, stories, comments, notes, and
+    The Loracle's wishes, quests and waypoint notes)
+  - Health & Fitness: **Health** (The Loracle's optional "Your body" answer invites health details,
+    like "a bad left knee")
+  - Other Data: **Other Data Types** (The Loracle's optional age band, money and time answers, and
+    passport country)
+  - Location: **Coarse Location** (where you stand in The Loracle, which people type in themselves; its
+    town and country now also go to Anthropic with a wish)
   - Identifiers: **User ID**
 - Not collected: payment info (Apple handles it), contacts, browsing history, precise location,
   diagnostics, advertising data.
+- **App Review notes** (paste at submission): "The Loracle sends a wish to Claude (Anthropic) only
+  after the consent sheet. The demo account has not consented, so the reviewer sees the sheet." Keep the
+  demo account un-consented. If the server has no ANTHROPIC_API_KEY, The Loracle shows the stone asleep
+  and nothing is sent.
 
 ## Selling it
 

@@ -70,14 +70,17 @@ exercised in the browser with demo data.
 
 | Step | Status |
 |---|---|
-| **The Oracle**: realm (town + radius), interests, three possible futures a day from places, weather, sky, free time, crews, ideas and memories; Mixed / My path / Wild | ✅ 20 tests; tried in the browser with live open data (aurora night, hot soak, museum wildcard) |
+| **The Oracle**: realm (town + radius), interests, three possible futures a day from places, weather, sky, free time, crews, ideas and memories; Mixed / My path / Wild | ✅ 20 tests; tried in the browser with live open data (aurora night, hot soak, museum wildcard). **Replaced in the app by the Loracle's wishes (D31)**; the API and old readings remain |
 | Choose this destiny → real plan with place and coordinates · Save to vault · Not this path | ✅ tested; checked in the browser |
 | Oracle realm with **No limit** (journeys past 250 km, far shores by air past 1,500 km) and the full stone & scroll look | ✅ 99 tests; checked at phone width with a live reading |
 | Oracle on Home, Create and the desktop rail | ✅ checked in the browser (desktop and phone width) |
 | Oracle on a real phone (arrives by live update, no new APK) | ⬜ owner's phone |
+| **The Loracle, phase A** (D31): wishes first and only; the stone's questions; a quest per wish drawn by Claude Opus 5.5 (weigh, research with web search/fetch, compose, checks, repair, pins); open and sealed waypoints; plan / vault / my week / ink / chapter; care route; hidden limits and the monthly ceiling (moon); asleep without a key; fake mind for dev. The Futures are gone from the app (API kept) | ✅ 219 tests; typecheck; build; smoke-tested end to end with the fake mind (no browser), after the review fixes too (care floor, sealed offers, spend always counted, consent withdrawal, reach ANYWHERE by default, town-only realm). 🟡 **Not verified:** no real Claude call yet, nothing looked at in a browser |
+| Loracle: owner sets `ANTHROPIC_API_KEY` (Render), a Console spend limit, and runs the live eval (`node tools/loracle-eval.mjs --yes`, est. US$15–25, unverified) and reads the scrolls | ⬜ owner |
+| Loracle: crisis lines, emergency numbers, Icelandic care phrases and the Anthropic consent/privacy wording checked by a person | ⬜ before release |
+| Loracle phase B/C: Ask deeper, Ask again, a dawn lane (batches), crew quests | ⬜ later |
 | **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |
 | More signs: tides, opening hours, events happening nearby, sunset/golden hour | ⬜ |
-| Crew readings (futures for a whole crew, from everyone's free time) | ⬜ |
 
 ## Phase 2 — Spontaneity and identity
 

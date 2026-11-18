@@ -17,6 +17,7 @@ import {
   events,
   ideaInterest,
   ideas,
+  loracleSpend,
   media,
   notes,
   oracleReadings,
@@ -25,12 +26,28 @@ import {
   reports,
   supportMessages,
   users,
+  wishes,
+  wishRoads,
+  wishWaypoints,
 } from '../db/schema.ts';
+import { wishJobsFor } from './loracle/jobs.ts';
 import { signedMediaPath } from './mediaUrls.ts';
 import type { MediaStorage } from './storage.ts';
 
 export async function deleteAccount(db: Db, storage: MediaStorage, userId: string): Promise<void> {
   const filesToRemove: string[] = [];
+
+  // The Loracle: stop any road still being drawn. The wishes, roads and waypoints cascade with the
+  // account below; spend rows keep no text and lose their user (set null). A job that finishes late
+  // finds its run gone and writes nothing.
+  const jobs = wishJobsFor(db);
+  if (jobs) {
+    const drawing = await db
+      .select({ id: wishes.id })
+      .from(wishes)
+      .where(and(eq(wishes.userId, userId), inArray(wishes.status, ['listening', 'moon'])));
+    for (const { id } of drawing) jobs.abort(id);
+  }
 
   await db.transaction(async (tx) => {
     // Crews they own pass to the longest-standing admin, else member. A crew with no
@@ -263,10 +280,15 @@ export async function exportAccount(db: Db, userId: string) {
       homeLabel: oracleSettings.homeLabel,
       homeLat: oracleSettings.homeLat,
       homeLon: oracleSettings.homeLon,
+      homeCountry: oracleSettings.homeCountry,
       radiusKm: oracleSettings.radiusKm,
       timeZone: oracleSettings.timeZone,
       interests: oracleSettings.interests,
     })
+    .from(oracleSettings)
+    .where(eq(oracleSettings.userId, userId));
+  const [loracleSettings] = await db
+    .select({ consentAt: oracleSettings.loracleConsentAt, context: oracleSettings.loracleContext })
     .from(oracleSettings)
     .where(eq(oracleSettings.userId, userId));
   const readings = await db
@@ -274,6 +296,8 @@ export async function exportAccount(db: Db, userId: string) {
     .from(oracleReadings)
     .where(eq(oracleReadings.userId, userId))
     .orderBy(asc(oracleReadings.createdAt));
+
+  const loracle = await exportLoracle(db, userId);
 
   const reportRows = await db
     .select({ targetType: reports.targetType, reason: reports.reason, details: reports.details, status: reports.status, createdAt: reports.createdAt })
@@ -311,8 +335,125 @@ export async function exportAccount(db: Db, userId: string) {
     personalCalendar: personal,
     notesAndReminders: noteRows,
     oracle: { settings: oracle ?? null, readings },
+    loracle: {
+      consentAt: loracleSettings?.consentAt ?? null,
+      context: loracleSettings?.context ?? null,
+      ...loracle,
+    },
     reportsYouFiled: reportRows,
     messagesToSupport: supportRows,
     comments: commentRows,
+  };
+}
+
+/**
+ * The Loracle's part of the export: every wish with its road, waypoints, what the stone found (the
+ * ledger's notes and gaps) and what the weighing read in the wish about the Lorer (its tags, the
+ * wish beneath the wish, the binds, the companion and the clock). Left out, as internal working
+ * notes deleted with the wish: the weighing's search plans and lists, the forge, raw dossiers and
+ * the waypoints' note ids. Spend rows carry no text.
+ */
+async function exportLoracle(db: Db, userId: string) {
+  const wishRows = await db
+    .select({
+      id: wishes.id,
+      text: wishes.text,
+      context: wishes.context,
+      realm: wishes.realm,
+      timeZone: wishes.timeZone,
+      day: wishes.day,
+      status: wishes.status,
+      weighing: wishes.weighing,
+      ledger: wishes.ledger,
+      fulfilledAt: wishes.fulfilledAt,
+      releasedAt: wishes.releasedAt,
+      createdAt: wishes.createdAt,
+    })
+    .from(wishes)
+    .where(eq(wishes.userId, userId))
+    .orderBy(asc(wishes.createdAt));
+  const ids = wishRows.map((w) => w.id);
+  const roadRows = ids.length
+    ? await db
+        .select({
+          id: wishRoads.id,
+          wishId: wishRoads.wishId,
+          n: wishRoads.n,
+          status: wishRoads.status,
+          signs: wishRoads.signs,
+          quest: wishRoads.quest,
+          readyAt: wishRoads.readyAt,
+          createdAt: wishRoads.createdAt,
+        })
+        .from(wishRoads)
+        .where(inArray(wishRoads.wishId, ids))
+        .orderBy(asc(wishRoads.n))
+    : [];
+  const waypointRows = ids.length
+    ? await db
+        .select({
+          roadId: wishWaypoints.roadId,
+          position: wishWaypoints.position,
+          kind: wishWaypoints.kind,
+          emblem: wishWaypoints.emblem,
+          name: wishWaypoints.name,
+          when: wishWaypoints.when,
+          at: wishWaypoints.at,
+          place: wishWaypoints.place,
+          town: wishWaypoints.town,
+          country: wishWaypoints.country,
+          lat: wishWaypoints.lat,
+          lon: wishWaypoints.lon,
+          clue: wishWaypoints.clue,
+          lore: wishWaypoints.lore,
+          trial: wishWaypoints.trial,
+          person: wishWaypoints.person,
+          earns: wishWaypoints.earns,
+          mystery: wishWaypoints.mystery,
+          steps: wishWaypoints.steps,
+          sealBrokenAt: wishWaypoints.sealBrokenAt,
+          inkedOn: wishWaypoints.inkedOn,
+          note: wishWaypoints.note,
+          eventId: wishWaypoints.eventId,
+          ideaId: wishWaypoints.ideaId,
+          chapterId: wishWaypoints.chapterId,
+          reminderId: wishWaypoints.reminderId,
+        })
+        .from(wishWaypoints)
+        .where(inArray(wishWaypoints.wishId, ids))
+        .orderBy(asc(wishWaypoints.position))
+    : [];
+  const spend = await db
+    .select({
+      utcDay: loracleSpend.utcDay,
+      stage: loracleSpend.stage,
+      outcome: loracleSpend.outcome,
+      costMicros: loracleSpend.costMicros,
+    })
+    .from(loracleSpend)
+    .where(eq(loracleSpend.userId, userId))
+    .orderBy(asc(loracleSpend.createdAt));
+
+  return {
+    wishes: wishRows.map(({ id, ledger, weighing, ...wish }) => ({
+      ...wish,
+      weighing: weighing
+        ? {
+            tags: weighing.tags ?? [],
+            desire: weighing.desire ?? null,
+            binds: weighing.binds ?? [],
+            companion: weighing.companion ?? null,
+            clock: weighing.clock ?? null,
+          }
+        : null,
+      ledger: ledger ? { notes: ledger.notes ?? [], gaps: ledger.gaps ?? [] } : null,
+      roads: roadRows
+        .filter((r) => r.wishId === id)
+        .map(({ id: roadId, wishId: _wishId, ...road }) => ({
+          ...road,
+          waypoints: waypointRows.filter((w) => w.roadId === roadId).map(({ roadId: _roadId, ...w }) => w),
+        })),
+    })),
+    spend,
   };
 }

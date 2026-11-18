@@ -14,13 +14,16 @@ import type {
   IdeaSummary,
   Me,
   ModerationSummary,
+  LoracleState,
   NotesData,
-  OracleState,
   PersonalEntry,
   PublicProfile,
+  RoadStatus,
   UserSearchResult,
   UserSummary,
+  Wish,
 } from '#shared';
+import { ROAD_IN_PROGRESS } from '#shared';
 import { api, ApiError, qs } from './api.ts';
 import { todayISO } from './dates.ts';
 
@@ -64,8 +67,30 @@ export const usePersonal = (from: string, to: string, enabled = true) =>
     enabled,
   });
 
-/** Your realm and today's reading. Cheap: the server only reads its own tables here. */
-export const useOracle = () => useQuery({ queryKey: ['oracle'], queryFn: () => api.get<OracleState>('/oracle') });
+/**
+ * The Loracle: the stone's mind (awake, asleep or fake), consent, the stone's questions, this week's
+ * examples and the quest log. Cheap: the server reads its own tables (and wakes any moon wishes).
+ * The old Futures endpoints (/oracle, /oracle/readings) are no longer called by the web app.
+ */
+export const useLoracle = () => useQuery({ queryKey: ['loracle'], queryFn: () => api.get<LoracleState>('/loracle') });
+
+const DRAWING: readonly RoadStatus[] = [...ROAD_IN_PROGRESS, 'ready'];
+
+/** How often to ask about a wish: every 2 s while its road is drawn (until the pins are sealed); slowly under the moon. */
+export function wishPollMs(wish: Wish | undefined): number | false {
+  if (!wish) return false;
+  if (wish.status === 'moon') return 60_000;
+  return DRAWING.includes(wish.road.status) ? 2_000 : false;
+}
+
+/** One wish and its road. `background` keeps polling in a hidden tab (for "Tell me when it's sealed"). */
+export const useWish = (id: string, background = false) =>
+  useQuery({
+    queryKey: ['wish', id],
+    queryFn: () => api.get<Wish>(`/loracle/wishes/${id}`),
+    refetchInterval: (q) => wishPollMs(q.state.data),
+    refetchIntervalInBackground: background,
+  });
 
 /** Moderators only. */
 export const useModerationSummary = (enabled: boolean) =>

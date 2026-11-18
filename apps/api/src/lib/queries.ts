@@ -1,17 +1,19 @@
 // Reusable read queries that turn rows into the shapes in #shared/types. Each takes
 // the viewer and applies the visibility predicate itself, so callers can't forget.
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type {
   ChapterSummary,
   CrewRef,
   CrewSummary,
+  Emblem,
   EventSummary,
   IdeaSummary,
   MediaRef,
   ParticipantRole,
   RsvpStatus,
   UserSummary,
+  WishSummary,
 } from '#shared';
 import type { Db } from '../db/index.ts';
 import {
@@ -26,8 +28,11 @@ import {
   ideas,
   media,
   users,
+  wishes,
+  wishRoads,
+  wishWaypoints,
 } from '../db/schema.ts';
-import { chapterVisible, eventVisible, ideaVisible } from './access.ts';
+import { chapterVisible, eventVisible, ideaVisible, wishVisible } from './access.ts';
 import { signedMediaPath } from './mediaUrls.ts';
 
 export const mediaUrl = (id: string) => signedMediaPath(id);
@@ -269,4 +274,53 @@ export async function chapterSummaries(
     peopleCount: r.peopleCount,
     contributionCount: r.contributionCount,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// The Loracle's quest log
+
+/** The Lorer's own wishes, newest first: the active ones, or the ones let go. Never anyone else's. */
+export async function wishSummaries(
+  db: Db,
+  viewerId: string,
+  opts: { letGo: boolean; limit: number },
+): Promise<WishSummary[]> {
+  const rows = await db
+    .select({
+      id: wishes.id,
+      text: wishes.text,
+      status: wishes.status,
+      createdAt: wishes.createdAt,
+      title: sql<string | null>`${wishRoads.quest} ->> 'title'`,
+    })
+    .from(wishes)
+    .leftJoin(wishRoads, and(eq(wishRoads.wishId, wishes.id), eq(wishRoads.n, 1)))
+    .where(and(wishVisible(viewerId), opts.letGo ? eq(wishes.status, 'released') : ne(wishes.status, 'released')))
+    .orderBy(desc(wishes.createdAt))
+    .limit(opts.limit);
+  if (!rows.length) return [];
+  const counts = await db
+    .select({
+      wishId: wishWaypoints.wishId,
+      total: sql<number>`count(*)::int`,
+      inked: sql<number>`count(${wishWaypoints.inkedAt})::int`,
+      seal: sql<Emblem | null>`max(case when ${wishWaypoints.position} = 0 then ${wishWaypoints.emblem} end)`,
+    })
+    .from(wishWaypoints)
+    .where(inArray(wishWaypoints.wishId, rows.map((r) => r.id)))
+    .groupBy(wishWaypoints.wishId);
+  const byWish = new Map(counts.map((c) => [c.wishId, c]));
+  return rows.map((r) => {
+    const c = byWish.get(r.id);
+    return {
+      id: r.id,
+      title: r.title ?? null,
+      text: r.text,
+      status: r.status,
+      seal: c?.seal ?? null,
+      inked: c?.inked ?? 0,
+      total: c?.total ?? 0,
+      createdAt: iso(r.createdAt),
+    };
+  });
 }

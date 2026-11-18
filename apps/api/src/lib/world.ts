@@ -476,21 +476,66 @@ export function openDataWorld(db: Db, { farWaitMs = 25_000 }: { farWaitMs?: numb
 
     async geocode(query) {
       const q = query.trim().toLowerCase();
-      const data = await cached(db, `geocode:en:${q}`, 30 * DAY, async () => {
+      // v3 key: labels are town-level (never a street or a house) and carry the country (ISO-2,
+      // upper case) that the Loracle needs; rows cached under older keys had neither.
+      const data = await cached(db, `geocode:en:v3:${q}`, 30 * DAY, async () => {
         await nominatimSlot();
-        const params = new URLSearchParams({ q, format: 'jsonv2', limit: '5', addressdetails: '0', 'accept-language': 'en' });
-        const rows = await fetchJson<{ display_name: string; lat: string; lon: string }[]>(
+        const params = new URLSearchParams({ q, format: 'jsonv2', limit: '5', addressdetails: '1', 'accept-language': 'en' });
+        const rows = await fetchJson<{ display_name: string; lat: string; lon: string; address?: NominatimAddress }[]>(
           `https://nominatim.openstreetmap.org/search?${params}`,
         );
-        return rows.map((r) => ({
-          label: r.display_name.split(',').slice(0, 3).map((s) => s.trim()).join(', '),
-          lat: Number(r.lat),
-          lon: Number(r.lon),
-        }));
+        const seen = new Set<string>();
+        const out: GeocodeResult[] = [];
+        for (const r of rows) {
+          const label = realmLabel(r.display_name, r.address);
+          if (!label || seen.has(label)) continue;
+          seen.add(label);
+          const cc = r.address?.country_code;
+          out.push({
+            label,
+            lat: Number(r.lat),
+            lon: Number(r.lon),
+            country: cc && /^[a-z]{2}$/i.test(cc) ? cc.toUpperCase() : null,
+          });
+        }
+        return out;
       });
       return data ?? [];
     },
   };
+}
+
+/** The parts of a Nominatim address (addressdetails=1) that name a place. */
+interface NominatimAddress {
+  country_code?: string;
+  country?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  hamlet?: string;
+  municipality?: string;
+  state?: string;
+  region?: string;
+  county?: string;
+  road?: string;
+  house_number?: string;
+  postcode?: string;
+}
+
+/**
+ * A place's label at town level: "Reykjavík, Capital Region, Iceland". A street, a house number or a
+ * postcode is never part of it (a house result becomes its town); a street with no town is dropped
+ * (null). Places that are not in a town (a park, an island, a mountain) keep their own name.
+ */
+export function realmLabel(displayName: string, a: NominatimAddress | undefined): string | null {
+  const town = a?.city ?? a?.town ?? a?.village ?? a?.hamlet ?? a?.municipality ?? null;
+  if (town) {
+    const parts = [town, a?.state ?? a?.region ?? a?.county, a?.country].filter((x): x is string => !!x?.trim());
+    return [...new Set(parts.map((x) => x.trim()))].join(', ');
+  }
+  if (a?.road || a?.house_number || a?.postcode) return null;
+  const parts = displayName.split(',').map((x) => x.trim()).filter((x) => x && !/\d/.test(x));
+  return parts.length ? parts.slice(0, 3).join(', ') : null;
 }
 
 /** Fraction of the moon that's lit (0 new … 1 full) at a given instant. */

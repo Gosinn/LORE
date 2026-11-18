@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -40,7 +40,58 @@ const Env = z.object({
   SCRYPT_COST: z.coerce.number().int().optional(),
   SCRYPT_PARALLELISM: z.coerce.number().int().min(1).max(16).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  /** The Loracle's mind (Claude). Without it the stone sleeps and everything else works. Never logged. */
+  ANTHROPIC_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim() || undefined),
+  /** `fake`: a deterministic dev mind (no network, canned quests). Only ever on when set explicitly. */
+  LORACLE_MIND: z.enum(['real', 'fake']).default('real'),
+  /** The owner's monthly spend ceiling for the Loracle, in US$. Past it, wishes wait for the new moon. */
+  LORACLE_MONTHLY_USD: z.coerce.number().min(0).default(150),
 });
+
+/** Claude's effort levels (output_config.effort). */
+export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+export interface LoracleConfig {
+  /**
+   * awake: a real key and the real mind · fake: LORACLE_MIND=fake (dev; no network) ·
+   * asleep: no key, the stone sleeps (casts answer 503 `asleep`). /api/health reports it.
+   */
+  mode: 'awake' | 'asleep' | 'fake';
+  /**
+   * The Anthropic API key. Non-enumerable on loadConfig()'s object, so it never shows up when the
+   * config is logged, serialised or spread. Read it only where the client is made.
+   */
+  readonly apiKey?: string;
+  /** Every call uses this model. */
+  model: 'claude-opus-5-5';
+  /** output_config.effort per stage (always sent explicitly). */
+  effort: { weigh: Effort; scout: Effort; compose: Effort; repair: Effort };
+  /** The owner's monthly ceiling across everyone, US$ (LORACLE_MONTHLY_USD). */
+  monthlyUsd: number;
+  /** The hidden per-Lorer limit: casts that drew a road in a rolling 24 hours. Never shown as a number. */
+  castsPer24h: number;
+  /**
+   * The weighings a Lorer may ask for in a rolling 24 hours (riddles, reroutes and silences included).
+   * Generous; it only stops a script from weighing wish after wish on the owner's money. Never shown.
+   */
+  weighsPer24h: number;
+  /** Jobs running at once across the server (one per Lorer). */
+  maxConcurrent: number;
+  /** A job's whole budget before it is cut off as a timeout. */
+  jobTimeoutMs: number;
+  /** Salt for the anonymous id sent as metadata.user_id. */
+  anonSalt: string;
+  /**
+   * Seals the stone's reroute offers (routes/loracle.ts offerToken). Non-enumerable like the key.
+   * Derived from DATABASE_URL when set, else random per process (an offer cast after a restart is
+   * simply weighed as a new wish).
+   */
+  readonly offerSecret: string;
+}
 
 export interface Config {
   env: 'development' | 'production' | 'test';
@@ -61,6 +112,36 @@ export interface Config {
   scryptCost: number;
   scryptParallelism: number;
   logLevel: string;
+  /** The Loracle (wishes). */
+  loracle: LoracleConfig;
+}
+
+/** The Loracle's settings. The key is attached as a non-enumerable property (see LoracleConfig.apiKey). */
+export function loracleConfig(opts: {
+  apiKey?: string | undefined;
+  mind?: 'real' | 'fake';
+  monthlyUsd?: number;
+  anonSalt: string;
+  offerSecret?: string;
+}): LoracleConfig {
+  const mode = opts.mind === 'fake' ? 'fake' : opts.apiKey ? 'awake' : 'asleep';
+  const config = {
+    mode,
+    model: 'claude-opus-5-5',
+    effort: { weigh: 'low', scout: 'medium', compose: 'high', repair: 'medium' },
+    monthlyUsd: opts.monthlyUsd ?? 150,
+    castsPer24h: 10,
+    weighsPer24h: 40,
+    maxConcurrent: 3,
+    jobTimeoutMs: 360_000,
+    anonSalt: opts.anonSalt,
+  } as LoracleConfig;
+  if (opts.apiKey) Object.defineProperty(config, 'apiKey', { value: opts.apiKey, enumerable: false });
+  Object.defineProperty(config, 'offerSecret', {
+    value: opts.offerSecret ?? randomBytes(32).toString('hex'),
+    enumerable: false,
+  });
+  return config;
 }
 
 const list = (v: string) =>
@@ -102,6 +183,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     scryptCost: e.SCRYPT_COST ?? (onRender ? 2 ** 15 : 2 ** 17),
     scryptParallelism: e.SCRYPT_PARALLELISM ?? (onRender ? 3 : 1),
     logLevel: e.LOG_LEVEL,
+    loracle: loracleConfig({
+      apiKey: e.ANTHROPIC_API_KEY,
+      mind: e.LORACLE_MIND,
+      monthlyUsd: e.LORACLE_MONTHLY_USD,
+      // Stable per deployment, like the media secret; never the key itself.
+      anonSalt: createHash('sha256')
+        .update(`lore-loracle-anon:${e.DATABASE_URL ?? e.PGLITE_DIR}`)
+        .digest('hex'),
+      offerSecret: e.DATABASE_URL
+        ? createHash('sha256').update(`lore-loracle-offer:${e.DATABASE_URL}`).digest('hex')
+        : undefined,
+    }),
   };
 }
 

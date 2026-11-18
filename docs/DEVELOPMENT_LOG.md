@@ -1,5 +1,105 @@
 # LORE — Development log
 
+## 2026-11-18 (later still) — The Loracle: review fixes
+
+A review of phase A found holes in safety, money and the owner's wishes. Fixed:
+
+- **Care first, one floor.** The care phrases now live in one list (`lib/loracle/care.ts`), the union of the
+  route's and the mind's ("I wish I were dead", "I wish I could just disappear", "no reason to live", "cut
+  myself", the Icelandic phrases …), checked before the stone's sleep, consent, realm or any limit.
+- **A forged "taken offer" no longer slips past the weighing.** The stone seals its reroute offer
+  (`offerToken`, an HMAC over the Lorer, their day and the offer's words); only a sealed offer is told to
+  the mind as taken up, and an offer still weighed as harm is silence, never a quest.
+- **Money is always counted.** A cast or weighing cut off by a burn, a timeout, shutdown or a closed
+  connection now waits a moment for what the mind already paid for and records it; a stream cut off part-way
+  is counted from what had arrived; spend is recorded before the scroll is written. Spend rows carry the
+  road (`loracle_spend.road_id`, no foreign key) so burning never refunds the hidden limit, and the limit
+  counts roads that were paid for (drawn, faded or burned), once each.
+- **Bounds on the weighing:** attempts are counted in memory too (care and cut-off weighings included);
+  far past the monthly ceiling (×1.1) nothing is weighed and the stone answers "sleeps until the new moon"
+  with nothing stored. "Try again" is once a day per road (`wish_roads.retried_on`), rate-limited, needs
+  consent and respects the hidden limit.
+- **"Stop sending wishes" stops them:** running jobs stop, roads still waiting (queued, being drawn, for the
+  new moon) fade, a road is only ever claimed while consent stands, and the new moon wakes only wishes whose
+  Lorer still consents.
+- **Reach: ANYWHERE by default.** The Loracle has its own reach (`oracle_settings.loracle_reach_km`, null =
+  anywhere) instead of the old Futures' 80 km radius. "How far will you go?" and "What calls to you?" now sit
+  on the page under the examples, not inside the fold.
+- **Only the town leaves the server.** Geocoding labels are town-level (a street or house result becomes its
+  town; a street without a town is dropped; cache key v3), the mind is told only the town and country, and
+  the consent and privacy text now name the time zone.
+- **The page:** the wish field comes first, then "Where do you stand?" (first visit), then the reminder scroll
+  below the well. The header's subline is hidden over the care screen and while the stone sleeps. The quest
+  page shows the sleeping stone instead of a wait that never ends; one fog line during the back-off; the
+  Home card and Create menu (a flame, not sparkles) fit the stone.
+- **The mind:** errors that arrive inside a stream are classified by `.type` (overloaded → the 30 s
+  back-off); a streamed answer finished by a fallback model is read across the boundary; the scouts are told
+  to write their dossier once, at the end (Opus 5.5 returns notes between tool calls as thinking); a scout
+  that brings back nothing is logged with its stop reason; the 64K compose rerun is skipped when the job
+  could not see it through. The mind is made inside `buildApp` so its lines reach the app's log.
+- **Logs and export:** a failed query is logged without its bound values (`lib/safeLog.ts`); the export now
+  includes what the weighing read about the Lorer (tags, the wish beneath, binds, companion, clock).
+- **Copy:** search signs keep proper nouns and drop operators and dates; "Ask them to …" verbs; the fake
+  quests no longer send anyone to a library; several lines rewritten in the stone's voice.
+- Migration 0007 adds the three columns (0006 is left as it was, so a dev database that already ran it
+  migrates cleanly; checked on a copy of the local dev database). **Checked:** 219 tests (15 files) pass; typecheck; production
+  build. Smoke test with the fake mind on a fresh PGlite, port 4100 (fetch, no browser), 44/44: gates, cast,
+  scroll and deeds, town-level geocoding of a street search, reach defaults to ANYWHERE, a forged reroute
+  weighed as new, the sealed offer cast, care for "I wish I could just disappear", "Stop sending wishes"
+  fading a road mid-draw (cast and Try again then 403), a hard kill and a restart after the road went quiet
+  (the boot sweep drew it, 2 attempts), no wish text in the log. The data was deleted afterwards.
+- **Not verified:** everything in the entry below that needs the live API or a browser still does.
+
+## 2026-11-18 (late night) — The Loracle: tell the stones what you wish for (phase A)
+
+- **Wishes first, wishes only.** The Loracle (`/oracle`) now opens on "These stones see what you do not" and a
+  carved field prefilled "I wish ". The stone draws a **quest** for the wish: a calling, a road of waypoints
+  (the first two open, the rest sealed until the one before is inked or the seal is broken), whom to find,
+  what each step earns, provisions, one rule, a deed for this week, what is still in the fog, and where the
+  stone looked. The tourist Futures (aurora nights, hot springs, museums, weekend journeys) are gone from the
+  page, the Home teaser and Create; their API routes, tables and `lib/oracle.ts` stay untouched so exports
+  still hold old readings.
+- **The stone's questions** (private, `oracle_settings`): Where do you stand? (required; only the town line
+  and country leave the server), How far will you go? (the stepped slider to ANYWHERE), What calls to you?
+  (new quest-shaped callings), and the "What the stone should know" fold (age band, money, time, body,
+  tongues, passport).
+- **The mind** is Claude Opus 5.5 through Anthropic's API (D31): a weighing (care / riddle / reroute /
+  quest / silent), two research passes with web search and web fetch, a ledger in code that keeps only
+  URLs the tools returned, a structured compose, code checks with one repair, then pins from Nominatim.
+  Care comes first: a floor of unmistakable phrases answers with a crisis line before any model is asked.
+  13–17 age band → teen-safe roads. `@anthropic-ai/sdk` 1.10.0 added.
+- **Deeds:** break the seal, make it a plan (a private all-day event, you as organizer), keep it in the
+  vault (only-me idea), put it in my week (a reminder at 18:00 by default), I did this (ink + note), write
+  the chapter, the wish came true, let it go, burn. "Stop sending wishes" on the Loracle and in Profile →
+  Your data.
+- **Limits, never shown as numbers** (D30 still holds): about 10 casts in a rolling 24 h per Lorer and a
+  generous cap on weighings (40), answered "the stone rests"; the owner's monthly ceiling
+  `LORACLE_MONTHLY_USD` (default 150) writes the wish down for the new moon. Wishes waiting for the moon
+  count toward the per-Lorer limit.
+- **Asleep and dreaming:** without `ANTHROPIC_API_KEY` the stone sleeps (casting off, `/api/health` says
+  `loracle: "asleep"`). `LORACLE_MIND=fake` (dev only; set for the `lore-api` launch entry) runs a
+  deterministic fake mind: real-looking signs over ~8 s and a canned quest ("The Ninth Limb" for the Lethwei
+  wish, "The Unwalked Road" otherwise), no network, no cost.
+- **Integration fixes:** geocoding now asks Nominatim for address details and returns the ISO-2 country
+  (new cache key), so new realms carry their country; the owner-only loaders moved to `lib/access.ts` and
+  the quest log to `lib/queries.ts`; phone reminder syncing no longer cancels the "Tell me when it's sealed"
+  notice; the fake mind treats "I wanna be happy" as a riddle; `.env.example` and `docker-compose.yml`
+  carry the new variables.
+- Migration 0006. **Checked:** 201 tests (15 files) pass; typecheck; production build. Smoke test with
+  the fake mind on a fresh PGlite (curl, no browser): register → consent and realm gates → cast the Lethwei
+  wish (202) → sealed in ~8 s → scroll with 5 waypoints (0–1 open, 2–4 sealed without trial or keeper) →
+  ink on a sealed one refused (409) → break seal → plan (201, private event on the waypoint's month) →
+  vault → This week reminder, moved → I did this → duplicate cast returns the same scroll → riddle →
+  answer → second quest → let go / take up / came true → export (no weighing, forge, dossiers or note ids)
+  → burn (plans and reminders stay) → stop sending → hard kill mid-draw and restart: the boot sweep
+  retried the road and drew it. No wish text in the server log.
+- **Not verified:** no real Claude call has been made (no key on this machine; the live eval
+  `tools/loracle-eval.mjs` is written, not run), so the prompts, the quality of real quests, cost per quest
+  (estimated ~US$0.90–2.40), the SDK's `fallbacks` with structured output and the 20260209 web tools are all
+  unproven against the live API. Nothing was looked at in a browser: the page look, motion, the 360 px
+  layout, contrast and the notifications. The crisis lines and emergency numbers, the Icelandic care
+  phrases and the consent and privacy wording about Anthropic must be checked by a person before release.
+
 ## 2026-11-18 (night, later) — No limit on adventure; the Oracle in stone and scroll
 
 - **How far: no limit.** The realm now goes 10 km … 1,000 km … 10,000 km … **No limit** (anywhere on

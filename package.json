@@ -25,6 +25,7 @@
     "account:recover": "node apps/api/src/recover-account.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0",
     "@capacitor/ios": "^8.5.3",
     "@electric-sql/pglite": "^0.5.10",
     "@fastify/cookie": "^11.1.3",

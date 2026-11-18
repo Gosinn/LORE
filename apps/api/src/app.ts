@@ -9,7 +9,10 @@ import { MAX_MEDIA_BYTES } from '#shared';
 import { resolveSession, SESSION_COOKIE } from './auth/sessions.ts';
 import type { AppContext } from './context.ts';
 import { forbidden, HttpError } from './lib/errors.ts';
+import { createWishJobs, type WishJobs } from './lib/loracle/jobs.ts';
+import { mindFor } from './lib/loracle/mind.ts';
 import { setMediaUrlSecret } from './lib/mediaUrls.ts';
+import { safeErr } from './lib/safeLog.ts';
 import { accountRoutes } from './routes/account.ts';
 import { appUpdateRoutes } from './routes/appUpdates.ts';
 import { authRoutes } from './routes/auth.ts';
@@ -20,6 +23,7 @@ import { eventRoutes } from './routes/events.ts';
 import { friendRoutes } from './routes/friends.ts';
 import { homeRoutes } from './routes/home.ts';
 import { ideaRoutes } from './routes/ideas.ts';
+import { loracleRoutes, mindState } from './routes/loracle.ts';
 import { mediaRoutes } from './routes/media.ts';
 import { noteRoutes } from './routes/notes.ts';
 import { notificationRoutes } from './routes/notifications.ts';
@@ -30,10 +34,18 @@ import { userRoutes } from './routes/users.ts';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-export async function buildApp(ctx: AppContext) {
-  const { config, db } = ctx;
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** The Loracle's background jobs (tests: `await app.wishJobs.idle()`). */
+    wishJobs: WishJobs;
+  }
+}
+
+export async function buildApp(appCtx: AppContext) {
+  const { config, db } = appCtx;
   const app = Fastify({
-    logger: config.logLevel === 'silent' ? false : { level: config.logLevel },
+    // Errors are logged without the values bound to a failed query (lib/safeLog.ts).
+    logger: config.logLevel === 'silent' ? false : { level: config.logLevel, serializers: { err: safeErr } },
     trustProxy: config.trustProxy,
     bodyLimit: 1024 * 1024,
   });
@@ -46,6 +58,22 @@ export async function buildApp(ctx: AppContext) {
   app.decorateRequest('sessionToken', null);
 
   setMediaUrlSecret(config.mediaUrlSecret);
+
+  // The Loracle's mind: the one passed in (tests), else Claude when a key is set, the dev fake when
+  // LORACLE_MIND=fake, none while asleep. Made here so its lines (stages, cost, request ids, safety
+  // faults; never text) reach the app's log.
+  const ctx: AppContext = {
+    ...appCtx,
+    mind: appCtx.mind ?? mindFor(config.loracle, { log: app.log.child({ module: 'loracle' }) }),
+  };
+
+  // The Loracle's job runner. Stopped when the app closes (rows in progress are picked up again by
+  // the next boot's sweep, see server.ts).
+  const wishJobs = createWishJobs({ db, mind: ctx.mind, world: ctx.world, config: config.loracle, log: app.log });
+  app.decorate('wishJobs', wishJobs);
+  app.addHook('onClose', async () => {
+    await wishJobs.close();
+  });
 
   const sameOrigin = (req: FastifyRequest, origin: string) =>
     config.webOrigins.includes(origin) ||
@@ -104,7 +132,9 @@ export async function buildApp(ctx: AppContext) {
     if (status < 500) {
       return reply.status(status).send({ error: { code: 'bad_request', message: err.message } });
     }
-    req.log.error(err);
+    // Logged under `err` with a fixed message: pino would otherwise use the error's message as the
+    // line's msg, and a failed query's message holds its bound values (lib/safeLog.ts).
+    req.log.error({ err }, 'request failed');
     return reply.status(500).send({ error: { code: 'server_error', message: 'Something went wrong on our side.' } });
   });
 
@@ -113,6 +143,8 @@ export async function buildApp(ctx: AppContext) {
     ok: true,
     database: ctx.dbKind === 'pglite' ? 'embedded' : (ctx.dbKind ?? 'unknown'),
     photos: config.mediaStorage,
+    /** The Loracle's mind: awake (Claude), asleep (no ANTHROPIC_API_KEY) or fake (LORACLE_MIND=fake, dev only). */
+    loracle: mindState(ctx.mind),
   }));
 
   await app.register(
@@ -133,6 +165,7 @@ export async function buildApp(ctx: AppContext) {
         commentRoutes,
         notificationRoutes,
         oracleRoutes,
+        loracleRoutes,
         safetyRoutes,
         homeRoutes,
       ]) {

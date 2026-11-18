@@ -1,6 +1,6 @@
-// The privacy model, enforced in SQL. Every query that returns events, ideas or
-// chapters goes through one of the `*Visible` predicates below, so the rules live in
-// exactly one place. See docs/ARCHITECTURE.md § Privacy and permissions.
+// The privacy model, enforced in SQL. Every query that returns events, ideas,
+// chapters or the Loracle's wishes goes through one of the `*Visible` predicates below,
+// so the rules live in exactly one place. See docs/ARCHITECTURE.md § Privacy and permissions.
 import { and, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Db } from '../db/index.ts';
@@ -13,6 +13,9 @@ import {
   events,
   friendships,
   ideas,
+  wishes,
+  wishRoads,
+  wishWaypoints,
 } from '../db/schema.ts';
 import { notFound } from './errors.ts';
 
@@ -91,6 +94,47 @@ export async function loadVisibleChapter(db: Db, viewerId: string, chapterId: st
     .limit(1);
   if (!row) throw notFound('That chapter');
   return row;
+}
+
+// The Loracle: wishes, their roads and waypoints are visible to the Lorer who cast them, and to no
+// one else (no sharing in phase A). Sealing is not visibility: routes/loracle.ts strips sealed
+// waypoints when it builds the view.
+
+/** Wishes: only the Lorer who cast it. */
+export const wishVisible = (viewerId: string) => eq(wishes.userId, viewerId);
+
+export async function loadVisibleWish(db: Db, viewerId: string, wishId: string) {
+  const [row] = await db
+    .select()
+    .from(wishes)
+    .where(and(eq(wishes.id, wishId), wishVisible(viewerId)))
+    .limit(1);
+  if (!row) throw notFound('That wish');
+  return row;
+}
+
+/** A road with its wish (the wish decides who sees it). */
+export async function loadVisibleRoad(db: Db, viewerId: string, roadId: string) {
+  const [found] = await db
+    .select({ road: wishRoads, wish: wishes })
+    .from(wishRoads)
+    .innerJoin(wishes, eq(wishes.id, wishRoads.wishId))
+    .where(and(eq(wishRoads.id, roadId), wishVisible(viewerId)))
+    .limit(1);
+  if (!found) throw notFound('That road');
+  return found;
+}
+
+/** A waypoint with its wish (the wish decides who sees it). */
+export async function loadVisibleWaypoint(db: Db, viewerId: string, waypointId: string) {
+  const [found] = await db
+    .select({ waypoint: wishWaypoints, wish: wishes })
+    .from(wishWaypoints)
+    .innerJoin(wishes, eq(wishes.id, wishWaypoints.wishId))
+    .where(and(eq(wishWaypoints.id, waypointId), wishVisible(viewerId)))
+    .limit(1);
+  if (!found) throw notFound('That waypoint');
+  return found;
 }
 
 // ---------------------------------------------------------------------------

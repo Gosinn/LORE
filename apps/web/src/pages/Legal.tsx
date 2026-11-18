@@ -70,9 +70,19 @@ export function TermsPage() {
 
       <h2>The Loracle and real-world adventures</h2>
       <p>
-        The Loracle suggests possible futures from public data (weather, the sky, notable places). It can be wrong and it
-        doesn’t know about road closures, opening hours, private land, tides or danger. You decide what you do and you’re
-        responsible for your own safety: check conditions, follow local rules and respect the places you visit.
+        The Loracle draws imaginative quests from public web pages, with the help of Claude, an AI made by Anthropic. They
+        can be out of date or wrong, and they may name real public people and places. Check every step with the people and
+        places themselves before you go. Approach people respectfully, through their public channels, and take no for an
+        answer.
+      </p>
+      <p>
+        Dangerous roads (combat sports, mountains, the sea) need training, medical checks, insurance and qualified guides;
+        you decide what you do and you’re responsible for your own safety. The Loracle never gives medical, legal or
+        financial advice. If you’re under 18, walk any far or risky road with a parent or guardian.
+      </p>
+      <p>
+        Don’t put other people’s private details in a wish, and don’t use The Loracle to plan harm to anyone, yourself
+        included. If a wish sounds like you might be in danger, The Loracle stops and shows you a helpline instead.
       </p>
 
       <h2>Buying LORE</h2>
@@ -123,8 +133,17 @@ export function PrivacyPage() {
           private calendar, notes and reminders.
         </li>
         <li>
-          <strong>The Loracle:</strong> the town or area you set as your realm (its approximate coordinates), how far you’d
-          travel, your interests, and the futures The Loracle showed you.
+          <strong>The Loracle:</strong> the town you say you stand in (its name, country and approximate coordinates), how
+          far you’d go, what calls to you, and whatever you choose to tell the stone about yourself (age band, money, time,
+          body, languages, passport). If you used LORE before wishes came, the possible futures it showed you then are kept
+          with your data too.
+        </li>
+        <li>
+          <strong>The Loracle (wishes):</strong> the wishes you write, what the stone read in each one (the wish beneath it,
+          who goes with you, what can’t wait, and short marks such as “dangerous” or “young”), the quests it draws for you
+          (roads, waypoints and the public web pages it found), your notes and progress on them, and when you agreed to send
+          wishes to Anthropic. All of it is in your download. For running costs we also record, for each request, the date,
+          how long it took and what it cost, never its text.
         </li>
         <li>
           <strong>Safety:</strong> reports you send, and messages you write to us.
@@ -135,11 +154,19 @@ export function PrivacyPage() {
         </li>
       </ul>
 
+      <h2>Wishes are yours alone</h2>
+      <p>
+        A wish can say a lot about you: your health, your hopes, your family, what you believe. We treat wishes and what you
+        tell the stone as sensitive. Only you can see them, they are used for nothing but drawing your quests, and they go
+        to Anthropic only after you agree on the sheet shown before your first wish. Don’t put other people’s private
+        details in a wish.
+      </p>
+
       <h2>Who sees it</h2>
       <p>
         You decide: each plan, idea and chapter shows who can see it (only you, the people in it, your friends, or a crew).
-        Your private calendar, notes, reminders and Loracle realm are only ever visible to you. If something is reported,
-        the people who moderate LORE can see the reported content and the accounts involved, only to decide what to do.
+        Your private calendar, notes, reminders, wishes, quests and what you told The Loracle are only ever visible to
+        you. If something is reported, the people who moderate LORE can see the reported content and the accounts involved, only to decide what to do.
       </p>
 
       <h2>Who helps us run LORE</h2>
@@ -148,11 +175,20 @@ export function PrivacyPage() {
           <strong>Render</strong> runs the LORE server and <strong>Neon</strong> hosts the database (including photos),
           both in Frankfurt, Germany. They store data for us and may not use it for anything else.
         </li>
+        {/* OWNER: before publishing, check the retention period, the no-training term and the transfer basis below
+            against Anthropic's current Commercial Terms and Data Processing Addendum (spec §6.2). Not verified. */}
         <li>
-          For The Loracle, our server asks public data services about the area around your realm:{' '}
-          <strong>Wikidata</strong> (notable places), <strong>Open-Meteo</strong> (weather), <strong>NOAA</strong> (aurora
-          forecast) and <strong>OpenStreetMap Nominatim</strong> (finding the town you type). They receive coordinates or
-          the town name you searched for, never your name, account or device.
+          <strong>Anthropic</strong> (USA) runs Claude, the mind behind The Loracle. When you cast a wish, our server sends
+          it your wish, what you told the stone about yourself, your town, its country and time zone, how far you’d go, what
+          calls to you and the date; never your name, username, email, contacts or other LORE content. The searches The Loracle runs
+          go to the web through Anthropic’s search provider and carry words from your wish and your town. Anthropic
+          processes this to answer you, doesn’t use it to train its models, and deletes it after a limited period. We send a
+          random code instead of your account, so abuse can be stopped without identifying you. Transfers to the USA rely on
+          Anthropic’s data processing terms and standard contractual clauses.
+        </li>
+        <li>
+          <strong>OpenStreetMap Nominatim</strong> finds the town you type for The Loracle, and the places on a quest’s map.
+          It receives the town or place name, never your name, account or device.
         </li>
         <li>
           <strong>Apple</strong> handles buying LORE on the App Store under its own privacy policy. We don’t receive your
@@ -174,6 +210,13 @@ export function PrivacyPage() {
           <strong>Correct</strong> your details in your profile, and change who can see each thing at any time.
         </li>
         <li>
+          <strong>Stop sending wishes</strong> to Anthropic at any time, on The Loracle’s page or in Profile → Your data. Nothing
+          more of yours is sent: a wish still waiting to be read fades instead. Your scrolls stay until you delete them.
+        </li>
+        <li>
+          <strong>Burn</strong> any quest: it is deleted at once.
+        </li>
+        <li>
           Depending on where you live (for example in the EU, the UK or California), you also have the right to ask what
           we hold, to object, and to complain to your data protection authority.
         </li>
@@ -182,17 +225,21 @@ export function PrivacyPage() {
       <h2>Why we use it</h2>
       <p>
         To provide LORE as you asked for it (our agreement with you), to keep it safe and working (our legitimate interest
-        in protecting people and the service), and to answer you when you write to us.
+        in protecting people and the service), and to answer you when you write to us. Wishes, and what you tell the stone
+        about yourself, go to Anthropic only with your explicit consent, which you can take back at any time.
       </p>
 
       <h2>How long</h2>
       <p>
-        As long as your account exists. Sign-in sessions expire after 60 days without use. Cached weather and place data
-        isn’t linked to you. Messages to support are deleted with your account.
+        As long as your account exists; a quest until you burn it. Sign-in sessions expire after 60 days without use.
+        Cached weather and place data isn’t linked to you. Messages to support are deleted with your account.
       </p>
 
       <h2>Children</h2>
-      <p>LORE isn’t for children under 13. If you think a child has an account, tell us and we’ll remove it.</p>
+      <p>
+        LORE isn’t for children under 13. If you think a child has an account, tell us and we’ll remove it. When you tell
+        The Loracle you’re 13 to 17, it keeps its roads fit for your age and asks you to bring a parent or guardian.
+      </p>
 
       <h2>Security</h2>
       <p>

@@ -2,6 +2,8 @@
 // body and query with these; clients can use them for form validation.
 import { z } from 'zod';
 import {
+  AGE_BANDS,
+  CALLINGS,
   CHAPTER_AUDIENCES,
   EVENT_AUDIENCES,
   EVENT_CATEGORIES,
@@ -9,11 +11,14 @@ import {
   IDEA_AUDIENCES,
   IDEA_STATUSES,
   INTERESTS,
+  LORACLE_LINES,
+  MONEY_BANDS,
   NO_LIMIT_KM,
   ORACLE_MODES,
   REPORT_REASONS,
   REPORT_TARGETS,
   SUPPORT_TOPICS,
+  TIME_BANDS,
 } from './vocabulary.ts';
 
 const id = z.uuid();
@@ -380,6 +385,135 @@ export type NewReadingInput = z.infer<typeof NewReadingInput>;
 
 export const ChooseFutureInput = z.object({ crewId: id.nullable().optional() });
 export type ChooseFutureInput = z.infer<typeof ChooseFutureInput>;
+
+// ---------------------------------------------------------------------------
+// The Loracle (wishes). Routes under /api/loracle; everything is private to the Lorer.
+
+/** ISO 3166-1 alpha-2, upper case ("IS"). */
+const countryCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{2}$/, 'Use a two-letter country code');
+
+/** True when a wish says more than "I wish". */
+const saysSomething = (wish: string) =>
+  wish
+    .replace(/^\s*i\s+wish\b/i, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '').length >= 2;
+
+/**
+ * What the stone should know, plus "What calls to you?". Every field is optional; the whole
+ * object is remembered privately in oracle_settings.loracle_context. The parsed value is a
+ * complete `LoracleContext` (missing fields become null / []).
+ */
+export const LoracleContextInput = z.object({
+  age: z.enum(AGE_BANDS).nullable().default(null),
+  money: z.enum(MONEY_BANDS).nullable().default(null),
+  time: z.enum(TIME_BANDS).nullable().default(null),
+  body: optionalText(80),
+  languages: optionalText(80),
+  /** Null = the realm's country is assumed. */
+  passport: countryCode.nullable().default(null),
+  callings: z
+    .array(z.enum(CALLINGS))
+    .max(CALLINGS.length)
+    .default([])
+    .transform((list) => [...new Set(list)]),
+});
+export type LoracleContextInput = z.infer<typeof LoracleContextInput>;
+
+/**
+ * PUT /loracle/settings: the stone's questions. Each part is optional and saved on its own.
+ * - home: "Where do you stand?" (from GET /oracle/geocode). Required before the first cast. Only
+ *   `label` and `country` ever go to the mind; the point stays on the server.
+ * - radiusKm: "How far will you go?" Up to NO_LIMIT_KM, which means ANYWHERE.
+ * - context: "What the stone should know" + "What calls to you?" (replaces what was kept).
+ */
+export const LoracleSettingsInput = z.object({
+  home: z
+    .object({
+      label: text(120),
+      lat: z.number().min(-90).max(90),
+      lon: z.number().min(-180).max(180),
+      country: countryCode.nullable().optional(),
+    })
+    .optional(),
+  radiusKm: z.number().int().min(10).max(NO_LIMIT_KM).optional(),
+  /** The Lorer's IANA time zone, so "today" and "this week" mean their day. */
+  timeZone: timeZone.optional(),
+  context: LoracleContextInput.optional(),
+});
+export type LoracleSettingsInput = z.infer<typeof LoracleSettingsInput>;
+
+/** POST /loracle/wishes: cast a wish. The answer is a `CastResult`. */
+export const CastWishInput = z.object({
+  /** The wish, starting "I wish " as the field is prefilled. */
+  text: text(400).refine(saysSomething, LORACLE_LINES.wishEmpty),
+  /** The Lorer's answer to the stone's riddle (a pebble or their own words); re-sent with the same text. */
+  riddleAnswer: optionalText(80).optional(),
+  /** True when casting the wish the stone offered after a reroute. */
+  rerouted: z.boolean().optional(),
+  /**
+   * The seal the stone put on its offer (CastResult reroute.offerToken). `rerouted` counts only when
+   * this proves the text is the very offer the stone made to this Lorer today.
+   */
+  offerToken: z.string().max(200).optional(),
+  /** Sent with the cast from the fold; also saved, like PUT /loracle/settings. */
+  context: LoracleContextInput.optional(),
+  timeZone: timeZone.optional(),
+});
+export type CastWishInput = z.infer<typeof CastWishInput>;
+
+/** PATCH /loracle/wishes/:id. `revealed` takes a let-go or fulfilled quest up again. */
+export const UpdateWishInput = z.object({ status: z.enum(['fulfilled', 'released', 'revealed']) });
+export type UpdateWishInput = z.infer<typeof UpdateWishInput>;
+
+/** POST /loracle/waypoints/:id/ink ("I did this"). 409 while sealed. `on` defaults to the Lorer's today. */
+export const InkWaypointInput = z.object({
+  on: isoDate.optional(),
+  note: optionalText(500).optional(),
+});
+export type InkWaypointInput = z.infer<typeof InkWaypointInput>;
+
+/** PATCH /loracle/waypoints/:id: the Lorer's own note on a waypoint. */
+export const WaypointNoteInput = z.object({ note: optionalText(500) });
+export type WaypointNoteInput = z.infer<typeof WaypointNoteInput>;
+
+/**
+ * POST /loracle/waypoints/:id/plan ("Make it a plan"): a private event. `day` defaults to the
+ * waypoint's `at` (a month means its first day), else a week from the Lorer's today.
+ */
+export const PlanWaypointInput = z.object({ day: isoDate.optional() });
+export type PlanWaypointInput = z.infer<typeof PlanWaypointInput>;
+
+/**
+ * POST /loracle/waypoints/:id/week and POST /loracle/roads/:id/week ("Put it in my week"):
+ * a reminder note on `day` at `time` (default 18:00) in the Lorer's time zone.
+ */
+export const WeekInput = z.object({
+  day: isoDate,
+  time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM')
+    .optional(),
+});
+export type WeekInput = z.infer<typeof WeekInput>;
+
+/**
+ * PUT /loracle/waypoints/:id/link: tie a waypoint to the plan, vault idea or chapter that came of
+ * it (null unlinks). Targets load through the visibility rules: someone else's private thing is a 404.
+ */
+export const LinkWaypointInput = z
+  .object({
+    eventId: id.nullable().optional(),
+    ideaId: id.nullable().optional(),
+    chapterId: id.nullable().optional(),
+  })
+  .refine((v) => v.eventId !== undefined || v.ideaId !== undefined || v.chapterId !== undefined, {
+    message: 'Name a plan, an idea or a chapter',
+  });
+export type LinkWaypointInput = z.infer<typeof LinkWaypointInput>;
 
 // ---------------------------------------------------------------------------
 // Discussion

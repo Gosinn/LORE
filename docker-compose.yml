@@ -28,6 +28,9 @@ services:
       WEB_ORIGINS: ${PUBLIC_URL:-http://localhost:8080}
       TRUST_PROXY: ${TRUST_PROXY:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # The Loracle's mind (Claude). Unset: the stone sleeps.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LORACLE_MONTHLY_USD: ${LORACLE_MONTHLY_USD:-150}
     ports:
       - '8080:8080'
     volumes:

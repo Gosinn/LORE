@@ -6,6 +6,7 @@ import type { Me } from '#shared';
 import { buildApp } from '../src/app.ts';
 import { testConfig, type Config } from '../src/config.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
+import type { LoracleMind } from '../src/lib/loracle/types.ts';
 import { DatabaseStorage, LocalDiskStorage } from '../src/lib/storage.ts';
 import type { WorldData } from '../src/lib/world.ts';
 
@@ -49,7 +50,13 @@ export interface TestApp {
 }
 
 export async function createTestApp(
-  opts: { mediaStorage?: 'disk' | 'database'; config?: Partial<Config>; world?: WorldData } = {},
+  opts: {
+    mediaStorage?: 'disk' | 'database';
+    config?: Partial<Config>;
+    world?: WorldData;
+    /** The Loracle's mind (tests pass their own fake); none = the stone sleeps. */
+    mind?: LoracleMind;
+  } = {},
 ): Promise<TestApp & { db: Db }> {
   // TEST_DATABASE_URL runs a file against a real Postgres server (fresh, empty
   // database) through the production `pg` driver instead of in-memory PGlite.
@@ -57,7 +64,13 @@ export async function createTestApp(
   await database.migrate();
   const mediaDir = mkdtempSync(path.join(tmpdir(), 'lore-media-'));
   const storage = opts.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(mediaDir);
-  const app = await buildApp({ db: database.db, config: testConfig(opts.config), storage, world: opts.world ?? quietWorld });
+  const app = await buildApp({
+    db: database.db,
+    config: testConfig(opts.config),
+    storage,
+    world: opts.world ?? quietWorld,
+    mind: opts.mind,
+  });
   await app.ready();
 
   const request = async (method: string, url: string, cookie: string | undefined, body?: unknown): Promise<Response> => {
@@ -70,6 +83,7 @@ export async function createTestApp(
     return { status: res.statusCode, body: res.body ? safeJson(res.body) : null, headers: res.headers };
   };
 
+  let signUps = 0;
   const clientFor = (user: Me, cookie: string): Client => ({
     user,
     cookie,
@@ -101,9 +115,13 @@ export async function createTestApp(
     app,
     db: database.db,
     async signUp(username, displayName = username[0]!.toUpperCase() + username.slice(1)) {
+      // Each person signs up from their own address, as from their own phone, so a file with many
+      // people stays under the per-address sign-up limit.
+      const n = ++signUps;
       const res = await app.inject({
         method: 'POST',
         url: '/api/auth/register',
+        remoteAddress: `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}`,
         payload: { username, displayName, email: `${username}@example.test`, password: 'correct horse battery', acceptTerms: true },
       });
       if (res.statusCode !== 201) throw new Error(`signUp failed: ${res.statusCode} ${res.body}`);

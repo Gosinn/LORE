@@ -43,6 +43,13 @@ Prerequisite: the code is on GitHub (private repo `LORE`).
 
 (Alternative: **New → Blueprint** reads `render.yaml` from the repo and asks for `DATABASE_URL`.)
 
+**Waking the Loracle (optional).** Without a key the Loracle's stone sleeps and the rest of LORE works.
+To wake it: create an API key at console.anthropic.com (an organisation for LORE, prepaid credit, web
+search and web fetch enabled, and a monthly **spend limit** a little above `LORACLE_MONTHLY_USD`), then
+Render → the `lore` service → **Environment** → add `ANTHROPIC_API_KEY` as a secret (and optionally
+`LORACLE_MONTHLY_USD`, default 150) → Save. After the redeploy `/api/health` should say
+`"loracle":"awake"`. Never paste the key into chat, the repo or a screenshot. Not yet tried on Render.
+
 Every push to `main` on GitHub redeploys automatically.
 
 ## 3. Keep it awake: UptimeRobot (2 minutes)

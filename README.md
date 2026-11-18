@@ -6,10 +6,11 @@
 keeping the story of what happened: calendars, crews, an Idea Vault, events, and a shared Lorebook where
 everyone adds their side of the story.
 
-**The Oracle** is a stone circle in your pocket: tell it where you are and what calls to you, and it
-reveals three possible futures (an aurora night, a hot soak while it snows, a ruin you've never visited, an
-idea from your vault on a free Saturday), read from real weather, sky and places around you. Choosing one
-turns it into a plan.
+**The Loracle** is a stone circle in your pocket. *These stones see what you do not.* Tell them what you
+wish for ("I wish to become the Lethwei champion of the world") and they draw you a quest: a calling, a
+road of waypoints that open one at a time, whom to find, what to carry, and one deed for this week. Each
+waypoint can become a plan, an idea in your vault or a reminder, and, once done, a chapter of your lore.
+The stone's mind is Claude (Anthropic); wishes are private to the one who cast them.
 
 - Product spec: [docs/MASTER_BRIEF.md](docs/MASTER_BRIEF.md)
 - How it's built: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -47,12 +48,28 @@ npm run seed
 The demo accounts and their password are listed at the top of `apps/api/src/seed.ts` (local
 development only).
 
+### The Loracle's mind
+
+| Variable | What it does |
+|---|---|
+| `ANTHROPIC_API_KEY` | The key for Claude (Anthropic API). Server only; never commit it. Without it the stone **sleeps**: the page says so, casting is off, everything else in LORE works. `/api/health` reports `loracle: "awake"`, `"asleep"` or `"fake"`. |
+| `LORACLE_MONTHLY_USD` | The owner's monthly spend ceiling across everyone, in US$ (default `150`). Past it, new wishes are written down and read at the new moon; at 1.1× it nothing is weighed until the new moon. Set a Console spend limit a little above that as the real backstop. |
+| `LORACLE_MIND=fake` | **Development only.** A deterministic fake mind: no network, no cost, real-looking signs over ~8 s and a canned quest. The `lore-api` entry in `.claude/launch.json` sets it. Never set it on a live server. |
+
+Every call uses Claude Opus 5.5 (`claude-opus-5-5`); a quest is estimated at about US$0.90–2.40
+(unverified until the live eval has run). What is sent to Anthropic, and why, is in
+[docs/DECISIONS.md](docs/DECISIONS.md) (D31). The live eval, `node tools/loracle-eval.mjs --yes`, spends
+real money and is run by the owner, not by CI (`--fake` is a free dry run).
+
+**Not yet verified:** no real Claude call has been made from this repo; real quests, their cost and the
+prompts are unproven until the owner sets a key and runs the eval.
+
 ## Scripts
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | API (auto-restart) + web dev server |
-| `npm test` | API tests: auth, privacy rules, full Phase 1 lifecycle (in-memory Postgres) |
+| `npm test` | API tests: auth, privacy rules, full Phase 1 lifecycle, the Loracle with stub minds (in-memory Postgres, no network) |
 | `npm run typecheck` | strict TypeScript check of shared, API and web |
 | `npm run build` | production build of the web app into `apps/web/dist` |
 | `npm start` | production server: API + built web app on one port |
@@ -90,7 +107,7 @@ from the home screen (Safari → Share → Add to Home Screen).
 **Live:** https://lore-g8co.onrender.com, deployed automatically from `main` on GitHub.
 
 **Free, no card (current):** Render + Neon, see [deploy/render/README.md](deploy/render/README.md). The
-only setting is `DATABASE_URL`.
+only required setting is `DATABASE_URL`; add `ANTHROPIC_API_KEY` (secret) to wake the Loracle.
 
 **Free, on Oracle Cloud (more room, needs a card check):** follow
 [deploy/oracle/README.md](deploy/oracle/README.md). One small server runs HTTPS (Caddy), LORE, Postgres

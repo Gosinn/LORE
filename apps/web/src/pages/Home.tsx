@@ -1,12 +1,13 @@
 import { Compass, Feather, Plus } from 'lucide-react';
 import { Link } from 'react-router';
+import { LORACLE_LINES, fillLine, type WishSummary } from '#shared';
 import { ChapterCard, CrewChip, EventCard, IdeaCard } from '../components/cards.tsx';
 import { NoteItem, QuickNote } from '../components/notes.tsx';
 import { RuneRow, StoneCircle } from '../components/oracle.tsx';
 import { Empty, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { fmtLongDay, greeting } from '../lib/dates.ts';
-import { useAction, useHome, useMe, useModerationSummary, useOracle } from '../lib/queries.ts';
+import { useAction, useHome, useLoracle, useMe, useModerationSummary } from '../lib/queries.ts';
 
 export function HomePage() {
   const me = useMe();
@@ -194,16 +195,33 @@ export function HomePage() {
   );
 }
 
-/** The way into the Oracle: what the stones showed today, or an invitation to ask. */
+/** Under the newest quest's name on Home (kept small: the Loracle's own components load with its page). */
+function teaserLine(w: WishSummary): string {
+  switch (w.status) {
+    case 'listening':
+      return 'The stone is drawing your road.';
+    case 'moon':
+      return 'Written down. It will be read at the new moon.';
+    case 'faded':
+      return 'The fog won. Try again when you like.';
+    case 'silent':
+      return 'The stone was silent on this one.';
+    case 'fulfilled':
+      return 'It came true. It is lore now.';
+    default:
+      return w.total ? fillLine(LORACLE_LINES.inked, { inked: w.inked, total: w.total }) : LORACLE_LINES.teaserSub;
+  }
+}
+
+/** The way into the Loracle: the newest quest, or an invitation to tell the stones what you long for. */
 function OracleTeaser() {
-  const oracle = useOracle();
-  const state = oracle.data;
-  const shown = state?.reading?.futures.find((f) => f.status !== 'dismissed');
-  const [line, sub] = !state?.settings.home
-    ? ['A stone circle in your pocket.', 'Every legend starts with someone who almost stayed home.']
-    : shown
-      ? [`${shown.emoji} ${shown.title}`, shown.status === 'chosen' ? 'You chose this destiny.' : 'The stones showed this today. Will you choose it?']
-      : ['Possible futures are waiting.', 'Ask the stones what this week could hold.'];
+  const loracle = useLoracle();
+  const newest = loracle.data?.wishes[0];
+  const [line, sub] = newest
+    ? [newest.title ?? newest.text, teaserLine(newest)]
+    : loracle.data?.mind === 'asleep'
+      ? [LORACLE_LINES.teaser, LORACLE_LINES.asleep]
+      : [LORACLE_LINES.teaser, LORACLE_LINES.teaserSub];
   return (
     <Link to="/oracle" className="oracle-teaser">
       <span className="stone-window">

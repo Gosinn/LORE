@@ -5,6 +5,52 @@ Newest first within each list.
 
 ## Taken
 
+**D31 · The Loracle is wish-first, and its mind is Claude.** The owner (2026-11-18): the Lorer must first
+"tell the stones WHAT YOU WANT", and the Loracle is for proper quests, never day trips ("you wouldn't
+consult magic stones just to go to Vök baths"). So `/oracle` is wishes only: the Lorer writes "I wish …"
+and the stone draws a quest (calling, waypoints opened one at a time, whom to find, provisions, one rule,
+a deed for this week). The deterministic Futures (D26) are gone from the app; their routes, tables and
+`lib/oracle.ts` stay so exports keep old readings.
+- **Mind:** Claude Opus 5.5 (`claude-opus-5-5`) through Anthropic's API with our own key on the server,
+  for every call: adaptive thinking, an explicit effort per stage (weigh low, research medium, compose
+  high, repair medium), server-side fallbacks, web search and web fetch (`_20260209`) for the research,
+  structured output for the weighing and the scroll. No prefill, no forced tool choice. Refusals become
+  silence; `pause_turn` is continued. Code, not the model, writes the wait's signs, keeps only URLs the
+  tools returned, checks the scroll (banned phrases, made-up people, unsafe roads) and asks for one repair.
+- **What is sent to Anthropic:** the wish text; the realm's town line and country (never coordinates);
+  how far the Lorer will travel; their callings and the fold's answers (age band, money, time, body,
+  tongues, passport); today's date and time zone; an anonymous per-Lorer id (salted hash) as
+  `metadata.user_id`. Never the name, username, email, plans, chapters or friends. Only after the Lorer
+  agrees on the consent sheet; "Stop sending wishes" takes it back: running jobs stop, every road still
+  waiting fades, and a road is only claimed while consent stands. Of the realm only the town and country
+  leave the server (geocoding labels are town-level). The research notes and the model's working stay on
+  the server; the export holds what the weighing read about the Lorer (tags, the wish beneath, binds,
+  companion, clock) but not its search plans. Logs never hold the wish or the scroll, and a failed query is
+  logged without its bound values.
+- **Care before anything:** unmistakable self-harm phrases (one list, `lib/loracle/care.ts`) answer with a
+  crisis line for the realm's country before the stone's sleep, consent, realm or any limit is checked and
+  before any model is asked (nothing stored), and the weighing can route to care too. A reroute offer is
+  sealed by the server; only a sealed offer is told to the mind as taken up, and one still weighed as harm
+  is silence. LORE is 13+:
+  the 13–17 age band gets teen-safe roads. People are named only when a public source shows them publicly
+  teaching, guiding or hosting the thing.
+- **Cost:** estimated (unverified) at ~US$0.90–2.40 a quest, typically ~US$1.40, and ~US$0.03–0.05 for a
+  weighing alone. Spend is recorded per request (`loracle_spend`, no text). Bounds, all hidden and
+  answered in-world (D30): about 10 roads per Lorer per rolling 24 h (every road paid for counts once,
+  drawn, faded or burned) and 40 weighings (attempts, care included; "the stone rests"); one free "Try
+  again" per road a day; the owner's monthly ceiling `LORACLE_MONTHLY_USD` (default 150), past which
+  wishes are written down for the new moon (and still count toward the Lorer's limit), and at 1.1× which
+  nothing is weighed until the new moon. Money already spent is always recorded, even when a job is cut
+  off. The Console spend limit is the real backstop. Without `ANTHROPIC_API_KEY` the stone sleeps;
+  everything else works.
+- **Reach:** the Loracle's own `loracle_reach_km`, ANYWHERE unless the Lorer chooses less (D30); the old
+  Futures' radius is never a quest's reach.
+- **Fake mind for development:** `LORACLE_MIND=fake` (never on unless set) walks the same job and phases
+  with canned quests and no network or cost, so the UI and the flow can be built and checked without a
+  key. Tests inject their own minds.
+- **Phase A only:** one road per wish, private to the Lorer. Ask deeper, Ask again, a dawn lane, batches
+  and crew quests are not built.
+
 **D30 · No limits on adventure.** The owner: "We only get one chance at life... putting a limit on
 adventure is not the way to go." The Oracle's realm goes to **No limit** (anywhere on Earth). Technical
 limits (Wikidata load, API cost) are solved behind the scenes (indexes, caching, back-off), never shown
@@ -204,3 +250,10 @@ emblem) is a proposal. Replace or keep.
 
 **Q7 · Lore Score.** Brief part XII lists the open questions (numeric? public? comparable?). Needs answers
 before Phase 2 scoring work starts.
+
+**Q8 · The Loracle before release (D31).** To be checked by a person before release: every entry in
+`CRISIS_LINES` and `EMERGENCY_NUMBERS` (`packages/shared/src/vocabulary.ts`) against the service's own
+site; the Icelandic care phrases (a native speaker); the consent sheet and the Privacy Policy's lines about
+Anthropic (retention, no training on API data, transfer basis) against Anthropic's current terms; and
+whether the Loracle stays 13+ with the teen rules or becomes 18+. Also: the cast limit (about 10 a day)
+and the monthly ceiling (US$150) are first guesses, to tune once real spend rows exist.
