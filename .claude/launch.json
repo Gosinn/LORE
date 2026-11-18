@@ -10,7 +10,8 @@
       ],
       "port": 4000,
       "env": {
-        "ADMIN_USERNAMES": "gunna"
+        "ADMIN_USERNAMES": "gunna",
+        "LORACLE_MIND": "fake"
       }
     },
     {
