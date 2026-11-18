@@ -50,6 +50,8 @@ README, docs/ARCHITECTURE.md, docs/DECISIONS.md, docs/ROADMAP.md, docs/DEVELOPME
 anything not verified as such.
 
 ## Owner's instructions
+- The owner's own words (the reminder story, the Loracle vision) are kept verbatim in docs/OWNER_VOICE.md. Read
+  it before writing Loracle copy or scrolls; add new defining messages there.
 - Web first, then a real (native) app as soon as possible; it must be deployable.
 - Own API + Postgres (no Supabase).
 - Connecting other apps to LORE goes through the owner's **Cardboard** app

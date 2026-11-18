@@ -224,21 +224,17 @@ export function ReminderScroll({ collapsible = true }: { collapsible?: boolean }
       <p className="scroll-kicker">A friendly reminder</p>
       <h2>The one who almost stayed home</h2>
       <p>
-        Once, in a green and gentle country of kettles and armchairs, there lived someone who wanted nothing more than a
-        full pantry and a quiet afternoon. Then one fine morning a grey wanderer leaned upon the garden gate, tapped his
-        staff on the path, and spoke of mountains and of roads that run on past the edge of every map.
+        Once there was one who thought he wanted to stay at home with his books and his <em>garden</em>. But when a grey
+        wizard came knocking at his door and invited him on a grand adventure with a company of dwarves, he said{' '}
+        <em>“no…”</em> and then <em>“NO.”</em>
       </p>
       <p>
-        They said <em>no</em>. Politely, then firmly, then with the door half closed.
+        But the wizard leaned close and reminded him: <em>“The world is not on your shelves, nor in your maps. It is out
+        there.”</em>
       </p>
       <p>
-        The wanderer only smiled, the way the old ones smile when they already know how the story ends.{' '}
-        <em>“Every map on your shelf,”</em> he said, <em>“was drawn by someone who went.”</em>
-      </p>
-      <p>
-        By sunrise the armchair stood empty and the kettle was still warm. They had run down the lane without a
-        handkerchief or a second thought, after strangers with a long road ahead of them, and somewhere past the edge of
-        the world they knew, they found they had been the one the story needed all along.
+        And in the end, without another moment’s hesitation, he put everything aside, ran down the road after the company
+        of dwarves, and became the burglar they needed to succeed.
       </p>
       <div className="ink-rule" aria-hidden />
       <p className="scroll-moral">Every legend begins with someone who almost stayed home.</p>
