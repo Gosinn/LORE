@@ -229,8 +229,7 @@ export function ReminderScroll({ collapsible = true }: { collapsible?: boolean }
         <em>“no…”</em> and then <em>“NO.”</em>
       </p>
       <p>
-        But the wizard leaned close and reminded him: <em>“The world is not on your shelves, nor in your maps. It is out
-        there.”</em>
+        But the wizard leaned close and reminded him: <em>“The world is not in your books and maps. It’s out there.”</em>
       </p>
       <p>
         And in the end, without another moment’s hesitation, he put everything aside, ran down the road after the company
