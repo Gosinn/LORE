@@ -8,6 +8,9 @@
 - 3 tests (find exact/close matches, reset + sign-out + sign-in). Tried on a copy of the demo database
   with piped input: new password verifies, old one doesn't. **Not yet tried** typing into a real
   PowerShell window (hidden typing) or against the live database.
+- **Change password** (Profile → Settings): current password + new one twice; this device stays signed
+  in, all others are signed out (`POST /api/me/password`). 3 tests (92 total, all passing). Typecheck and
+  build clean; the sheet itself not yet clicked through in a browser.
 
 ## 2026-11-18 (evening) — Ready for strangers: report, moderate, Terms, Privacy, Help (0.5.0)
 

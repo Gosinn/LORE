@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronRight, Dices, Download, LogOut, ShieldCheck, Users } from 'lucide-react';
+import { Camera, ChevronRight, Dices, Download, KeyRound, LogOut, ShieldCheck, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { Me, MediaRef } from '#shared';
@@ -27,6 +27,7 @@ export function MyProfile() {
   const lore = useChapters({ personId: me.id });
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [theme, setTheme] = useState<ThemeChoice>(loadTheme());
   const fileRef = useRef<HTMLInputElement>(null);
   const incoming = (requests.data ?? []).filter((r) => r.direction === 'incoming').length;
@@ -148,9 +149,14 @@ export function MyProfile() {
           <p className="small muted" style={{ marginTop: 8 }}>
             Everything you create starts private. You choose who sees each event, idea and chapter.
           </p>
-          <button className="btn btn-secondary" style={{ alignSelf: 'flex-start', marginTop: 8 }} onClick={() => logout.mutate(undefined)}>
-            <LogOut size={16} /> Sign out
-          </button>
+          <div className="row-wrap" style={{ marginTop: 8 }}>
+            <button className="btn btn-secondary" onClick={() => logout.mutate(undefined)}>
+              <LogOut size={16} /> Sign out
+            </button>
+            <button className="btn btn-ghost" onClick={() => setChangingPassword(true)}>
+              <KeyRound size={16} /> Change password
+            </button>
+          </div>
         </div>
       </Section>
 
@@ -188,7 +194,83 @@ export function MyProfile() {
 
       {editing && <EditProfileSheet me={me} onClose={() => setEditing(false)} />}
       {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
+      {changingPassword && <ChangePasswordSheet onClose={() => setChangingPassword(false)} />}
     </>
+  );
+}
+
+function ChangePasswordSheet({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const change = useAction(() =>
+    api.post<{ ok: true; signedOutOthers: number }>('/me/password', { currentPassword: current, newPassword: next }),
+  );
+  const mismatch = repeat.length > 0 && repeat !== next;
+  const fields = change.error?.fields ?? {};
+
+  if (change.isSuccess) {
+    return (
+      <Sheet title="Change password" onClose={onClose}>
+        <div className="stack">
+          <p>Password changed. Other devices were signed out.</p>
+          <button className="btn btn-primary btn-block" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Sheet title="Change password" onClose={onClose}>
+      <form
+        className="form-grid"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (next === repeat) change.mutate(undefined);
+        }}
+      >
+        <Field label="Current password" htmlFor="pw-current" error={fields.currentPassword}>
+          <input
+            id="pw-current"
+            className="input"
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            required
+          />
+        </Field>
+        <Field label="New password" htmlFor="pw-new" hint="At least 10 characters." error={fields.newPassword}>
+          <input
+            id="pw-new"
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            required
+          />
+        </Field>
+        <Field label="New password again" htmlFor="pw-repeat" error={mismatch ? 'Those aren’t the same' : undefined}>
+          <input
+            id="pw-repeat"
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+            required
+          />
+        </Field>
+        {change.error && !Object.keys(fields).length && <ErrorNote error={change.error} />}
+        <button className="btn btn-primary btn-block" disabled={!current || next.length < 10 || next !== repeat || change.isPending}>
+          {change.isPending ? 'Changing…' : 'Change password'}
+        </button>
+      </form>
+    </Sheet>
   );
 }
 

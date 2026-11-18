@@ -78,6 +78,12 @@ export type UpdateProfileInput = z.infer<typeof UpdateProfileInput>;
 export const DeleteAccountInput = z.object({ password: z.string().min(1).max(200) });
 export type DeleteAccountInput = z.infer<typeof DeleteAccountInput>;
 
+export const ChangePasswordInput = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(10, 'Use at least 10 characters').max(200),
+});
+export type ChangePasswordInput = z.infer<typeof ChangePasswordInput>;
+
 export const FriendRequestInput = z.object({ username });
 export type FriendRequestInput = z.infer<typeof FriendRequestInput>;
 
