@@ -17,7 +17,8 @@ function crc32(buf) {
   return ~c >>> 0;
 }
 
-function png(width, height, rgba) {
+/** RGBA PNG, or RGB with `opaque` (iOS app icons must have no alpha channel). */
+function png(width, height, rgba, opaque = false) {
   const chunk = (type, data) => {
     const len = Buffer.alloc(4);
     len.writeUInt32BE(data.length);
@@ -30,10 +31,14 @@ function png(width, height, rgba) {
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
-  const stride = width * 4 + 1;
+  ihdr[9] = opaque ? 2 : 6; // RGB : RGBA
+  const px = opaque ? 3 : 4;
+  const stride = width * px + 1;
   const raw = Buffer.alloc(height * stride);
-  for (let y = 0; y < height; y++) rgba.copy(raw, y * stride + 1, y * width * 4, (y + 1) * width * 4);
+  for (let y = 0; y < height; y++) {
+    if (!opaque) rgba.copy(raw, y * stride + 1, y * width * 4, (y + 1) * width * 4);
+    else for (let x = 0; x < width; x++) rgba.copy(raw, y * stride + 1 + x * 3, (y * width + x) * 4, (y * width + x) * 4 + 3);
+  }
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
@@ -56,10 +61,10 @@ const mix = (c1, c2, t) => c1.map((v, i) => Math.round(v + (c2[i] - v) * t));
  * @param scale  emblem size relative to the full-bleed icon
  * @param badge  draw an ember disc behind the emblem (for light backgrounds)
  */
-function draw(width, height, { shape = 'rounded', radius = 0.22, bg = EMBER, scale = 1, badge = false } = {}) {
+function draw(width, height, { shape = 'rounded', radius = 0.22, bg = EMBER, scale = 1, badge = false, ss = 4 } = {}) {
   const out = Buffer.alloc(width * height * 4);
   const S = Math.min(width, height);
-  const SS = 4;
+  const SS = ss;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       let r = 0, g = 0, b = 0, a = 0;
@@ -108,8 +113,8 @@ function draw(width, height, { shape = 'rounded', radius = 0.22, bg = EMBER, sca
   return out;
 }
 
-function write(url, width, height, opts) {
-  writeFileSync(url, png(width, height, draw(width, height, opts)));
+function write(url, width, height, opts = {}) {
+  writeFileSync(url, png(width, height, draw(width, height, opts), opts.opaque));
 }
 
 // --- Web (PWA) -----------------------------------------------------------------
@@ -150,4 +155,16 @@ if (existsSync(res)) {
     '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#D4461D</color>\n</resources>\n',
   );
   console.log('wrote Android icons and splash screens');
+}
+
+// --- iOS (only once the Capacitor project exists) --------------------------------
+const assets = new URL('../apps/ios/App/App/Assets.xcassets/', import.meta.url);
+if (existsSync(assets)) {
+  // One 1024 px icon; iOS rounds the corners itself. Opaque: no alpha channel allowed.
+  write(new URL('AppIcon.appiconset/AppIcon-512@2x.png', assets), 1024, 1024, { shape: 'square', opaque: true });
+  const splash = png(2732, 2732, draw(2732, 2732, { shape: 'square', bg: PARCHMENT, badge: true, scale: 0.22, ss: 2 }), true);
+  for (const name of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png']) {
+    writeFileSync(new URL(`Splash.imageset/${name}`, assets), splash);
+  }
+  console.log('wrote iOS icon and splash');
 }

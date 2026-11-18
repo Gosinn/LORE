@@ -77,6 +77,14 @@ The Android app (`apps/android`, Capacitor) is the same web app bundled inside a
   check on launch and switch at the next background). A new APK is only needed when native parts change
   (new Capacitor plugins, Android settings). Profile shows the running version and build.
 
+## iPhone app
+
+`apps/ios` is the same app for iPhone. `node tools/ios.mjs prepare --api https://…` builds the web app
+into it (works on Windows); the build itself runs on a Mac in GitHub's cloud
+(`.github/workflows/ios.yml`) and goes to TestFlight and the App Store. It needs an Apple Developer
+account first: see [deploy/ios/README.md](deploy/ios/README.md). Until then, iPhones can use the web app
+from the home screen (Safari → Share → Add to Home Screen).
+
 ## Deploy
 
 **Live:** https://lore-g8co.onrender.com, deployed automatically from `main` on GitHub.

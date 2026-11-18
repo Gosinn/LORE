@@ -1,5 +1,17 @@
 # LORE — Development log
 
+## 2026-11-18 (later) — Stone and scrolls, the reminder, iPhone
+
+- The Oracle now looks like an ancient magic stone (granite, glowing SVG runes, a window onto the night)
+  with each future on a parchment scroll; Cinzel and IM Fell English fonts (OFL). Checked in the browser
+  at phone width. Deployed (live update for installed apps).
+- The owner's friendly reminder as an original fable (D27), on the Oracle (can be rolled up) and the
+  welcome page. The welcome page placement wasn't looked at in the browser (signed-in session).
+- The owner's Android phone is out of action; iPhone path started (D28): `apps/ios` generated with
+  Capacitor + SPM on Windows, iOS icon (opaque 1024 px) and splash, `tools/ios.mjs prepare` (checked:
+  server address bundled, live updates configured), cloud build workflow to TestFlight (not run: no Apple
+  account yet), owner's guide in deploy/ios/README.md.
+
 ## 2026-11-18 — The Oracle (0.4.0)
 
 - **The Oracle** (owner's "expand" vision, D26): set a realm (town search via Nominatim, or "Use my

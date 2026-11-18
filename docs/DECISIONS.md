@@ -5,6 +5,22 @@ Newest first within each list.
 
 ## Taken
 
+**D28 · iPhone next, built in the cloud.** The owner's Android phone stopped working and they chose to
+go public on the App Store and sell LORE (2026-11-18). The iOS app is the same Capacitor app
+(`apps/ios`, Swift Package Manager, so the project can be generated and synced on Windows). Builds run on
+GitHub-hosted Macs with an App Store Connect API key (automatic signing), straight to TestFlight: no Mac
+needed. Live updates work as on Android (D23; Apple allows updating web content that doesn't change the
+app's purpose). The icon is generated opaque (App Store rule). `ITSAppUsesNonExemptEncryption` is false:
+LORE only uses standard HTTPS. Before review LORE needs reporting and moderation (guideline 1.2), terms, a
+privacy policy and a support page. Until then the web app works on iPhones from the home screen.
+
+**D27 · The friendly reminder, in LORE's own words.** The owner's message for every lore maker (the
+homebody who said no to the wanderer, then ran after the company) is retold as an original fable, "The
+one who almost stayed home", on the Oracle and the welcome page, without the names or film lines it was
+inspired by: LORE will be sold, and those belong to their rights holders. The look of the Oracle follows
+the owner's direction: an ancient magic stone (carved granite, runes that glow while it reads) and old
+scrolls for the futures.
+
 **D26 · The Oracle reads the world, not your data stream.** Owner's vision (2026-11-18): LORE as a
 "stone circle in your pocket" that reveals possible futures, either following the lore maker's interests
 or ignoring them. Built as a deterministic engine (`apps/api/src/lib/oracle.ts`), not an AI model: it

@@ -56,7 +56,10 @@ exercised in the browser with demo data.
 | Live updates: web changes reach installed apps without a new APK | ✅ server side tested (zip, checksum, `unzip -t`); on-phone update not yet observed |
 | Run on a real phone (layout under system bars, sign-in, photos) | ⬜ owner's phone |
 | Google Play listing (developer account is a one-time $25) | ⬜ |
-| iOS build (needs a Mac or a cloud build service + Apple's $99/year) | ⬜ |
+| iOS project (`apps/ios`), LORE icon and splash, live updates, `tools/ios.mjs prepare` | ✅ generated and synced on Windows; not yet built (needs Xcode) |
+| Cloud iPhone build → TestFlight (`.github/workflows/ios.yml`) | 🟡 written, not run: waits for the owner's Apple Developer account (deploy/ios/README.md) |
+| App Store rules: report content/people + 24 h moderation, terms, privacy policy, support page, privacy answers | ⬜ needed before submission |
+| App Store listing, price, review | ⬜ owner's account |
 | Push notifications (FCM) | ⬜ |
 | Offline cache of upcoming plans | ⬜ |
 

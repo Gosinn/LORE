@@ -5,6 +5,9 @@
   "android": {
     "path": "apps/android"
   },
+  "ios": {
+    "path": "apps/ios"
+  },
   "server": {
     "androidScheme": "https"
   },
