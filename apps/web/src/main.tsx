@@ -1,7 +1,13 @@
 import '@fontsource-variable/fraunces/opsz.css';
 import '@fontsource-variable/fraunces/opsz-italic.css';
 import '@fontsource-variable/instrument-sans';
+// Cinzel (carved) and IM Fell English (scroll) are used across the Treasure Map, not only in the Loracle.
+import '@fontsource/cinzel/600.css';
+import '@fontsource/cinzel/700.css';
+import '@fontsource/im-fell-english/400.css';
+import '@fontsource/im-fell-english/400-italic.css';
 import './styles/app.css';
+import './styles/map.css';
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';

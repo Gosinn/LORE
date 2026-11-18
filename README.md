@@ -12,6 +12,11 @@ road of waypoints that open one at a time, whom to find, what to carry, and one 
 waypoint can become a plan, an idea in your vault or a reminder, and, once done, a chapter of your lore.
 The stone's mind is Claude (Anthropic); wishes are private to the one who cast them.
 
+The app wears one look, **the Treasure Map**: map paper, ink and wax, a leather map case for the tab bar and a
+brass compass for Create (the older looks are retired, not deleted; stone belongs to the Loracle alone). On Home,
+the door to the Loracle carries one small sign a day: something worth doing near where you stand, if you told
+the stones where that is (a new account is asked right after sign-up; location is recommended, never required).
+
 - Product spec: [docs/MASTER_BRIEF.md](docs/MASTER_BRIEF.md)
 - How it's built: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Why it's built that way, and open questions: [docs/DECISIONS.md](docs/DECISIONS.md)
@@ -92,7 +97,9 @@ The Android app (`apps/android`, Capacitor) is the same web app bundled inside a
   created outside the repo; back it up, since APK updates must be signed with the same key.
 - **Live updates:** installed apps pick up every web change deployed to the server by themselves (they
   check on launch and switch at the next background). A new APK is only needed when native parts change
-  (new Capacitor plugins, Android settings). Profile shows the running version and build.
+  (new Capacitor plugins, Android settings). Profile shows the running version and build. The location
+  permission for "Where do you stand?" and the Treasure Map's splash and notification colours are native
+  parts: they arrive only with a new APK (until then the page falls back to typing a town).
 
 ## iPhone app
 

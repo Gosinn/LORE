@@ -131,16 +131,19 @@ export function CalendarPage() {
             {grid.map((d) => {
               const key = todayISO(d);
               const items = byDay.get(key);
+              const plans = items?.events.slice(0, 3) ?? [];
+              const mine = [...(items?.personal ?? []), ...(items?.reminders ?? [])].slice(0, Math.min(2, 4 - plans.length));
               const cls = ['day', d.getMonth() !== month.getMonth() && 'out', key === today && 'today', key === selected && 'selected']
                 .filter(Boolean)
                 .join(' ');
               return (
                 <button key={key} className={cls} onClick={() => setSelected(key)} aria-label={fmtLongDay(d)} aria-pressed={key === selected}>
                   <span className="num">{d.getDate()}</span>
+                  {/* At most four marks, so they fit a 43px cell at 360px: up to three plans, and the rest
+                      (at least one when there is any) for your own entries and reminders. */}
                   <span className="dots">
-                    {items?.events.slice(0, 3).map((e) => <i key={e.id} />)}
-                    {items?.personal.slice(0, 2).map((p) => <i key={p.id} className="personal" />)}
-                    {items?.reminders.slice(0, 1).map((n) => <i key={n.id} className="personal" />)}
+                    {plans.map((e) => <i key={e.id} />)}
+                    {mine.map((p) => <i key={p.id} className="personal" />)}
                   </span>
                 </button>
               );

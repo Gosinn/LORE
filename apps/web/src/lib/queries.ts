@@ -16,6 +16,7 @@ import type {
   ModerationSummary,
   LoracleState,
   NotesData,
+  OracleSign,
   PersonalEntry,
   PublicProfile,
   RoadStatus,
@@ -70,9 +71,18 @@ export const usePersonal = (from: string, to: string, enabled = true) =>
 /**
  * The Loracle: the stone's mind (awake, asleep or fake), consent, the stone's questions, this week's
  * examples and the quest log. Cheap: the server reads its own tables (and wakes any moon wishes).
- * The old Futures endpoints (/oracle, /oracle/readings) are no longer called by the web app.
+ * The old Futures screens (/oracle, /oracle/readings) are no longer called by the web app; only the
+ * daily sign below uses that engine.
  */
 export const useLoracle = () => useQuery({ queryKey: ['loracle'], queryFn: () => api.get<LoracleState>('/loracle') });
+
+/**
+ * The daily sign on Home's Loracle door: one future near where the Lorer stands (GET /oracle/sign).
+ * The first ask of their day deals it, which can take a few seconds; Home shows the plain door meanwhile.
+ * Answered with the future endpoints (choose / dismiss), which refresh it like any write.
+ */
+export const useOracleSign = () =>
+  useQuery({ queryKey: ['oracle-sign'], queryFn: () => api.get<OracleSign>('/oracle/sign'), staleTime: 5 * 60_000 });
 
 const DRAWING: readonly RoadStatus[] = [...ROAD_IN_PROGRESS, 'ready'];
 

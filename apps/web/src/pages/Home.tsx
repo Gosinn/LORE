@@ -1,17 +1,21 @@
-import { Compass, Feather, Plus } from 'lucide-react';
-import { Link } from 'react-router';
-import { LORACLE_LINES, fillLine, type WishSummary } from '#shared';
+import { Feather, Plus } from 'lucide-react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { LORACLE_LINES, fillLine, type Future, type OracleReading, type WishSummary } from '#shared';
 import { ChapterCard, CrewChip, EventCard, IdeaCard } from '../components/cards.tsx';
+import { CompassRose } from '../components/compass.tsx';
 import { NoteItem, QuickNote } from '../components/notes.tsx';
-import { RuneRow, StoneCircle } from '../components/oracle.tsx';
-import { Empty, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
+import { StoneCircle } from '../components/oracle.tsx';
+import { Empty, ErrorNote, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
-import { fmtLongDay, greeting } from '../lib/dates.ts';
-import { useAction, useHome, useLoracle, useMe, useModerationSummary } from '../lib/queries.ts';
+import { fmtLongDay, fmtWhen, greeting } from '../lib/dates.ts';
+import { useAction, useHome, useLoracle, useMe, useModerationSummary, useOracleSign } from '../lib/queries.ts';
+import '../styles/sign.css';
 
 export function HomePage() {
   const me = useMe();
   const home = useHome();
+  useOracleSign(); // Ask for today's sign alongside Home: dealing it can take a moment.
   const acceptCrew = useAction((crewId: string) => api.post(`/crews/${crewId}/accept`));
   const declineCrew = useAction((crewId: string) => api.post(`/crews/${crewId}/leave`));
 
@@ -38,7 +42,7 @@ export function HomePage() {
 
       {me.data?.isAdmin && <ModerationBanner />}
 
-      <OracleTeaser />
+      <LoracleDoor />
 
       {h.reminders.length > 0 && (
         <Section title="Reminders" more={<Link to="/notes" className="more">All notes</Link>}>
@@ -188,7 +192,7 @@ export function HomePage() {
       </Section>
 
       <footer className="the-end">
-        <Compass size={22} />
+        <CompassRose />
         <p className="serif">That’s everything. Go make some lore.</p>
       </footer>
     </>
@@ -213,30 +217,190 @@ function teaserLine(w: WishSummary): string {
   }
 }
 
-/** The way into the Loracle: the newest quest, or an invitation to tell the stones what you long for. */
-function OracleTeaser() {
+/** The door's own words. */
+const L = {
+  signAsk: 'The stones showed this today. Will you choose it?',
+  chosen: 'You chose it. The road is yours now.',
+  whereLine: 'Where do you stand?',
+  whereSub: 'Tell the stones, and each day they will show you one thing worth doing near you.',
+  whereAction: 'Tell the stones',
+} as const;
+
+/** What the plain door says: the newest quest, or an invitation to tell the stones what you long for. */
+function doorLines(newest: WishSummary | undefined, asleep: boolean): [string, string] {
+  if (newest) return [newest.title ?? newest.text, teaserLine(newest)];
+  return [LORACLE_LINES.teaser, asleep ? LORACLE_LINES.asleep : LORACLE_LINES.teaserSub];
+}
+
+/**
+ * The Loracle door (the edge of the map; through the tear, the stones on the horizon). It carries
+ * the stones' sign for today when there is one, and asks where you stand when the stones don't know
+ * yet. Otherwise, and while today's sign is being dealt, it is the plain door into the circle.
+ */
+function LoracleDoor() {
+  const sign = useOracleSign();
+  const s = sign.data;
+  // "Not this one" takes its button away while the keyboard is on it. The door that comes next (the
+  // next sign's line, or the plain door) takes the focus instead, which also reads the new sign aloud.
+  const waving = useRef(false);
+  const focusTarget = useRef<HTMLElement | null>(null);
+  const setFocusTarget = useCallback((el: HTMLElement | null) => {
+    focusTarget.current = el;
+  }, []);
+  const onWaving = useCallback((on: boolean) => {
+    waving.current = on;
+  }, []);
+  const shown = s && !s.home ? 'where' : s?.readingId && s.future ? `${s.readingId}:${s.future.index}` : 'plain';
+  useEffect(() => {
+    if (!waving.current) return;
+    waving.current = false;
+    focusTarget.current?.focus();
+  }, [shown]);
+
+  if (s && !s.home) {
+    return (
+      <DoorFrame line={L.whereLine} sub={L.whereSub} focusRef={setFocusTarget}>
+        <Link to="/welcome/where" className="btn btn-primary btn-sm">
+          {L.whereAction}
+        </Link>
+      </DoorFrame>
+    );
+  }
+  if (s?.readingId && s.future) {
+    return <DailySign key={shown} readingId={s.readingId} future={s.future} focusRef={setFocusTarget} onWaving={onWaving} />;
+  }
+  return <PlainDoor focusRef={setFocusTarget} />;
+}
+
+/** The whole door is the way in. */
+function PlainDoor({ focusRef }: { focusRef: (el: HTMLElement | null) => void }) {
   const loracle = useLoracle();
-  const newest = loracle.data?.wishes[0];
-  const [line, sub] = newest
-    ? [newest.title ?? newest.text, teaserLine(newest)]
-    : loracle.data?.mind === 'asleep'
-      ? [LORACLE_LINES.teaser, LORACLE_LINES.asleep]
-      : [LORACLE_LINES.teaser, LORACLE_LINES.teaserSub];
+  const [line, sub] = doorLines(loracle.data?.wishes[0], loracle.data?.mind === 'asleep');
   return (
-    <Link to="/oracle" className="oracle-teaser">
-      <span className="stone-window">
+    <Link to="/oracle" viewTransition className="loracle-door" ref={focusRef}>
+      <span className="door-text">
+        <span className="eyebrow">The Loracle</span>
+        <strong className="door-line">{line}</strong>
+        <span className="door-sub">{sub}</span>
+        <span className="door-enter">Enter the circle</span>
+      </span>
+      <span className="door-sky" aria-hidden>
         <StoneCircle />
       </span>
-      <span className="teaser-text">
-        <span className="eyebrow">The Loracle</span>
-        <strong>{line}</strong>
-        <span className="small">{sub}</span>
-        <span className="teaser-enter">
-          Enter the circle <span aria-hidden>›</span>
-        </span>
-      </span>
-      <RuneRow />
     </Link>
+  );
+}
+
+/** A door with something to answer: the buttons, then "Enter the circle" (the sky leads in too). */
+function DoorFrame({
+  line,
+  meta,
+  sub,
+  error,
+  focusRef,
+  children,
+}: {
+  line: ReactNode;
+  meta?: string;
+  sub: string;
+  error?: unknown;
+  focusRef: (el: HTMLElement | null) => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="loracle-door door-sign">
+      <div className="door-text">
+        <span className="eyebrow">The Loracle</span>
+        {/* Focusable from script only (LoracleDoor), never a tab stop. */}
+        <strong className="door-line" tabIndex={-1} ref={focusRef}>
+          {line}
+        </strong>
+        {meta && <span className="door-meta">{meta}</span>}
+        <span className="door-sub">{sub}</span>
+        <div className="door-actions">{children}</div>
+        <ErrorNote error={error} />
+        <Link to="/oracle" viewTransition className="door-enter">
+          Enter the circle
+        </Link>
+      </div>
+      <Link to="/oracle" viewTransition className="door-sky" aria-hidden tabIndex={-1}>
+        <StoneCircle />
+      </Link>
+    </section>
+  );
+}
+
+/** When it starts and where: "Tomorrow · 22:30 · Old Light, 52 km". */
+const signMeta = (f: Future) =>
+  [fmtWhen({ startsAt: f.startsAt, endsAt: null, allDay: false }), f.place && `${f.place.name}, ${f.place.distanceKm} km`]
+    .filter(Boolean)
+    .join(' · ');
+
+/**
+ * Today's sign. "Choose it" makes it a plan (yours alone: invite people from the plan) and opens it;
+ * "Not this one" waves it away and the stones show the next, at most three a day.
+ */
+function DailySign({
+  readingId,
+  future,
+  focusRef,
+  onWaving,
+}: {
+  readingId: string;
+  future: Future;
+  focusRef: (el: HTMLElement | null) => void;
+  onWaving: (on: boolean) => void;
+}) {
+  const navigate = useNavigate();
+  const path = `/oracle/readings/${readingId}/futures/${future.index}`;
+  const choose = useAction(() => api.post<OracleReading>(`${path}/choose`, { crewId: null }), {
+    onSuccess: (reading) => {
+      const eventId = reading.futures.find((f) => f.index === future.index)?.eventId;
+      if (eventId) navigate(`/events/${eventId}`);
+    },
+  });
+  const dismiss = useAction(() => api.post<OracleReading>(`${path}/dismiss`));
+  const busy = choose.isPending || dismiss.isPending;
+  const chosen = future.status === 'chosen' ? future.eventId : null;
+
+  return (
+    <DoorFrame
+      line={
+        <>
+          <span className="door-emoji" aria-hidden>
+            {future.emoji}
+          </span>{' '}
+          {future.title}
+        </>
+      }
+      meta={signMeta(future)}
+      sub={chosen ? L.chosen : L.signAsk}
+      error={choose.error ?? dismiss.error}
+      focusRef={focusRef}
+    >
+      {chosen ? (
+        <Link to={`/events/${chosen}`} className="btn btn-primary btn-sm">
+          Open the plan
+        </Link>
+      ) : (
+        <>
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => choose.mutate(undefined)}>
+            {choose.isPending ? 'Making it a plan…' : 'Choose it'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={busy}
+            onClick={() => {
+              onWaving(true);
+              dismiss.mutate(undefined, { onError: () => onWaving(false) });
+            }}
+          >
+            Not this one
+          </button>
+        </>
+      )}
+    </DoorFrame>
   );
 }
 

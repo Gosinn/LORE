@@ -5,6 +5,41 @@ Newest first within each list.
 
 ## Taken
 
+**D32 · One look, the Treasure Map; the older looks are retired, not deleted.** The owner (2026-11-18):
+"retire all the older themes. dont delete them, just retire them ... i might change my mind in the future but
+probably not", "make the new theme more present throughout the app", "but keep the stone look for the
+Loracle only". So LORE wears one look, `map` ("Treasure Map", `styles/map.css`): map paper with a faint
+graticule, iron-gall ink, vermilion route-ink for what you do, verdigris for places and confirmed plans, brass
+for lore and memory, wax seals; the tab bar and rail are a leather map case with brass stitching, and Create
+is a brass compass. Paper, Campfire, Match device and Crazy keep their CSS and code; their names sit in
+`RETIRED_THEMES` (`lib/theme.ts`), and moving a name back into `THEMES` offers it again. A stored retired
+choice is left in place (it wears the map), so people get their old pick back if it returns. Stone stays
+inside the Loracle: every map rule is guarded off while `.oracle-page` is in the document, and the temple
+pins its radius, shadows and avatar colours, so the Loracle looks as it did. Home's stone teaser became the
+torn edge of the map (`.loracle-door`: dusk and the stones as a silhouette, no stone texture; the teaser's CSS
+in app.css is kept, unused). To bring an old look back, besides `THEMES`: drop `data-theme="map"` and the
+paper theme-color from `index.html` (or set them from a small inline script that reads `lore.theme`), or each
+start flashes the map first; the browser bar already follows the look's `--bg` (AppShell).
+
+**The daily sign on Home, and "Where do you stand?" at sign-up** (same day, same owner request: "some little
+suggestion is cool .. ofc it should be relative to the user's location.. if allowed ofc.. which should be
+recommended by the app when user sets up his account"). The door carries one small future a day near where
+the Lorer stands (`GET /oracle/sign`), dealt by the old Futures engine and kept as an `oracle_readings` row
+with `mode = 'sign'`: it never counts toward the day's three readings, never shows in `GET /oracle`, stays
+within 250 km whatever the Loracle's reach, and is answered with the existing choose / dismiss endpoints
+(choosing makes a plan only the Lorer can see; its description names the place, never how far it is from
+home, since the plan is shared with whoever they invite). Only moments still ahead are offered, and a passed
+one can't be chosen. An unanswered sign is dealt again when the Lorer says where they stand, or once all its
+moments have passed, at most three deals in their day: each deal is a full draw of the world's places and
+weather. A new account goes to `/welcome/where` before Home: "Allow
+location (recommended)" (rounded to two decimals, about a kilometre, before it leaves the device), or a town by
+name, or Later. It saves the same home the Loracle uses. The town at a point comes from `GET /oracle/reverse`
+(Nominatim reverse, town level); when none is named the home is "Near me", and the Loracle names it from its
+own point later, never from a far place that happens to share the label. Android asks for coarse location
+(and fine only on Android 11 and older, which have no approximate choice and where the WebView needs it), and
+iOS has a "when in use" reason and asks for reduced accuracy by default; both need a new native build. Nothing of this has been looked at in a browser
+or on a phone yet. Contrast figures were computed with the WCAG formula, not measured on screenshots.
+
 **D31 · The Loracle is wish-first, and its mind is Claude.** The owner (2026-11-18): the Lorer must first
 "tell the stones WHAT YOU WANT", and the Loracle is for proper quests, never day trips ("you wouldn't
 consult magic stones just to go to Vök baths"). So `/oracle` is wishes only: the Lorer writes "I wish …"
@@ -246,7 +281,8 @@ person "follow" a thread.
 (~€10/year) would look better than `*.duckdns.org` and is needed for Play Store links.
 
 **Q6 · Brand.** The current identity (Fraunces + Instrument Sans, paper/ink/ember palette, compass-needle
-emblem) is a proposal. Replace or keep.
+emblem) is a proposal. Replace or keep. (Since D32 the app wears the Treasure Map: the same fonts plus Cinzel and
+IM Fell English, a map-paper palette, and a compass needle through the O of LORE.)
 
 **Q7 · Lore Score.** Brief part XII lists the open questions (numeric? public? comparable?). Needs answers
 before Phase 2 scoring work starts.
@@ -257,3 +293,10 @@ site; the Icelandic care phrases (a native speaker); the consent sheet and the P
 Anthropic (retention, no training on API data, transfer basis) against Anthropic's current terms; and
 whether the Loracle stays 13+ with the teen rules or becomes 18+. Also: the cast limit (about 10 a day)
 and the monthly ceiling (US$150) are first guesses, to tune once real spend rows exist.
+
+**Q9 · The Treasure Map's words (D32).** Optional copy, not built: "Here be dragons. This page isn't on the
+map." on Not Found, a "Lore maker" kicker above the name on Profile, and "Provisions" for the packing list.
+Also the look's name ("Treasure Map") and whether the old stone door should come back on Home as the one
+exception (its markup is in commit 671c2bc; its CSS is kept). And the desktop rail's Loracle icon: it is
+still lucide's Sparkles (the generic AI glyph that Create's Loracle tile refuses; Create uses Flame). The
+rail also shows inside the Loracle, which must look exactly as it did, so it was left for the owner to call.

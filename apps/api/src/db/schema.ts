@@ -406,6 +406,12 @@ export const oracleSettings = pgTable('oracle_settings', {
    * adventure, D30). Its own column, so the old Futures' day-trip radius never becomes a quest's reach.
    */
   loracleReachKm: integer('loracle_reach_km'),
+  /**
+   * When the Lorer last said where they stand (the home), by the app's clock. Home's daily sign is dealt
+   * again when this is newer than the sign; consent, reach and the rest don't touch it. Null = not since
+   * this column came.
+   */
+  homeSetAt: ts('home_set_at'),
   updatedAt: updatedAt(),
 });
 

@@ -2,9 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import type { Me } from '#shared';
+import { CompassRose } from '../components/compass.tsx';
 import { ReminderScroll } from '../components/oracle.tsx';
 import { Backronym, Field, Loading, Wordmark } from '../components/ui.tsx';
-import { api, ApiError, setNativeToken } from '../lib/api.ts';
+import { api, ApiError, qs, setNativeToken } from '../lib/api.ts';
 import { useMe } from '../lib/queries.ts';
 
 export function Welcome() {
@@ -14,12 +15,14 @@ export function Welcome() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
+  // Where to go once signed in. A new account first says where it stands (pages/WhereYouStand.tsx).
+  const [after, setAfter] = useState<string | null>(null);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from ?? '/';
 
   if (me.isLoading) return <Loading />;
-  if (me.data) return <Navigate to={from} replace />;
+  if (me.data) return <Navigate to={after ?? from} replace />;
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
@@ -39,8 +42,10 @@ export function Welcome() {
               acceptTerms,
             });
       if (res.token) setNativeToken(res.token);
+      const next = mode === 'register' ? `/welcome/where${from === '/' ? '' : qs({ next: from })}` : from;
+      setAfter(next);
       qc.setQueryData(['me'], res.user);
-      navigate(from, { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err as ApiError);
     } finally {
@@ -51,6 +56,7 @@ export function Welcome() {
   const fe = error?.fields ?? {};
   return (
     <div className="welcome">
+      <CompassRose className="welcome-rose" />
       <div className="welcome-inner">
         <div className="stack" style={{ gap: 8 }}>
           <Wordmark />
@@ -63,6 +69,7 @@ export function Welcome() {
           Plan things with your people, then keep the story of what happened. No feed to scroll, just things to do and
           things worth remembering.
         </p>
+        <div className="trail" aria-hidden />
 
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')}>

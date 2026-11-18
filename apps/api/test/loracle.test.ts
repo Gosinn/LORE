@@ -196,6 +196,8 @@ const world: WorldData = {
       : /andaman/i.test(q) || q === 'Myanmar'
         ? []
         : [{ label: q, lat: 16.8, lon: 96.15, country: 'MM' }],
+  // Only Iceland's towns are named at a point.
+  reverse: async (lat) => (lat > 60 ? { label: 'Reykjavík, Iceland', lat: 64.14, lon: -21.94, country: 'IS' } : null),
 };
 
 const LETHWEI = 'I wish to become the Lethwei champion of the world.';
@@ -413,6 +415,22 @@ describe('before the first cast', () => {
     expect((await cast(c)).status).toBe(202);
     await idle();
     expect((await c.get('/api/loracle')).body.settings.realm.country).toBe('IS');
+  });
+
+  it('names a realm found by the device ("Near me") from its own point, never from a far place of that name', async () => {
+    const near = await lorer('eyja', { realm: false });
+    await near.put('/api/loracle/settings', { home: { label: 'Near me', lat: 64.14, lon: -21.94, country: null } });
+    expect((await cast(near)).status).toBe(202);
+    await idle();
+    expect((await near.get('/api/loracle')).body.settings.realm).toMatchObject({ label: 'Reykjavík, Iceland', country: 'IS' });
+
+    // Nothing is named at this point, and the only "Near me" the geocoder knows is half a world away.
+    const lost = await lorer('frosti', { realm: false });
+    await lost.put('/api/loracle/settings', { home: { label: 'Near me', lat: 10, lon: 10, country: null } });
+    const res = await cast(lost);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('realm');
+    expect((await lost.get('/api/loracle')).body.settings.realm).toMatchObject({ label: 'Near me', country: null });
   });
 });
 

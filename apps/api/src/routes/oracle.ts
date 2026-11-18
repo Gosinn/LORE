@@ -1,5 +1,5 @@
-import { and, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
-import type { FastifyInstance } from 'fastify';
+import { and, desc, eq, gte, inArray, lt, ne, not, or, sql, type SQL } from 'drizzle-orm';
+import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import {
   ChooseFutureInput,
   GeocodeQuery,
@@ -7,6 +7,7 @@ import {
   NewReadingInput,
   ORACLE_READINGS_PER_DAY,
   OracleSettingsInput,
+  ReverseGeocodeQuery,
   type CrewRef,
   type Future,
   type GeocodeResult,
@@ -14,6 +15,7 @@ import {
   type OracleMode,
   type OracleReading,
   type OracleSettings,
+  type OracleSign,
   type OracleState,
 } from '#shared';
 import { requireUser, type AppContext } from '../context.ts';
@@ -32,11 +34,24 @@ import {
 } from '../db/schema.ts';
 import { ideaVisible, idParam, isActiveCrewMember, loadVisibleIdea } from '../lib/access.ts';
 import { badRequest, HttpError, notFound } from '../lib/errors.ts';
-import { generateFutures } from '../lib/oracle.ts';
+import { generateFutures, type FutureDraft } from '../lib/oracle.ts';
 import { iso } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * The daily sign (GET /oracle/sign) is kept as a reading with this `mode`. It is dealt as 'mixed',
+ * never counts toward the day's readings, and never shows as the day's reading in GET /oracle.
+ */
+const SIGN = 'sign';
+/** The sign stays near: within a day's reach (the engine's journey line), whatever the old Futures radius says. */
+const SIGN_REACH_KM = 250;
+/**
+ * Signs dealt in one Lorer's day, at most: the first, plus a new one after a move or once every moment in
+ * it has passed. Each deal is a full draw (the world's places and weather), so it is never unbounded.
+ */
+const SIGN_DEALS_PER_DAY = 3;
 
 const validTimeZone = (tz: string) => {
   try {
@@ -55,8 +70,16 @@ const localDay = (at: Date, tz: string) =>
  * is, what you're into, and what the stones showed you.
  */
 export async function oracleRoutes(app: FastifyInstance, { db, world }: AppContext) {
-  async function loadSettings(me: string): Promise<OracleSettings> {
+  async function settingsRow(me: string) {
     const [row] = await db.select().from(oracleSettings).where(eq(oracleSettings.userId, me)).limit(1);
+    return row;
+  }
+
+  async function loadSettings(me: string): Promise<OracleSettings> {
+    return toSettings(await settingsRow(me));
+  }
+
+  function toSettings(row: typeof oracleSettings.$inferSelect | undefined): OracleSettings {
     if (!row) return { home: null, radiusKm: 80, interests: [], timeZone: 'UTC' };
     return {
       home:
@@ -69,18 +92,19 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
     };
   }
 
+  /** Readings asked for today. The daily sign is a gift, not a reading: it never counts. */
   async function readingsToday(me: string, tz: string) {
     const [row] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(oracleReadings)
-      .where(and(eq(oracleReadings.userId, me), eq(oracleReadings.day, localDay(new Date(), tz))));
+      .where(and(eq(oracleReadings.userId, me), eq(oracleReadings.day, localDay(new Date(), tz)), ne(oracleReadings.mode, SIGN)));
     return row?.n ?? 0;
   }
 
   function toReading(row: typeof oracleReadings.$inferSelect, used: number): OracleReading {
     return {
       id: row.id,
-      mode: row.mode as OracleMode,
+      mode: (row.mode === SIGN ? 'mixed' : row.mode) as OracleMode,
       createdAt: iso(row.createdAt),
       futures: row.futures as Future[],
       readingsLeftToday: Math.max(0, ORACLE_READINGS_PER_DAY - used),
@@ -114,6 +138,163 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
     return { readingId, future };
   }
 
+  /**
+   * Asks the engine for futures around the Lorer's home: the world near it (sky, weather, places
+   * within `radiusKm`), their free time, crews, ideas and memories, and the places shown lately.
+   * `recentExcept` leaves some readings out of "shown lately" (the sign leaves out today's signs, so
+   * dealing it again gives the same answer).
+   */
+  async function draw(
+    me: string,
+    home: { lat: number; lon: number },
+    interests: Interest[],
+    opts: { now: Date; mode: OracleMode; radiusKm: number; seed: string; recentExcept?: SQL },
+  ): Promise<FutureDraft[]> {
+    const { now, mode } = opts;
+    const horizon = new Date(now.getTime() + 9 * DAY);
+    const { lat, lon } = home;
+
+    const [places, forecast, kp, personal, plans, myCrews, myIdeas, memories, recent] = await Promise.all([
+      world.places(lat, lon, opts.radiusKm),
+      world.forecast(lat, lon),
+      world.kp(),
+      db
+        .select({ start: personalEntries.startsAt, end: personalEntries.endsAt, allDay: personalEntries.allDay })
+        .from(personalEntries)
+        .where(and(eq(personalEntries.userId, me), lt(personalEntries.startsAt, horizon), gte(personalEntries.startsAt, new Date(now.getTime() - 2 * DAY)))),
+      db
+        .select({ start: events.startsAt, end: events.endsAt, allDay: events.allDay })
+        .from(events)
+        .innerJoin(eventParticipants, and(eq(eventParticipants.eventId, events.id), eq(eventParticipants.userId, me)))
+        .where(
+          and(
+            inArray(eventParticipants.rsvp, ['going', 'maybe']),
+            ne(events.status, 'canceled'),
+            lt(events.startsAt, horizon),
+            gte(events.startsAt, new Date(now.getTime() - 2 * DAY)),
+          ),
+        ),
+      db
+        .select({ id: crews.id, name: crews.name, emoji: crews.emoji })
+        .from(crews)
+        .innerJoin(crewMembers, and(eq(crewMembers.crewId, crews.id), eq(crewMembers.userId, me), eq(crewMembers.status, 'active'))),
+      db
+        .select({ id: ideas.id, title: ideas.title, category: ideas.category, whereNote: ideas.whereNote, crewId: ideas.crewId })
+        .from(ideas)
+        .where(
+          and(
+            ideaVisible(me),
+            inArray(ideas.status, ['dreaming', 'gathering_interest']),
+            or(
+              eq(ideas.createdBy, me),
+              sql`exists (select 1 from ${ideaInterest} where ${ideaInterest.ideaId} = ${ideas.id} and ${ideaInterest.userId} = ${me})`,
+            ),
+          ),
+        )
+        .limit(30),
+      db
+        .select({ id: chapters.id, title: chapters.title, occurredOn: chapters.occurredOn, locationName: chapters.locationName })
+        .from(chapters)
+        .where(
+          and(
+            sql`exists (select 1 from ${chapterPeople} where ${chapterPeople.chapterId} = ${chapters.id} and ${chapterPeople.userId} = ${me})`,
+            sql`extract(year from ${chapters.occurredOn}) < extract(year from now())`,
+            // Within ten days of today's date in an earlier year (wrapping at New Year).
+            sql`least(abs(extract(doy from ${chapters.occurredOn}) - extract(doy from now())), 366 - abs(extract(doy from ${chapters.occurredOn}) - extract(doy from now()))) <= 10`,
+          ),
+        )
+        .limit(10),
+      db
+        .select({ futures: oracleReadings.futures })
+        .from(oracleReadings)
+        .where(and(eq(oracleReadings.userId, me), opts.recentExcept ? not(opts.recentExcept) : undefined))
+        .orderBy(desc(oracleReadings.createdAt))
+        .limit(6),
+    ]);
+
+    const busy = [...personal, ...plans].map((b) => ({
+      start: b.start,
+      end: b.end ?? new Date(b.start.getTime() + (b.allDay ? DAY : 3 * 60 * 60 * 1000)),
+    }));
+    const recentPlaceIds = new Set(
+      recent.flatMap((r) => (r.futures as Future[]).map((f) => f.place?.wikidataId).filter((x): x is string => !!x)),
+    );
+    return generateFutures({
+      now,
+      seed: opts.seed,
+      mode,
+      home: { lat, lon },
+      radiusKm: opts.radiusKm,
+      interests,
+      forecast,
+      kp,
+      places,
+      busy,
+      crews: myCrews as CrewRef[],
+      ideas: myIdeas,
+      memories,
+      recentPlaceIds,
+    });
+  }
+
+  /**
+   * Today's sign: one reading a day, dealt 'mixed' around where the Lorer stands, kept within a
+   * day's reach. Only moments still ahead are offered. While they haven't answered any of it, it is
+   * dealt again when they said where they stand since (homeSetAt; consent, reach and the rest don't
+   * count), or when every moment in it has passed: at most SIGN_DEALS_PER_DAY deals in their day.
+   * Null `sign` = the world didn't answer; try again later.
+   */
+  async function todaysSign(me: string, log: FastifyBaseLogger): Promise<OracleSign> {
+    const row = await settingsRow(me);
+    const settings = toSettings(row);
+    if (!row || !settings.home) return { home: null, readingId: null, future: null };
+    const home = { label: settings.home.label };
+    const now = new Date();
+    const today = localDay(now, settings.timeZone);
+    const isTodaysSign = and(eq(oracleReadings.mode, SIGN), eq(oracleReadings.day, today))!;
+    const ahead = (f: Future) => Date.parse(f.startsAt) > now.getTime();
+
+    // Newest first. A full day's worth tells whether another may still be dealt.
+    const dealt = await db
+      .select()
+      .from(oracleReadings)
+      .where(and(eq(oracleReadings.userId, me), isTodaysSign))
+      .orderBy(desc(oracleReadings.createdAt))
+      .limit(SIGN_DEALS_PER_DAY);
+    let sign = dealt[0];
+    const shown = (sign?.futures ?? []) as Future[];
+    const moved = !!sign && row.homeSetAt != null && row.homeSetAt.getTime() >= sign.createdAt.getTime();
+    const passed = shown.length > 0 && !shown.some(ahead);
+    const stale = !!sign && shown.every((f) => f.status === 'open') && (moved || passed);
+
+    if (!sign || (stale && dealt.length < SIGN_DEALS_PER_DAY)) {
+      let drafts: FutureDraft[];
+      try {
+        drafts = await draw(me, settings.home, settings.interests, {
+          now,
+          mode: 'mixed',
+          radiusKm: Math.min(settings.radiusKm, SIGN_REACH_KM),
+          seed: `${me}:${today}:${SIGN}`,
+          recentExcept: isTodaysSign,
+        });
+      } catch (err) {
+        log.warn({ err }, 'the daily sign could not be dealt');
+        return { home, readingId: null, future: null };
+      }
+      const futures: Future[] = drafts.map((d, index) => ({ ...d, index, status: 'open', eventId: null, savedIdeaId: null }));
+      // The sign it replaces is emptied, not deleted, so it still counts toward the day's deals.
+      if (sign) await db.update(oracleReadings).set({ futures: [] }).where(eq(oracleReadings.id, sign.id));
+      // Stamped with the app's clock, the one that stamps homeSetAt, so "since" compares like with like.
+      [sign] = await db.insert(oracleReadings).values({ userId: me, day: today, mode: SIGN, futures, createdAt: new Date() }).returning();
+    }
+    const futures = sign!.futures as Future[];
+    const future = futures.find((f) => f.status === 'chosen') ?? futures.find((f) => f.status === 'open' && ahead(f)) ?? null;
+    return { home, readingId: sign!.id, future };
+  }
+
+  // Two Home screens asking at once share one dealing.
+  const signing = new Map<string, Promise<OracleSign>>();
+
   app.get('/oracle', async (req): Promise<OracleState> => {
     const me = requireUser(req);
     const settings = await loadSettings(me);
@@ -121,12 +302,32 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
     const [latest] = await db
       .select()
       .from(oracleReadings)
-      .where(and(eq(oracleReadings.userId, me), eq(oracleReadings.day, today)))
+      .where(and(eq(oracleReadings.userId, me), eq(oracleReadings.day, today), ne(oracleReadings.mode, SIGN)))
       .orderBy(desc(oracleReadings.createdAt))
       .limit(1);
     const used = latest ? await readingsToday(me, settings.timeZone) : 0;
     return { settings, reading: latest ? toReading(latest, used) : null };
   });
+
+  /**
+   * The daily sign for Home: one small future near where the Lorer stands, dealt on the first ask
+   * of their day. The best one still open, or the one they chose today. Choose or dismiss it with
+   * the future endpoints below (crewId null keeps the plan to themselves).
+   */
+  app.get(
+    '/oracle/sign',
+    // Home asks once a visit; this only stops a client from driving the engine in a loop.
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute', keyGenerator: (req) => req.userId ?? req.ip } } },
+    async (req): Promise<OracleSign> => {
+      const me = requireUser(req);
+      let pending = signing.get(me);
+      if (!pending) {
+        pending = todaysSign(me, req.log).finally(() => signing.delete(me));
+        signing.set(me, pending);
+      }
+      return pending;
+    },
+  );
 
   app.put('/oracle/settings', async (req): Promise<OracleSettings> => {
     const me = requireUser(req);
@@ -139,6 +340,9 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
         homeLabel: input.home?.label ?? null,
         homeLat: input.home?.lat ?? null,
         homeLon: input.home?.lon ?? null,
+        // A moved home's country is unknown here; the Loracle looks it up again when it needs it.
+        homeCountry: null,
+        homeSetAt: new Date(),
       }),
       ...(input.radiusKm !== undefined && { radiusKm: input.radiusKm }),
       ...(input.interests !== undefined && { interests: [...new Set(input.interests)] }),
@@ -161,6 +365,21 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
     },
   );
 
+  /**
+   * "Where do you stand?" with the device's location: the town at that point (at most one; none
+   * when nothing is named there). The point is rounded to two decimals before it goes anywhere.
+   */
+  app.get(
+    '/oracle/reverse',
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (req): Promise<GeocodeResult[]> => {
+      requireUser(req);
+      const { lat, lon } = parse(ReverseGeocodeQuery, req.query);
+      const town = await world.reverse(lat, lon);
+      return town ? [town] : [];
+    },
+  );
+
   app.post(
     '/oracle/readings',
     { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
@@ -175,90 +394,12 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
       }
 
       const now = new Date();
-      const horizon = new Date(now.getTime() + 9 * DAY);
-      const { lat, lon } = settings.home;
       const mode = input.mode ?? 'mixed';
-
-      const [places, forecast, kp, personal, plans, myCrews, myIdeas, memories, recent] = await Promise.all([
-        world.places(lat, lon, settings.radiusKm),
-        world.forecast(lat, lon),
-        world.kp(),
-        db
-          .select({ start: personalEntries.startsAt, end: personalEntries.endsAt, allDay: personalEntries.allDay })
-          .from(personalEntries)
-          .where(and(eq(personalEntries.userId, me), lt(personalEntries.startsAt, horizon), gte(personalEntries.startsAt, new Date(now.getTime() - 2 * DAY)))),
-        db
-          .select({ start: events.startsAt, end: events.endsAt, allDay: events.allDay })
-          .from(events)
-          .innerJoin(eventParticipants, and(eq(eventParticipants.eventId, events.id), eq(eventParticipants.userId, me)))
-          .where(
-            and(
-              inArray(eventParticipants.rsvp, ['going', 'maybe']),
-              ne(events.status, 'canceled'),
-              lt(events.startsAt, horizon),
-              gte(events.startsAt, new Date(now.getTime() - 2 * DAY)),
-            ),
-          ),
-        db
-          .select({ id: crews.id, name: crews.name, emoji: crews.emoji })
-          .from(crews)
-          .innerJoin(crewMembers, and(eq(crewMembers.crewId, crews.id), eq(crewMembers.userId, me), eq(crewMembers.status, 'active'))),
-        db
-          .select({ id: ideas.id, title: ideas.title, category: ideas.category, whereNote: ideas.whereNote, crewId: ideas.crewId })
-          .from(ideas)
-          .where(
-            and(
-              ideaVisible(me),
-              inArray(ideas.status, ['dreaming', 'gathering_interest']),
-              or(
-                eq(ideas.createdBy, me),
-                sql`exists (select 1 from ${ideaInterest} where ${ideaInterest.ideaId} = ${ideas.id} and ${ideaInterest.userId} = ${me})`,
-              ),
-            ),
-          )
-          .limit(30),
-        db
-          .select({ id: chapters.id, title: chapters.title, occurredOn: chapters.occurredOn, locationName: chapters.locationName })
-          .from(chapters)
-          .where(
-            and(
-              sql`exists (select 1 from ${chapterPeople} where ${chapterPeople.chapterId} = ${chapters.id} and ${chapterPeople.userId} = ${me})`,
-              sql`extract(year from ${chapters.occurredOn}) < extract(year from now())`,
-              // Within ten days of today's date in an earlier year (wrapping at New Year).
-              sql`least(abs(extract(doy from ${chapters.occurredOn}) - extract(doy from now())), 366 - abs(extract(doy from ${chapters.occurredOn}) - extract(doy from now()))) <= 10`,
-            ),
-          )
-          .limit(10),
-        db
-          .select({ futures: oracleReadings.futures })
-          .from(oracleReadings)
-          .where(eq(oracleReadings.userId, me))
-          .orderBy(desc(oracleReadings.createdAt))
-          .limit(6),
-      ]);
-
-      const busy = [...personal, ...plans].map((b) => ({
-        start: b.start,
-        end: b.end ?? new Date(b.start.getTime() + (b.allDay ? DAY : 3 * 60 * 60 * 1000)),
-      }));
-      const recentPlaceIds = new Set(
-        recent.flatMap((r) => (r.futures as Future[]).map((f) => f.place?.wikidataId).filter((x): x is string => !!x)),
-      );
-      const drafts = generateFutures({
+      const drafts = await draw(me, settings.home, settings.interests, {
         now,
-        seed: `${me}:${localDay(now, settings.timeZone)}:${used}:${mode}`,
         mode,
-        home: { lat, lon },
         radiusKm: settings.radiusKm,
-        interests: settings.interests,
-        forecast,
-        kp,
-        places,
-        busy,
-        crews: myCrews as CrewRef[],
-        ideas: myIdeas,
-        memories,
-        recentPlaceIds,
+        seed: `${me}:${localDay(now, settings.timeZone)}:${used}:${mode}`,
       });
       if (!drafts.length) {
         throw badRequest('The stones see nothing yet. Widen your realm or pick some interests, then ask again.');
@@ -280,6 +421,8 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
     const { readingId, future } = await futureFor(me, req.params);
     const input = parse(ChooseFutureInput, req.body ?? {});
     if (future.status === 'chosen' && future.eventId) return updateFuture(me, readingId, future.index, {});
+    // A sign is kept all day, and its early moments pass: never a plan that starts in the past.
+    if (Date.parse(future.startsAt) <= Date.now()) throw badRequest('That moment has passed.');
 
     let crewId: string | null = null;
     if (input.crewId) {
@@ -292,7 +435,9 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
     const description = [
       future.story,
       `The signs: ${future.signs.join(' · ')}`,
-      future.place ? `Where: ${future.place.name}, ${future.place.distanceKm} km from home.` : null,
+      // Everyone invited reads this, and the place's point is on the plan: its distance from home would
+      // draw a circle around where the Lorer lives. The distance stays on their own sign and reading.
+      future.place ? `Where: ${future.place.name}.` : null,
       future.place?.wikidataId ? `About the place: https://www.wikidata.org/wiki/${future.place.wikidataId}` : null,
       'Revealed by The Loracle.',
     ]

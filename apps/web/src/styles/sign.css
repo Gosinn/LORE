@@ -1,0 +1,73 @@
+/* The stones' daily sign on Home's Loracle door, and "Where do you stand?" (pages/WhereYouStand.tsx).
+   Like the map's other new pieces (styles/map.css): tokens only, no guard, and never inside the temple.
+   The door itself (.loracle-door, .door-*) is styled in map.css; these rules only add what a sign needs. */
+
+/* A door with buttons in it is not one big link: pressing a button shouldn't press the whole door. */
+.loracle-door.door-sign:active {
+  transform: none;
+}
+.loracle-door.door-sign:focus-within .stones-glow {
+  opacity: 0.85;
+}
+.door-meta {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.door-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+.door-actions .btn-ghost {
+  padding: 0 10px;
+}
+.door-sign .form-error {
+  margin: 4px 0 0;
+}
+a.door-enter {
+  align-self: stretch;
+}
+a.door-sky {
+  color: inherit;
+}
+
+/* "Where do you stand?" */
+.where-you-stand .eyebrow {
+  color: var(--ember);
+}
+.where-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.where-or::before,
+.where-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line-strong);
+  opacity: 0.6;
+}
+.where-fine-print {
+  margin: 0;
+  text-align: center;
+}
+.where-result {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.where-result:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}

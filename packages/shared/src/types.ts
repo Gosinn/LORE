@@ -337,6 +337,20 @@ export interface OracleState {
   reading: OracleReading | null;
 }
 
+/**
+ * GET /oracle/sign: the stones' one small sign for today (Home), near where the Lorer stands.
+ * Dealt once a day from the Futures engine; it never counts as one of the day's readings.
+ * - `home` null: the Lorer hasn't said where they stand yet (nothing else is set).
+ * - `future`: the best one still open, or the one chosen today (status 'chosen', with its eventId).
+ *   Null when the stones see nothing near, every sign today was waved away, or the world didn't answer.
+ * Choose or dismiss it with POST /oracle/readings/:readingId/futures/:index/choose | dismiss.
+ */
+export interface OracleSign {
+  home: { label: string } | null;
+  readingId: string | null;
+  future: Future | null;
+}
+
 // ---------------------------------------------------------------------------
 // The Loracle (wishes). Every shape here is only ever sent to the Lorer who owns it.
 // What never leaves the server: the weighing, the ledger, the forge, note ids, dossiers.

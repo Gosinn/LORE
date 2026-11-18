@@ -14,12 +14,12 @@
   "plugins": {
     "SplashScreen": {
       "launchAutoHide": false,
-      "backgroundColor": "#f4eee3",
+      "backgroundColor": "#efe3c8",
       "showSpinner": false
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_lore",
-      "iconColor": "#D4461D"
+      "iconColor": "#A3301A"
     },
     "CapacitorUpdater": {
       "autoUpdate": "off",

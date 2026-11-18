@@ -133,10 +133,13 @@ export function PrivacyPage() {
           private calendar, notes and reminders.
         </li>
         <li>
-          <strong>The Loracle:</strong> the town you say you stand in (its name, country and approximate coordinates), how
-          far you’d go, what calls to you, and whatever you choose to tell the stone about yourself (age band, money, time,
-          body, languages, passport). If you used LORE before wishes came, the possible futures it showed you then are kept
-          with your data too.
+          <strong>The Loracle:</strong> where you stand (its town’s name, country and approximate coordinates), how far
+          you’d go, what calls to you, and whatever you choose to tell the stone about yourself (age band, money, time,
+          body, languages, passport). Where you stand is the town you name or, if you choose “Allow location”, your
+          device’s position rounded on the device to about a kilometre (never the exact point). Your device asks you first,
+          and you can always name a town instead. Each day’s sign on Home (one thing worth doing near you, and whether you
+          chose it or waved it away) is kept with your readings until you delete your account, and so are the possible
+          futures LORE showed before wishes came. All of it is in your download.
         </li>
         <li>
           <strong>The Loracle (wishes):</strong> the wishes you write, what the stone read in each one (the wish beneath it,
@@ -187,8 +190,9 @@ export function PrivacyPage() {
           Anthropic’s data processing terms and standard contractual clauses.
         </li>
         <li>
-          <strong>OpenStreetMap Nominatim</strong> finds the town you type for The Loracle, and the places on a quest’s map.
-          It receives the town or place name, never your name, account or device.
+          <strong>OpenStreetMap Nominatim</strong> finds the town you type for The Loracle, or the town at your rounded
+          location (about a kilometre, never the exact point), and the places on a quest’s map. Our server asks it, so it
+          receives only that town or place name or rounded point, never your name, account or device.
         </li>
         <li>
           <strong>Apple</strong> handles buying LORE on the App Store under its own privacy policy. We don’t receive your

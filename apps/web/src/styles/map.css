@@ -1,0 +1,1233 @@
+/* ------------------------------------------------------------ TREASURE MAP
+   LORE's one look (D32). LORE is a crew's map: paper with a faint graticule, iron-gall ink, vermilion
+   route-ink for anything you do, sea-ink (verdigris) for places and confirmed plans, brass for lore and
+   memory, wax for what is sealed. The chrome is a leather map case with brass stitching and a brass
+   compass for Create. At the edge of the map, through a tear in the paper: dusk and the standing stones
+   (The Loracle). Step through, and the leather turns to stone.
+
+   Loaded after app.css (main.tsx). The older looks in app.css are retired, not deleted (lib/theme.ts).
+
+   The guard. Every component and chrome rule below starts with
+     :where(html[data-theme='map'] body:not(:has(.oracle-page)))
+   so it applies only to the map, never while the Loracle is open (the temple, its stone tab bar and rail,
+   and any sheet over it keep exactly their own CSS), and adds zero specificity. Without :has() the guard
+   matches nothing and the app falls back to the tokens alone. Stone never appears in this file. */
+
+/* ---------------------------------------------------------------- tokens */
+
+:root[data-theme='map'] {
+  --bg: #efe3c8; /* map paper */
+  --surface: #f8f0dc; /* vellum */
+  --surface-2: #e6d5b0;
+  --ink: #2a1d10; /* iron-gall ink */
+  --ink-2: #4a3620;
+  --muted: #68512f;
+  --line: #d9c49a; /* decorative only */
+  --line-strong: #8c6b3d; /* control boundaries */
+  --ember: #a3301a; /* vermilion route-ink: action */
+  --ember-hover: #86250f;
+  --ember-ink: #fdf3df;
+  --ember-soft: #f3d6bd;
+  --fjord: #1e5858; /* sea-ink / verdigris: places, confirmed */
+  --fjord-soft: #d5e2d3;
+  --gold: #76520e; /* brass ink: lore, memory */
+  --gold-soft: #f0dfac;
+  --danger: #8a1c3a; /* madder, distinct in hue from vermilion */
+  --danger-soft: #f4d8dc;
+  --shadow-sm: 0 1px 0 rgb(60 35 10 / 0.06), 0 2px 6px -2px rgb(60 35 10 / 0.2);
+  --shadow: 0 1px 0 rgb(60 35 10 / 0.06), 0 12px 28px -14px rgb(60 35 10 / 0.45);
+  --radius: 10px;
+  --radius-sm: 6px;
+  color-scheme: light;
+
+  /* Map-only. --route stays vermilion inside the leather chrome, where --ember is re-mapped to lantern glow. */
+  --route: #a3301a;
+  --route-hi: #b23c24;
+  --route-lo: #7d220f;
+  --leather: #3a2616;
+  --leather-hi: #563823;
+  --leather-lo: #24170d;
+  --leather-ink: #f4e6c4;
+  --leather-mute: #cdb48c;
+  --stitch: rgb(233 205 150 / 0.55);
+  --brass-ink: #d9b45c;
+  --graticule:
+    linear-gradient(rgb(42 29 16 / 0.05) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(90deg, rgb(42 29 16 / 0.05) 1px, transparent 1px) 0 0 / 56px 56px;
+  --tex-compass: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 1L34.3 26.5L51.8 12.2L37.5 29.7L63 32L37.5 34.3L51.8 51.8L34.3 37.5L32 63L29.7 37.5L12.2 51.8L26.5 34.3L1 32L26.5 29.7L12.2 12.2L29.7 26.5Z' fill='%23d9b45c' stroke='%235e400f' stroke-width='1.2' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* The map's voice (greeting, door, empty states, quotes, sheet titles). IM Fell ships Latin-1 only, so a
+     name like "Łukasz" falls back to Fraunces (loaded with latin-ext) on every platform, not to whatever
+     serif the phone has. --font-scroll itself is left alone: the Loracle shares it. */
+  --font-voice: 'IM Fell English', 'Fraunces Variable', Georgia, serif;
+
+  /* Avatar pigments (ui.tsx reads var(--avatar-N, <old colour>)); white initials are 7.0 to 10.2:1. */
+  --avatar-0: #a3301a;
+  --avatar-1: #1e5858;
+  --avatar-2: #2f4a7a;
+  --avatar-3: #76520e;
+  --avatar-4: #5a3a22;
+  --avatar-5: #4c5a26;
+  --avatar-6: #6a2e4f;
+}
+
+/* ----------------------------------------------------------- temple pins
+   .oracle-page doesn't re-map radius, shadows or avatar colours, and the map changes them. Pin them back
+   so the Loracle stays exactly as it was. (`initial` makes var(--avatar-N, fallback) use the old colour.) */
+
+:where(html[data-theme='map']) .oracle-page,
+:where(html[data-theme='map']) body:has(.oracle-page) :is(.tabbar, .rail, .overlay) {
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow-sm: 0 1px 0 rgb(60 40 20 / 0.04), 0 2px 6px -2px rgb(60 40 20 / 0.12);
+  --shadow: 0 1px 0 rgb(60 40 20 / 0.05), 0 10px 30px -12px rgb(60 40 20 / 0.28);
+  --avatar-0: initial;
+  --avatar-1: initial;
+  --avatar-2: initial;
+  --avatar-3: initial;
+  --avatar-4: initial;
+  --avatar-5: initial;
+  --avatar-6: initial;
+}
+
+/* --------------------------------------------------------- body and type */
+
+html[data-theme='map'] body:not(:has(.oracle-page)) {
+  background:
+    var(--graticule),
+    radial-gradient(130% 720px at 50% -240px, #f8f0dc, transparent 70%),
+    var(--bg);
+}
+/* Long reading (a chapter's story, its accounts and quotes; ChapterPage only) is on plain paper: no
+   graticule running through 18px text (7.1). */
+html[data-theme='map'] body:not(:has(.oracle-page)):has(.story, .quote) {
+  background:
+    radial-gradient(130% 720px at 50% -240px, #f8f0dc, transparent 70%),
+    var(--bg);
+}
+/* Welcome paints its own background: the map paper and grid, without the old ember and fjord glows. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .welcome {
+  background:
+    radial-gradient(130% 70% at 50% 0, #f8f0dc, transparent 70%),
+    var(--graticule),
+    var(--bg);
+}
+/* Welcome and "Where do you stand?" speak in the map's voice, like Home's greeting and the door. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .welcome h1 {
+  font-family: var(--font-voice);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .eyebrow {
+  font-family: var(--font-carved);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-2);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .section-head .eyebrow {
+  white-space: normal;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .greeting {
+  font-family: var(--font-voice);
+  font-weight: 400;
+  font-size: clamp(30px, 8.2vw, 38px);
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .greeting em {
+  color: var(--ember);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .topbar h1 {
+  font-family: var(--font-carved);
+  font-weight: 600;
+  font-size: 21px;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .topbar .icon-btn {
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .empty .serif {
+  font-family: var(--font-voice);
+  font-size: 20px;
+  line-height: 1.25;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .the-end .serif {
+  font-family: var(--font-voice);
+  font-size: 19px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .the-end::before {
+  width: 72px;
+  height: 4px;
+  color: var(--line-strong);
+  background: radial-gradient(circle, currentColor 1.3px, transparent 1.8px) 0 50% / 8px 4px repeat-x;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .the-end .compass-rose {
+  width: 44px;
+  height: 44px;
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------- wordmark (the O is a compass) */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .wordmark-name {
+  font-family: var(--font-carved);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.16em;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .wordmark-name .o {
+  position: relative;
+  color: var(--ember);
+}
+/* A compass needle through the O: vermilion north, ink south. Decorative; the text still reads "LORE". */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .wordmark-name .o::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 0.08em);
+  top: 52%;
+  width: 4px;
+  height: 15px;
+  margin: -7.5px 0 0 -2px;
+  background: linear-gradient(var(--ember) 50%, var(--ink) 50%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  transform: rotate(18deg);
+  pointer-events: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .wordmark-tag {
+  font-family: var(--font-voice);
+  font-style: italic;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--muted);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .backronym {
+  font-family: var(--font-voice);
+  font-size: 16px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .backronym b {
+  font-family: var(--font-carved);
+}
+
+/* --------------------------------------------------------------- buttons */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn {
+  border-radius: 8px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-sm {
+  border-radius: 6px;
+}
+/* Vermilion wax. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-primary {
+  border-color: var(--route-lo);
+  background: linear-gradient(var(--route-hi), var(--route) 55%, var(--route-lo));
+  color: #fdf3df;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 2px 0 #5c180a;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(var(--route), var(--route-lo));
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-primary:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-secondary {
+  border: 1.5px solid var(--ink-2);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 2px 0 var(--line-strong);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-secondary:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-secondary:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-ghost {
+  color: var(--ink-2);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+  text-decoration: underline dotted 1.5px;
+  text-underline-offset: 4px;
+}
+/* Danger is an outline, not a fill: told apart from primary by shape as well as hue. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-danger {
+  border: 1.5px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .btn-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .icon-btn:hover {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+/* The unread badge (and Profile's camera badge) is a wax seal. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .badge-dot {
+  border: 2px solid var(--bg);
+  border-radius: 47% 53% 51% 49% / 52% 46% 54% 48%;
+  background: radial-gradient(circle at 35% 30%, var(--wax-hi), var(--wax) 55%, var(--wax-lo));
+  color: #fbefd9;
+}
+
+/* ------------------------------------- cards, sections, banners, empty states */
+
+/* Field-note vellum with a neatline: 1px border, a 3px gap, then a 1px inner rule. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .card {
+  border-color: var(--line);
+  box-shadow:
+    inset 0 0 0 3px var(--surface),
+    inset 0 0 0 4px var(--line),
+    var(--shadow-sm);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .card-link:hover {
+  border-color: var(--line-strong);
+  box-shadow:
+    inset 0 0 0 3px var(--surface),
+    inset 0 0 0 4px var(--line),
+    var(--shadow);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .card-link:active {
+  transform: translateY(1px);
+}
+/* Section heads: Cinzel lettering, then a dotted trail instead of a hairline. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .section-head::after {
+  height: 4px;
+  background: radial-gradient(circle, var(--line-strong) 1.2px, transparent 1.7px) 0 50% / 7px 4px repeat-x;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .section-head .more {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+/* A folded letter: a gold rule 4px inside the edge. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .banner {
+  border-radius: 8px;
+  background: var(--gold-soft);
+  box-shadow:
+    inset 0 0 0 4px var(--gold-soft),
+    inset 0 0 0 5px color-mix(in srgb, var(--gold) 40%, transparent);
+}
+/* Terra incognita. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .empty {
+  border-color: var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .form-error {
+  border-left: 3px solid var(--danger);
+  border-radius: 4px;
+}
+
+/* ----------------------------------------------------------------- forms */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .input,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .textarea,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .select {
+  border-color: var(--line-strong);
+  border-bottom: 2px solid var(--ink-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .input::placeholder,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .textarea::placeholder {
+  color: var(--muted);
+}
+/* Focus is a thicker line, in vermilion (5.5:1 on paper, 6.2:1 on vellum), never a change of hue alone.
+   label.input: the Lorebook and Friends searches wrap a bare <input> in the field, so the field shows it. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.input, .textarea, .select):focus,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) label.input:focus-within {
+  border-color: var(--ember);
+  box-shadow: 0 0 0 2px var(--ember);
+}
+/* Title fields are written straight onto the page. These come after .input on purpose:
+   the elements carry both classes. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .input-title {
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 2px solid var(--ink-2);
+  border-radius: 0;
+  background: transparent;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .input-title:focus {
+  border-bottom-color: var(--ember);
+  box-shadow: 0 2px 0 var(--ember);
+}
+/* Inked tick-boxes everywhere (checked: a vermilion fill with a paper tick). Keyboard and
+   focus behave as native. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox'] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1.5px solid var(--ink-2);
+  border-radius: 2px 3px 2px 3px;
+  background: var(--surface);
+  cursor: pointer;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:checked {
+  border-color: var(--ember);
+  background: var(--ember);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:checked::before {
+  content: '';
+  width: 10px;
+  height: 5px;
+  margin-top: -3px;
+  border: solid #fdf3df;
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .terms-check input[type='checkbox'] {
+  margin-top: 2px;
+}
+/* Every other native control (date pickers, ranges, any tick-box outside the list above) takes vermilion,
+   not the browser's blue. Inherited from body, so the guard alone is the selector. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) {
+  accent-color: var(--ember);
+}
+
+/* ------------------------------------------- chips (map labels), pills (stamps) */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chip {
+  border-color: var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--line);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chip:hover:not(:disabled) {
+  border-color: var(--ink-2);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chip[aria-pressed='true'],
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chip.on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: none;
+}
+/* Selected is not colour alone: a tick. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chip[aria-pressed='true']::before,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chip.on::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 5px;
+  margin: -3px 1px 0 -2px;
+  border: solid currentColor;
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .pill {
+  height: 22px;
+  padding: 0 8px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .pill-ember {
+  border-color: var(--ember);
+  background: var(--ember-soft);
+  color: var(--ember);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .pill-fjord {
+  border-color: var(--fjord);
+  background: var(--fjord-soft);
+  color: var(--fjord);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .pill-gold {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .pill-danger {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+/* Stamped at an angle only in page heroes, never in lists. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .hero .pill {
+  transform: rotate(-2deg);
+}
+
+/* ---------------------------------------- segmented controls (RSVP), index tabs */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .seg {
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: inset 0 1px 3px rgb(60 35 10 / 0.22);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .seg button {
+  border-radius: 6px;
+  letter-spacing: 0.06em;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .seg button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 2px 0 var(--line-strong);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .seg button.going[aria-pressed='true'] {
+  background: var(--fjord);
+  color: #fdf3df;
+  box-shadow:
+    0 0 0 1px #0f3434,
+    0 2px 0 #0f3434;
+}
+/* The selected index tab opens into the page below it (shape plus ink, not colour alone). */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tabs {
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 0;
+  border-bottom: 1.5px solid var(--ink-2);
+  background: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tabs button {
+  margin-bottom: -1.5px;
+  border: 1px solid var(--line-strong);
+  border-bottom: 1.5px solid var(--ink-2);
+  border-radius: 8px 8px 0 0;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tabs button[aria-selected='true'] {
+  border-color: var(--ink-2);
+  border-bottom-color: var(--bg);
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+/* ------------------------------------------- event rows: a calendar-leaf tile */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .date-tile {
+  grid-template-rows: 18px 1fr;
+  place-items: stretch;
+  height: 60px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 2px 0 var(--line);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .date-tile .m {
+  display: grid;
+  place-items: center;
+  background: var(--route);
+  color: #fdf3df;
+  font: 700 11px/1 var(--font-carved);
+  letter-spacing: 0.12em;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .date-tile .d {
+  display: grid;
+  place-items: center;
+  font-size: 23px;
+}
+
+/* ----------------------------------------------------- avatars, crews, ideas */
+
+/* Portrait medallions, large sizes only (lists stay quiet). */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .avatar-lg,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .avatar-xl {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--brass-ink),
+    0 0 0 4.5px color-mix(in srgb, var(--gold) 60%, transparent);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .crew-chip {
+  border-color: var(--line-strong);
+  border-radius: 8px;
+  box-shadow: 0 2px 0 var(--line);
+}
+/* Brass medallion around the crew emoji. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .crew-emoji {
+  background: radial-gradient(circle at 35% 30%, #fbf1d6, #ead6a3);
+  box-shadow:
+    0 0 0 2px var(--brass-ink),
+    0 0 0 3px color-mix(in srgb, var(--gold) 55%, transparent);
+}
+/* CrewPage and CrewForm: the crew's swallowtail pennant on a brass rod. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .crew-emoji-lg {
+  width: 66px;
+  height: 82px;
+  padding-bottom: 14px;
+  border-radius: 0;
+  font-size: 34px;
+  background:
+    linear-gradient(#e9c97a, #a37a2c) top / 100% 6px no-repeat,
+    linear-gradient(90deg, rgb(0 0 0 / 0.14), transparent 28% 72%, rgb(0 0 0 / 0.14)),
+    linear-gradient(var(--route), var(--route-lo));
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+}
+/* Uncharted: dashed, half-transparent, no neatline. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .idea-card {
+  border: 1.5px dashed var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+  box-shadow: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .idea-card:hover {
+  border-color: var(--ink-2);
+  box-shadow: none;
+}
+
+/* ------------------- Lorebook timeline, chapters, story, quotes, comments, photos */
+
+/* The trail behind you: vermilion dots, an X at each year, ink waypoints. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .timeline::before {
+  left: 7px;
+  width: 2px;
+  border-left: 0;
+  color: var(--ember);
+  background: radial-gradient(circle, currentColor 1.1px, transparent 1.5px) 50% 0 / 2px 7px repeat-y;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .timeline-year {
+  font-family: var(--font-carved);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.04em;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .timeline-year::before {
+  left: -27px;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 0;
+  color: var(--ember);
+  background:
+    linear-gradient(45deg, transparent 40%, currentColor 40% 60%, transparent 60%),
+    linear-gradient(-45deg, transparent 40%, currentColor 40% 60%, transparent 60%);
+  box-shadow: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .timeline-item::before {
+  background: var(--surface);
+  border-color: var(--ink-2);
+}
+/* Mounted photos: a 5px vellum mat inside the neatline. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-card {
+  padding: 5px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-cover,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .cover-placeholder {
+  border-radius: 5px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .cover-placeholder {
+  background:
+    radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--gold) 22%, transparent), transparent 55%),
+    radial-gradient(circle at 80% 70%, color-mix(in srgb, var(--fjord) 22%, transparent), transparent 55%),
+    var(--graticule),
+    var(--surface-2);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-body {
+  padding: 10px 11px 11px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-date {
+  font-family: var(--font-carved);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+}
+/* Long reading stays plain: Fraunces on paper, no texture, measured line length. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .story {
+  max-width: 65ch;
+}
+/* The chapter's opening line (the hero summary only, never contributions): a vermilion Cinzel drop cap. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .hero .story::first-letter {
+  float: left;
+  margin: 6px 8px 0 0;
+  font: 700 3.1em/0.8 var(--font-carved);
+  color: var(--ember);
+}
+/* Quotes are margin notes: a brass rule, an IM Fell quote mark, no fill. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .quote {
+  padding: 6px 0 6px 46px;
+  border-left: 3px solid var(--gold);
+  border-radius: 0;
+  background: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .quote::before {
+  left: 10px;
+  top: -4px;
+  font-family: var(--font-voice);
+  font-size: 60px;
+  color: var(--gold);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .quote-text {
+  font-family: var(--font-voice);
+  font-size: 21px;
+  line-height: 1.35;
+}
+/* Comments: slips of paper passed round. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .comment-body {
+  border: 1px solid var(--line);
+  border-radius: 2px 10px 10px 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--line);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .photo-grid {
+  gap: 12px;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .photo {
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 4px var(--surface),
+    0 4px 10px -4px rgb(60 35 10 / 0.5);
+}
+@media (min-width: 900px) {
+  /* Desktop: the cover is mounted and taped onto the page. */
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-hero {
+    overflow: visible;
+    padding: 6px;
+    border-radius: 4px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-hero img {
+    border-radius: 2px;
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-hero::before,
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-hero::after {
+    content: '';
+    position: absolute;
+    top: -9px;
+    width: 84px;
+    height: 24px;
+    background: rgb(236 222 180 / 0.72);
+    box-shadow: 0 1px 2px rgb(60 35 10 / 0.18);
+    pointer-events: none;
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-hero::before {
+    left: 24px;
+    transform: rotate(-6deg);
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .chapter-hero::after {
+    right: 24px;
+    transform: rotate(5deg);
+  }
+}
+
+/* --------------------------------- sheets, lists, notes, notifications, Create */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .overlay {
+  background: rgb(30 18 8 / 0.5);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .sheet {
+  border-top: 1px solid var(--line-strong);
+  border-radius: 14px 14px 0 0;
+  background: var(--graticule), var(--bg);
+}
+/* On phones the grab handle is a small wax seal. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .sheet::before {
+  content: '';
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: -6px auto 8px;
+  border-radius: 47% 53% 51% 49% / 52% 46% 54% 48%;
+  background: radial-gradient(circle at 35% 30%, var(--wax-hi), var(--wax) 55%, var(--wax-lo));
+  box-shadow:
+    0 0 0 2px rgb(122 20 12 / 0.25),
+    inset 0 2px 2px rgb(255 255 255 / 0.27),
+    inset 0 -3px 5px rgb(0 0 0 / 0.4);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .sheet-head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .sheet-head h2 {
+  font-family: var(--font-voice);
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 0;
+}
+@media (min-width: 640px) {
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .sheet {
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .sheet::before {
+    display: none;
+  }
+}
+/* Ledger rows. (.list-item and .note-row :last-child keep border-bottom: 0 from app.css.) */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .list-item,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .checklist-item,
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .note-row {
+  border-bottom: 1px dotted var(--line-strong);
+}
+/* QuickNote: a field-note slip. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .quick-note {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+/* Unread: a wash plus a vermilion left rule, so it isn't shown by colour alone. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .notification.unread {
+  background: var(--ember-soft);
+  box-shadow: inset 3px 0 0 var(--ember);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .create-tile {
+  border-color: var(--line);
+  box-shadow:
+    inset 0 0 0 3px var(--surface),
+    inset 0 0 0 4px var(--line),
+    var(--shadow-sm);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .create-tile:hover {
+  border-color: var(--line-strong);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .create-tile .icon {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px currentColor;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .create-tile h3 {
+  font-family: var(--font-voice);
+  font-weight: 400;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+/* ---------------------- calendar (dense: plain surface, no texture, shape-coded dots) */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .month-head h2 {
+  font-family: var(--font-carved);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.05em;
+}
+/* The grid sits on plain vellum, so no graticule behind the numbers. Gap 2px keeps cells at
+   about 45px at 375px. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .month-grid {
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 3px var(--surface),
+    inset 0 0 0 4px var(--line),
+    var(--shadow-sm);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .month-grid .dow {
+  font-family: var(--font-carved);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day {
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+/* Out of month: muted colour at a lighter weight (6.59:1), no opacity. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.out {
+  color: var(--muted);
+  font-weight: 450;
+}
+/* Today: a hand-drawn vermilion ring; the digits stay upright. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.today .num {
+  position: relative;
+  color: var(--ember);
+  font-weight: 800;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.today .num::before {
+  content: '';
+  position: absolute;
+  /* Not below the digits' line box: the 4px gap under it is the dots' clear paper (diamond tips reach
+     about 1.2px into it). The digits sit high in the line box, so the ring is centred on them. */
+  inset: -2px -7px 0;
+  border: 2px solid var(--ember);
+  border-radius: 52% 48% 55% 45% / 47% 55% 45% 53%;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+/* After the today rule on purpose (same specificity): a selected day is always paper-on-ink. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.selected .num {
+  color: var(--bg);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.selected .num::before {
+  border-color: var(--glow);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day .dots {
+  gap: 4px;
+}
+/* Plans: vermilion diamonds. Personal: verdigris rounds. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day .dots i {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day .dots i.personal {
+  border-radius: 50%;
+  transform: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.selected .dots i {
+  background: var(--glow);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .day.selected .dots i.personal {
+  background: #8fd3c8;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .legend i {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .legend i.personal {
+  border-radius: 50%;
+  transform: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .personal-row {
+  border-left: 3px solid var(--fjord);
+  border-radius: 4px;
+}
+
+/* ---------------------------------------- chrome: the leather map case
+   The tab bar and rail re-map the tokens (the .scroll pattern), so what sits inside needs no new CSS. */
+
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.tabbar, .rail) {
+  --surface: var(--leather);
+  --surface-2: var(--leather-hi);
+  --ink: var(--leather-ink);
+  --ink-2: var(--leather-ink);
+  --muted: var(--leather-mute);
+  --line: var(--leather-lo);
+  --line-strong: #7a5a3a;
+  --ember: var(--glow);
+  --ember-hover: var(--glow-text);
+  --ember-ink: #2a1408;
+  --ember-soft: rgb(255 179 107 / 0.16);
+  color: var(--leather-ink);
+  color-scheme: dark;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) :is(.tabbar, .rail) :focus-visible {
+  outline-color: var(--glow);
+}
+
+/* Phone tab bar: a leather strap. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tabbar {
+  border-top: 1px solid var(--leather-lo);
+  background: radial-gradient(140% 130% at 50% 0, var(--leather-hi), var(--leather) 48%, var(--leather-lo));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 230 190 / 0.14),
+    0 -8px 18px -10px rgb(30 18 8 / 0.6);
+}
+/* Brass stitching along the top. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tabbar::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 5px;
+  border-top: 1.5px dashed var(--stitch);
+  pointer-events: none;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tab {
+  font-size: 11.5px;
+  font-weight: 650;
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tab .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+}
+/* You are here: a glowing X under the active tab (plus the brighter label and aria-current). */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tab.active .dot {
+  background:
+    linear-gradient(45deg, transparent 38%, var(--glow) 38% 62%, transparent 62%),
+    linear-gradient(-45deg, transparent 38%, var(--glow) 38% 62%, transparent 62%);
+}
+/* Create: a brass compass. Brass star points behind a vermilion disc with a gilt ring. All of it
+   is inside a 64px circle, so border-radius 50% clips nothing. position + z-index keep the
+   stitching (a positioned pseudo-element) behind the raised button. */
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tab-create {
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  margin-top: -26px;
+  border-radius: 50%;
+  color: #fdf3df;
+  background:
+    radial-gradient(circle at 42% 38%, rgb(255 255 255 / 0.2), transparent 9px),
+    radial-gradient(circle closest-side, var(--route-hi) 0, var(--route) 50%, var(--route-lo) 64%, #5e400f 64.5%, #f0d78f 67%, #a37a2c 71.5%, transparent 72.5%),
+    var(--tex-compass) center / 64px 64px no-repeat;
+  box-shadow: 0 10px 16px -8px rgb(20 10 4 / 0.75);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tab-create:active {
+  transform: scale(0.94) rotate(-10deg);
+}
+:where(html[data-theme='map'] body:not(:has(.oracle-page))) .tab-create:focus-visible {
+  outline: 2px solid var(--glow);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+/* Desktop rail: the map case's spine. */
+@media (min-width: 900px) {
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail {
+    border-right: 1px solid var(--leather-lo);
+    background: linear-gradient(90deg, var(--leather-lo), var(--leather) 10%, var(--leather) 90%, var(--leather-hi));
+    box-shadow: 8px 0 20px -14px rgb(30 18 8 / 0.7);
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    right: 7px;
+    border-right: 1.5px dashed var(--stitch);
+    pointer-events: none;
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail-link {
+    border-radius: 4px 10px 10px 4px;
+    color: var(--leather-ink);
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail-link:hover {
+    background: rgb(255 240 210 / 0.07);
+  }
+  /* The current page is a parchment bookmark with a vermilion ribbon edge. */
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail-link.active {
+    background: var(--parch-1);
+    color: var(--scroll-ink);
+    box-shadow:
+      inset 4px 0 0 var(--route),
+      0 2px 0 rgb(0 0 0 / 0.35);
+  }
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail-link[href='/oracle'] svg {
+    color: var(--glow);
+  }
+  /* Also .btn-primary: vermilion wax with a brass edge. */
+  :where(html[data-theme='map'] body:not(:has(.oracle-page))) .rail-create {
+    border: 1.5px solid var(--brass-ink);
+    font-family: var(--font-carved);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* -------------------------------------------- new pieces (no guard: tokens only)
+   They look right in any look, and never appear inside the temple. */
+
+/* An eight-point compass rose (components/compass.tsx). */
+.compass-rose {
+  display: block;
+  width: 44px;
+  height: 44px;
+  overflow: visible;
+}
+.compass-rose .cr-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.45;
+}
+.compass-rose .cr-star {
+  fill: var(--surface);
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.compass-rose .cr-north {
+  fill: var(--ember);
+}
+
+/* A dotted route ending in an X. <div className="trail" aria-hidden /> */
+.trail {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 14px;
+  color: var(--ember);
+}
+.trail::before {
+  content: '';
+  flex: 1;
+  height: 4px;
+  background: radial-gradient(circle, currentColor 1.3px, transparent 1.8px) 0 50% / 8px 4px repeat-x;
+}
+.trail::after {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  background:
+    linear-gradient(45deg, transparent 38%, currentColor 38% 62%, transparent 62%),
+    linear-gradient(-45deg, transparent 38%, currentColor 38% 62%, transparent 62%);
+}
+
+/* Welcome: a faint compass rose behind the page, and room for the status bar. */
+.welcome {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding-top: calc(24px + env(safe-area-inset-top));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+.welcome-rose {
+  position: absolute;
+  z-index: -1;
+  top: calc(env(safe-area-inset-top) - 50px);
+  right: -70px;
+  width: 280px;
+  height: 280px;
+  color: var(--ink);
+  opacity: 0.08;
+  pointer-events: none;
+}
+.welcome .trail {
+  max-width: 240px;
+}
+
+/* The Loracle door (Home): the edge of the map. Through the tear: dusk, and the stones as a silhouette
+   on the horizon. Tokens and the shared --dusk-sky only; no stone. */
+.loracle-door {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  min-height: 136px;
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    inset 0 0 0 3px var(--surface),
+    inset 0 0 0 4px var(--line),
+    0 12px 24px -16px rgb(40 22 8 / 0.6);
+  transition: transform 0.12s ease;
+}
+.loracle-door:active {
+  transform: translateY(1px);
+}
+.loracle-door:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 3px;
+}
+.door-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px 6px 14px 16px;
+}
+.loracle-door .eyebrow {
+  white-space: normal;
+  color: var(--ember);
+}
+.door-line {
+  font: 400 20px/1.2 var(--font-voice, var(--font-scroll));
+  color: var(--ink);
+}
+.door-sub {
+  font: italic 15px/1.35 var(--font-voice, var(--font-scroll));
+  color: var(--ink-2);
+}
+/* A wish's or a place's long word ("Vatnajökulsþjóðgarður" is about 200px) breaks instead of running under
+   the sky, where the door's overflow would hide it (the text column is about 192px at 360px). */
+.door-line,
+.door-sub,
+.door-meta {
+  overflow-wrap: anywhere;
+}
+/* "Enter the circle", then the route runs off into the tear. */
+.door-enter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px -6px 0 0;
+  font: 700 12px/1.2 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+.door-enter::after {
+  content: '';
+  flex: 1;
+  min-width: 20px;
+  height: 4px;
+  background: radial-gradient(circle, currentColor 1.3px, transparent 1.8px) 0 50% / 8px 4px repeat-x;
+}
+.door-sky {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background: var(--dusk-sky);
+}
+/* The torn paper edge: bites in the paper colour along the left side of the sky. */
+.door-sky::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 1;
+  width: 7px;
+  background:
+    radial-gradient(circle at 0 50%, var(--surface) 3px, transparent 3.5px) 0 0 / 7px 11px repeat-y,
+    radial-gradient(circle at 0 50%, var(--surface) 2.5px, transparent 3px) 0 4px / 7px 17px repeat-y;
+  pointer-events: none;
+}
+.door-sky .stones {
+  width: 150%;
+  max-width: none;
+  margin: 0 -25% -8px;
+}
+.loracle-door:is(:hover, :focus-visible) .stones-glow {
+  opacity: 0.85;
+}
+@media (min-width: 640px) {
+  .loracle-door {
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+  .door-sky .stones {
+    width: 110%;
+    margin: 0 -5% -8px;
+  }
+}
+
+/* ------------------------------------------------ the step into the temple
+   Only the three links into the Loracle use a view transition (the Home door, the Create tile, the rail
+   link): paper and leather cross-fade into the stone wall and stone chrome. Leaving is instant. */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.32s;
+}
+
+/* View-transition pseudo-elements aren't matched by app.css's global `*` reduced-motion rule. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

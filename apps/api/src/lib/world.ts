@@ -3,6 +3,7 @@
 //   weather  Open-Meteo (7-day forecast, cloud cover, sunrise/sunset)
 //   aurora   NOAA SWPC planetary Kp forecast
 //   geocode  Nominatim (OpenStreetMap), for typing in your home area
+//   reverse  Nominatim, the town at the device's rough location ("Where do you stand?")
 // Every answer is cached in `world_cache`; when a service is down the last known
 // answer is used, and with nothing at all the Oracle works with what it has.
 // Each service's usage policy is respected: an identifying User-Agent, caching,
@@ -75,6 +76,8 @@ export interface WorldData {
   forecast(lat: number, lon: number): Promise<Forecast | null>;
   kp(): Promise<KpReading[]>;
   geocode(query: string): Promise<GeocodeResult[]>;
+  /** The town at a point (town level, never a street), or null when nothing is named there. */
+  reverse(lat: number, lon: number): Promise<GeocodeResult | null>;
 }
 
 const USER_AGENT = 'LORE/0.4 (social adventure planner; https://lore-g8co.onrender.com)';
@@ -501,6 +504,31 @@ export function openDataWorld(db: Db, { farWaitMs = 25_000 }: { farWaitMs?: numb
         return out;
       });
       return data ?? [];
+    },
+
+    async reverse(lat, lon) {
+      // Two decimals (about a kilometre): neither the cache nor Nominatim ever sees a finer point.
+      const la = (Math.round(lat * 100) / 100).toFixed(2);
+      const lo = (Math.round(lon * 100) / 100).toFixed(2);
+      const data = await cached(db, `reverse:en:v1:${la},${lo}`, 30 * DAY, async () => {
+        await nominatimSlot();
+        // zoom 10 asks for the city or town around the point, never a street or a house.
+        const params = new URLSearchParams({ lat: la, lon: lo, zoom: '10', format: 'jsonv2', addressdetails: '1', 'accept-language': 'en' });
+        const r = await fetchJson<{ error?: string; display_name?: string; lat?: string; lon?: string; address?: NominatimAddress }>(
+          `https://nominatim.openstreetmap.org/reverse?${params}`,
+        );
+        const label = !r.error && r.display_name ? realmLabel(r.display_name, r.address) : null;
+        if (!label) return [];
+        const cc = r.address?.country_code;
+        const out: GeocodeResult = {
+          label,
+          lat: Number(r.lat ?? la),
+          lon: Number(r.lon ?? lo),
+          country: cc && /^[a-z]{2}$/i.test(cc) ? cc.toUpperCase() : null,
+        };
+        return [out];
+      });
+      return data?.[0] ?? null;
     },
   };
 }

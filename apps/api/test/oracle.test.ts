@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openDatabase, type Database } from '../src/db/index.ts';
-import { worldCache } from '../src/db/schema.ts';
+import { oracleReadings, worldCache } from '../src/db/schema.ts';
 import { generateFutures, type OracleInput } from '../src/lib/oracle.ts';
 import {
   backOffMs,
@@ -12,7 +13,7 @@ import {
   type WorldData,
   type WorldPlace,
 } from '../src/lib/world.ts';
-import { NO_LIMIT_KM } from '#shared';
+import { NO_LIMIT_KM, type Future } from '#shared';
 import { createTestApp, type Client, type TestApp } from './helpers.ts';
 
 const HOME = { lat: 64.14, lon: -21.94 };
@@ -262,6 +263,8 @@ describe('the Oracle API', () => {
     forecast: async () => clearWeek(),
     kp: async () => strongKp(),
     geocode: async (q) => [{ label: `${q}, Iceland`, lat: HOME.lat, lon: HOME.lon }],
+    // Only Iceland has towns on this map.
+    reverse: async (lat) => (lat > 60 ? { label: 'Reykjavík, Capital Region, Iceland', lat: 64.15, lon: -21.94, country: 'IS' } : null),
   };
 
   beforeAll(async () => {
@@ -284,6 +287,15 @@ describe('the Oracle API', () => {
     expect(res.status).toBe(200);
     expect(res.body[0].label).toBe('Reykjavik, Iceland');
     expect((await ana.get('/api/oracle/geocode?q=x')).status).toBe(400);
+  });
+
+  it('names the town at a point, or nothing', async () => {
+    const res = await ana.get('/api/oracle/reverse?lat=64.14&lon=-21.94');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ label: 'Reykjavík, Capital Region, Iceland', lat: 64.15, lon: -21.94, country: 'IS' }]);
+    expect((await ana.get('/api/oracle/reverse?lat=10&lon=10')).body).toEqual([]);
+    expect((await ana.get('/api/oracle/reverse?lat=91&lon=0')).status).toBe(400);
+    expect((await ana.get('/api/oracle/reverse?lat=64.14')).status).toBe(400);
   });
 
   it('saves the realm privately', async () => {
@@ -581,5 +593,246 @@ describe('the far ring (places past 300 km)', () => {
     await vi.waitFor(async () => expect(names(await world.places(64.14, -21.94, 1000))).toContain('Slættaratindur'));
     // Each kind was asked once, the slow one too, not again by the readings in between.
     expect([...wikidata.index()].sort()).toEqual([...KINDS].sort());
+  });
+});
+
+describe('the daily sign (Home)', () => {
+  let t: Awaited<ReturnType<typeof createTestApp>>;
+  let dara: Client;
+  let elin: Client;
+  let finn: Client;
+  let gus: Client;
+  /** Every radius the world was asked to look within. */
+  const asked: number[] = [];
+  let broken = false;
+  // Reykjavík has places and weather; anywhere south of 60° has neither, so nothing is near.
+  const world: WorldData = {
+    places: async (_lat, _lon, radiusKm) => {
+      asked.push(radiusKm);
+      return [...PLACES, ...FAR];
+    },
+    forecast: async (lat) => {
+      if (broken) throw new Error('the weather service is down');
+      return lat > 60 ? clearWeek() : null;
+    },
+    kp: async () => strongKp(),
+    geocode: async () => [],
+    reverse: async () => null,
+  };
+  const standAt = (c: Client, label: string, at: { lat: number; lon: number }) =>
+    c.put('/api/loracle/settings', { home: { label, ...at, country: 'IS' }, timeZone: 'Atlantic/Reykjavik' });
+
+  beforeAll(async () => {
+    t = await createTestApp({ world });
+    dara = await t.signUp('dara');
+    elin = await t.signUp('elin');
+    finn = await t.signUp('finn');
+    gus = await t.signUp('gus_');
+  });
+  afterAll(() => t.close());
+
+  it('asks where you stand before it shows anything', async () => {
+    const res = await dara.get('/api/oracle/sign');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ home: null, readingId: null, future: null });
+    expect(asked).toEqual([]);
+  });
+
+  it('shows one open future near where you stand, the same all day, and never counts it as a reading', async () => {
+    // An old Futures radius of "anywhere" and the Loracle's ANYWHERE reach: the sign still stays near.
+    expect((await dara.put('/api/oracle/settings', { radiusKm: NO_LIMIT_KM })).status).toBe(200);
+    expect((await dara.put('/api/loracle/settings', { radiusKm: NO_LIMIT_KM })).status).toBe(200);
+    expect((await standAt(dara, 'Reykjavík', HOME)).status).toBe(200);
+
+    const res = await dara.get('/api/oracle/sign');
+    expect(res.status).toBe(200);
+    expect(res.body.home).toEqual({ label: 'Reykjavík' });
+    expect(res.body.readingId).toBeTruthy();
+    const future = res.body.future;
+    expect(future.status).toBe('open');
+    expect(future.title.length).toBeGreaterThan(3);
+    expect(future.emoji).toBeTruthy();
+    expect(Date.parse(future.startsAt)).toBeGreaterThan(Date.now());
+    expect(Math.max(...asked)).toBeLessThanOrEqual(250);
+    if (future.place) expect(future.place.distanceKm).toBeLessThanOrEqual(250);
+
+    // Asked again (and twice at once), it is the same sign.
+    const [again, twice] = await Promise.all([dara.get('/api/oracle/sign'), dara.get('/api/oracle/sign')]);
+    expect(again.body).toEqual(res.body);
+    expect(twice.body).toEqual(res.body);
+
+    // It is not the day's reading, and all three readings are still there to ask for.
+    expect((await dara.get('/api/oracle')).body.reading).toBeNull();
+    const reading = await dara.post('/api/oracle/readings', { mode: 'mixed' });
+    expect(reading.status).toBe(201);
+    expect(reading.body.readingsLeftToday).toBe(2);
+    expect((await dara.get('/api/oracle')).body.reading.id).toBe(reading.body.id);
+    expect((await dara.get('/api/oracle/sign')).body.readingId).toBe(res.body.readingId);
+  });
+
+  it('waves a sign away and shows the next, until the stones have nothing more today', async () => {
+    const first = (await dara.get('/api/oracle/sign')).body;
+    const seen = new Set<number>();
+    let sign = first;
+    while (sign.future) {
+      expect(seen.has(sign.future.index)).toBe(false);
+      seen.add(sign.future.index);
+      const res = await dara.post(`/api/oracle/readings/${sign.readingId}/futures/${sign.future.index}/dismiss`);
+      expect(res.status).toBe(200);
+      expect(res.body.mode).toBe('mixed');
+      sign = (await dara.get('/api/oracle/sign')).body;
+      expect(sign.readingId).toBe(first.readingId);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+    expect(seen.size).toBeLessThanOrEqual(3);
+
+    // Answered signs stay answered, even after a move.
+    expect((await standAt(dara, 'Far Away', { lat: 10, lon: 10 })).status).toBe(200);
+    const after = (await dara.get('/api/oracle/sign')).body;
+    expect(after).toEqual({ home: { label: 'Far Away' }, readingId: first.readingId, future: null });
+  });
+
+  it('turns a chosen sign into a plan only you can see, and keeps showing it as chosen', async () => {
+    await elin.post('/api/crews', { name: 'Night Owls', emoji: '🦉' });
+    expect((await standAt(elin, 'Reykjavík', HOME)).status).toBe(200);
+    const sign = (await elin.get('/api/oracle/sign')).body;
+    const { readingId, future } = sign;
+
+    // Someone else's sign is not theirs to answer.
+    for (const action of ['choose', 'dismiss', 'save']) {
+      expect((await finn.post(`/api/oracle/readings/${readingId}/futures/${future.index}/${action}`)).status).toBe(404);
+    }
+
+    const res = await elin.post(`/api/oracle/readings/${readingId}/futures/${future.index}/choose`, { crewId: null });
+    expect(res.status).toBe(201);
+    const eventId = res.body.futures.find((f: any) => f.index === future.index).eventId;
+    const event = await elin.get(`/api/events/${eventId}`);
+    expect(event.status).toBe(200);
+    expect(event.body.title).toBe(future.title);
+    expect(event.body.myRole).toBe('organizer');
+    expect(event.body.audience).toBe('participants');
+    expect((await finn.get(`/api/events/${eventId}`)).status).toBe(404);
+
+    const now = (await elin.get('/api/oracle/sign')).body;
+    expect(now.readingId).toBe(readingId);
+    expect(now.future).toMatchObject({ index: future.index, status: 'chosen', eventId });
+    // Choosing it didn't use up one of the day's readings either.
+    expect((await elin.post('/api/oracle/readings', {})).body.readingsLeftToday).toBe(2);
+  });
+
+  it('follows you when you move, if you have not answered it yet', async () => {
+    expect((await standAt(finn, 'Reykjavík', HOME)).status).toBe(200);
+    const here = (await finn.get('/api/oracle/sign')).body;
+    expect(here.future).not.toBeNull();
+
+    expect((await standAt(finn, 'Far Away', { lat: 10, lon: 10 })).status).toBe(200);
+    const there = (await finn.get('/api/oracle/sign')).body;
+    expect(there.home).toEqual({ label: 'Far Away' });
+    expect(there.readingId).not.toBe(here.readingId);
+    expect(there.future).toBeNull();
+    // The old sign is emptied (it still counts toward the day's deals): nothing in it to answer.
+    expect((await finn.post(`/api/oracle/readings/${here.readingId}/futures/0/dismiss`)).status).toBe(404);
+  });
+
+  it("says nothing (and keeps nothing) when the world doesn't answer, and tries again next time", async () => {
+    expect((await standAt(gus, 'Reykjavík', HOME)).status).toBe(200);
+    broken = true;
+    const quiet = await gus.get('/api/oracle/sign');
+    broken = false;
+    expect(quiet.status).toBe(200);
+    expect(quiet.body).toEqual({ home: { label: 'Reykjavík' }, readingId: null, future: null });
+
+    const later = (await gus.get('/api/oracle/sign')).body;
+    expect(later.readingId).toBeTruthy();
+    expect(later.future.status).toBe('open');
+  });
+
+  it('keeps the sign when consent, reach or the zone change: only where you stand deals it again', async () => {
+    const ivy = await t.signUp('ivy_');
+    expect((await standAt(ivy, 'Reykjavík', HOME)).status).toBe(200);
+    const first = (await ivy.get('/api/oracle/sign')).body;
+    expect(first.future).not.toBeNull();
+
+    expect((await ivy.post('/api/loracle/consent')).status).toBe(200);
+    expect((await ivy.put('/api/loracle/settings', { radiusKm: 120, timeZone: 'Atlantic/Reykjavik' })).status).toBe(200);
+    expect((await ivy.put('/api/oracle/settings', { radiusKm: 60 })).status).toBe(200);
+    expect((await ivy.del('/api/loracle/consent')).status).toBe(200);
+    expect((await ivy.get('/api/oracle/sign')).body).toEqual(first);
+  });
+
+  it('offers only moments still ahead, deals again once all have passed, and never makes a passed one a plan', async () => {
+    const jona = await t.signUp('jona');
+    expect((await standAt(jona, 'Reykjavík', HOME)).status).toBe(200);
+    const first = (await jona.get('/api/oracle/sign')).body;
+    const [row] = await t.db.select().from(oracleReadings).where(eq(oracleReadings.id, first.readingId));
+    const futures = row!.futures as Future[];
+    expect(futures.length).toBeGreaterThan(1);
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+    const pass = (indexes: number[]) =>
+      t.db
+        .update(oracleReadings)
+        .set({ futures: futures.map((f) => (indexes.includes(f.index) ? { ...f, startsAt: hourAgo, endsAt: null } : f)) })
+        .where(eq(oracleReadings.id, first.readingId));
+
+    // The moment on show has passed: the next one still ahead, from the same sign.
+    await pass([first.future.index]);
+    const next = (await jona.get('/api/oracle/sign')).body;
+    expect(next.readingId).toBe(first.readingId);
+    expect(next.future.index).not.toBe(first.future.index);
+    expect(Date.parse(next.future.startsAt)).toBeGreaterThan(Date.now());
+    // The passed one can't become a plan.
+    const late = await jona.post(`/api/oracle/readings/${first.readingId}/futures/${first.future.index}/choose`, { crewId: null });
+    expect(late.status).toBe(400);
+    expect(late.body.error.message).toBe('That moment has passed.');
+
+    // Every moment has passed and none was answered: a fresh sign, with a moment ahead.
+    await pass(futures.map((f) => f.index));
+    const fresh = (await jona.get('/api/oracle/sign')).body;
+    expect(fresh.readingId).not.toBe(first.readingId);
+    expect(Date.parse(fresh.future.startsAt)).toBeGreaterThan(Date.now());
+  });
+
+  it('deals at most three signs in a day, however often you move', async () => {
+    const kai = await t.signUp('kai_');
+    const stops = [HOME, { lat: 64.2, lon: -21.9 }, { lat: 64.3, lon: -21.8 }, { lat: 64.4, lon: -21.7 }];
+    const ids: string[] = [];
+    for (const [i, at] of stops.entries()) {
+      expect((await standAt(kai, `Stop ${i}`, at)).status).toBe(200);
+      const sign = (await kai.get('/api/oracle/sign')).body;
+      expect(sign.home).toEqual({ label: `Stop ${i}` });
+      ids.push(sign.readingId);
+    }
+    expect(new Set(ids.slice(0, 3)).size).toBe(3);
+    // The fourth move keeps the third sign: each deal is a full draw, so a day has three at most.
+    expect(ids[3]).toBe(ids[2]);
+    // The ones it replaced were emptied, so there's nothing in them to answer.
+    expect((await kai.post(`/api/oracle/readings/${ids[0]}/futures/0/dismiss`)).status).toBe(404);
+  });
+
+  it("follows the Lorer's own day, not the server's", async () => {
+    const leah = await t.signUp('leah');
+    const home = { label: 'Reykjavík', ...HOME, country: 'IS' };
+    expect((await leah.put('/api/loracle/settings', { home, timeZone: 'Pacific/Honolulu' })).status).toBe(200);
+    // Honolulu is UTC−10 all year, so its midnight is 10:00 UTC. Take one two days ahead.
+    const real = new Date();
+    const midnight = Date.UTC(real.getUTCFullYear(), real.getUTCMonth(), real.getUTCDate() + 2, 10);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(midnight - 30 * 60_000); // 23:30 in Honolulu
+      const late = (await leah.get('/api/oracle/sign')).body;
+      expect(late.future).not.toBeNull();
+
+      vi.setSystemTime(midnight - 15 * 60_000); // 23:45, the same day there
+      expect((await leah.get('/api/oracle/sign')).body.readingId).toBe(late.readingId);
+
+      vi.setSystemTime(midnight + 5 * 60_000); // 00:05, a new day there (still the same UTC day)
+      const next = (await leah.get('/api/oracle/sign')).body;
+      expect(next.readingId).not.toBe(late.readingId);
+      expect(next.future).not.toBeNull();
+      // Neither sign was one of that day's readings.
+      expect((await leah.post('/api/oracle/readings', {})).body.readingsLeftToday).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

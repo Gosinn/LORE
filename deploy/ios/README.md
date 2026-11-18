@@ -94,8 +94,10 @@ be handled within 24 hours.
     like "a bad left knee")
   - Other Data: **Other Data Types** (The Loracle's optional age band, money and time answers, and
     passport country)
-  - Location: **Coarse Location** (where you stand in The Loracle, which people type in themselves; its
-    town and country now also go to Anthropic with a wish)
+  - Location: **Coarse Location** (where you stand in The Loracle and Home's daily sign: a town people
+    type, or the device's location rounded to two decimals, about a kilometre, on the device before it is
+    sent; Info.plist asks for reduced accuracy by default. Its town and country also go to Anthropic with
+    a wish)
   - Identifiers: **User ID**
 - Not collected: payment info (Apple handles it), contacts, browsing history, precise location,
   diagnostics, advertising data.

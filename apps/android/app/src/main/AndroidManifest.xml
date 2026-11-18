@@ -38,4 +38,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- "Where do you stand?" (sign-up, Home): the WebView asks for a rough location, and the page rounds it
+         to about a kilometre before it leaves the device. Capacitor's WebView asks for coarse AND fine, and
+         accepts a coarse-only answer only on Android 12 and newer (where people can pick "Approximate").
+         On Android 7 to 11 it needs fine too, or "Allow" still ends as "denied". So fine is declared only up
+         to API 30, where Android has no approximate option; on 12+ the app stays coarse-only. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

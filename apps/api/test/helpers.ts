@@ -16,6 +16,7 @@ export const quietWorld: WorldData = {
   forecast: async () => null,
   kp: async () => [],
   geocode: async () => [],
+  reverse: async () => null,
 };
 
 /** A 1×1 PNG, for upload tests. */

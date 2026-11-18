@@ -82,8 +82,19 @@ stay ideas, events can end without a chapter.
 
 `WorldData` is injected through `AppContext`; tests pass a fake world, so they never touch the network.
 
-Since D31 the web app no longer shows the Futures above; their routes, tables and `lib/oracle.ts` stay for
-exports. **The Loracle** (wishes) replaced them on `/oracle`:
+Since D31 the web app no longer shows the Futures above on `/oracle`; their routes, tables and
+`lib/oracle.ts` stay for exports and for **the daily sign** (D32): `GET /oracle/sign` deals one mixed reading
+a day around the Lorer's home (within `min(radius_km, 250)` km), kept in `oracle_readings` with
+`mode = 'sign'`. It never counts toward the three readings a day, `GET /oracle` never returns it, and it reads
+back as `'mixed'`; Home's Loracle door shows its first open future still ahead (or the one chosen today) and
+answers it with the usual `POST /oracle/readings/:id/futures/:index/choose | dismiss` (choose refuses a moment
+that has passed, and a plan's description names the place but not its distance from home). While nothing in
+it is answered, it is dealt again when the Lorer says where they stand (`oracle_settings.home_set_at`, by
+the app's clock; consent, reach and the rest don't count) or once every moment in it has passed: at most
+three deals in the Lorer's day. A replaced sign is emptied (`futures = []`), not deleted, so it still counts.
+`GET /oracle/sign` is limited to 30 a minute per Lorer. `GET /oracle/reverse` (`world.reverse`, Nominatim reverse at town level, point
+rounded to two decimals) names the town at the device's location for "Where do you stand?"
+(`/welcome/where`). **The Loracle** (wishes) replaced the Futures on `/oracle`:
 
 ```
  web /oracle ──POST /api/loracle/wishes──> routes/loracle.ts
@@ -147,13 +158,13 @@ Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` ar
 | `comments` | Discussion threads | exactly one of event / idea / chapter |
 | `notifications` | In-app notifications | title rendered at creation, `href` to open |
 | `notes` | Notes to self and reminders | private to the owner; `remind_at` makes it a reminder; optional `event_id` |
-| `oracle_settings` | The Oracle / Loracle: the stone's questions | private; home label (town-level) + rounded coordinates + `home_country` (ISO-2), `loracle_reach_km` (the Loracle's reach; null = ANYWHERE), `time_zone`, `loracle_context` (age band, money, time, body, tongues, passport, callings), `loracle_consent_at`; `radius_km` and `interests[]` are the old Futures' |
+| `oracle_settings` | The Oracle / Loracle: the stone's questions | private; home label (town-level) + rounded coordinates + `home_country` (ISO-2), `loracle_reach_km` (the Loracle's reach; null = ANYWHERE), `time_zone`, `loracle_context` (age band, money, time, body, tongues, passport, callings), `loracle_consent_at`, `home_set_at` (when the home was last said, for the daily sign); `radius_km` and `interests[]` are the old Futures' |
 | `wishes` | The Loracle: a Lorer's wish | private to the Lorer, cascades with the account; `text`, `text_key` (same wish today), snapshot of `context` and `realm`, local `day`, status `listening` / `moon` / `revealed` / `faded` / `silent` / `fulfilled` / `released`; `weighing` and `ledger` are server-only |
 | `wish_roads` | The quest drawn for a wish (one per wish in phase A) | status `queued` → `searching` → `drawing` → `sealing` → `ready` → `drawn` (or `faded` / `silent`); `signs[]` for the wait; `quest` (JSON scroll); `run_id` + `heartbeat_at` guard the job; `attempts`, `failure`, `retried_on` (one "Try again" a day), `this_week_reminder_id` |
 | `wish_waypoints` | The waypoints of a road | position, kind, emblem, when/at, place/town/country + pin (`precision`), clue, trial, keeper, earns, steps, mystery; `seal_broken_at`, `inked_at`/`inked_on`/`note`; links to the event, idea, chapter and reminder that came of it (set null when those go) |
 | `loracle_spend` | One row per model request | stage, outcome, model, tokens, searches, fetches, `cost_micros`, `road_id` (no foreign key: a burn never refunds the hidden limit); **no text**; user and wish set null on delete so the month's spend survives burns and account deletion |
-| `oracle_readings` | The Oracle: what the stones showed | private; local `day` (for the 3-a-day limit), `mode`, `futures` (JSON, with each future's status and resulting event/idea) |
-| `world_cache` | Cached open-data answers | places, weather, Kp, place search; stale data is used when a service is down |
+| `oracle_readings` | The Oracle: what the stones showed | private; local `day` (for the 3-a-day limit), `mode`, `futures` (JSON, with each future's status and resulting event/idea). `mode = 'sign'` is Home's daily sign (D32): never counted, never returned by `GET /oracle` |
+| `world_cache` | Cached open-data answers | places, weather, Kp, place search, town at a point (two decimals); stale data is used when a service is down |
 
 Integrity is enforced in the database too: enums, `CHECK` constraints (audiences per table, end after start,
 one comment target, photo contributions need media), unique indexes, and foreign keys with explicit delete
@@ -224,19 +235,31 @@ hides each person from the other's search and profile, and stops requests and in
 Photos are resized on the device before upload, which also strips EXIF metadata such as GPS location.
 The server identifies file types from their bytes, not from what the client claims.
 
+Where the Lorer stands (D32) is asked for once, after sign-up, and only with their yes: the device's point is
+rounded to two decimals (about a kilometre) before it leaves the phone, the server rounds again before asking
+Nominatim, and it is stored only as the private home in `oracle_settings`. Android declares
+`ACCESS_COARSE_LOCATION`, and `ACCESS_FINE_LOCATION` only up to API 30 (`maxSdkVersion`): Capacitor's WebView
+asks for both and accepts a coarse-only answer only on Android 12+, so without fine, "Allow" ends as denied on
+Android 7 to 11, which have no approximate choice. iOS has `NSLocationWhenInUseUsageDescription` and
+`NSLocationDefaultAccuracyReduced` (the prompt defaults to Approximate). All of it takes effect in the next
+native build (not verified on a device). On the phone's back button, a page with no history behind it (such
+as "Where do you stand?" right after sign-up, which replaced Welcome) leaves the app.
+
 ## 6. Navigation
 
 Five primary destinations (brief part II), as a bottom tab bar on phones and a side rail on wide screens:
 
 | Tab | Screen | Contextual routes from here |
 |---|---|---|
-| Home | `/`: needs your answer, coming up, still being planned, write it down, crews, ideas worth doing, on this day, recent lore. Finite, and ends with "That's everything." | events, ideas, chapters, crews, Idea Vault |
+| Home | `/`: the Loracle door (today's sign near where you stand, or "Where do you stand?"), needs your answer, coming up, still being planned, write it down, crews, ideas worth doing, on this day, recent lore. Finite, and ends with "That's everything." | events, ideas, chapters, crews, Idea Vault, `/oracle`, `/welcome/where` |
 | Calendar | `/calendar`: month and agenda views; LORE and personal layers | new event on a day, personal entries |
 | Create | `/create`: plan something, save an idea, write a chapter, start a crew | forms |
 | Lorebook | `/lorebook`: timeline by year, crew and year filters, search | chapters |
 | Profile | `/profile`: picture, bio, friends, crews, my lore, settings | `/friends`, `/u/:username` |
 
-The notifications bell sits in the top bar everywhere. Crews (`/crews/:id`) are workspaces holding the crew
+Outside the tabs: `/welcome` (sign in, create account) and `/welcome/where` ("Where do you stand?", the step a
+new account takes before Home: device location, recommended and rounded to about a kilometre, or a town by
+name, or Later). The notifications bell sits in the top bar everywhere. Crews (`/crews/:id`) are workspaces holding the crew
 calendar, Idea Vault and Lorebook, reached from Home, Profile and anything tagged with the crew. Only
 built features are shown; nothing in the UI points at future phases.
 
@@ -286,7 +309,12 @@ LORE APP/
    └─ src/
       ├─ main.tsx, router.tsx
       ├─ lib/              api.ts, queries.ts (data hooks), dates.ts, images.ts, theme.ts
-      ├─ components/       AppShell, ui, cards, pickers, CommentThread
-      ├─ pages/            one file per screen
-      └─ styles/app.css    design tokens (light "Paper", dark "Campfire") and components
+      ├─ components/       AppShell, ui, cards, pickers, CommentThread, compass (CompassRose)
+      ├─ pages/            one file per screen (WhereYouStand: the location step after sign-up)
+      └─ styles/
+         ├─ app.css        base tokens, the retired looks (Paper, Campfire, Match device, Crazy; kept, D32),
+         │                 the components and the Loracle's stone and scrolls
+         ├─ map.css        the Treasure Map, the only offered look (D32). Every rule is guarded off while
+         │                 the Loracle is open, so stone stays inside the Loracle
+         └─ sign.css       Home's daily sign on the Loracle door, and "Where do you stand?"
 ```

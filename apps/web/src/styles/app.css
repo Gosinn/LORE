@@ -2,6 +2,7 @@
    Paper and ink by day, campfire by night. One accent (ember) for action,
    one (fjord) for places and planning, one (gold) for lore and memory. */
 
+/* Paper (retired 2026-11-18, D32). Also the base the Treasure Map (styles/map.css) overrides. */
 :root {
   --font-display: 'Fraunces Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-ui: 'Instrument Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -35,8 +36,9 @@
   color-scheme: light;
 }
 
+/* RETIRED (D32): Campfire and Match device. Kept; offered again when its name is back in THEMES (lib/theme.ts). */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme='light']):not([data-theme='map']) {
     --bg: #12100d;
     --surface: #1c1915;
     --surface-2: #27221c;
@@ -60,6 +62,7 @@
     color-scheme: dark;
   }
 }
+/* RETIRED (D32): Campfire and Match device. Kept; offered again when its name is back in THEMES (lib/theme.ts). */
 :root[data-theme='dark'] {
   --bg: #12100d;
   --surface: #1c1915;
@@ -1545,6 +1548,9 @@ details.more-options[open] > summary::before {
    all off for reduced motion. The Loracle is wishes only: Speak (the well), the wait (ink), the
    scroll (map, waypoints under wax, provisions) and the quest log; the old Futures are gone. */
 
+/* Shared world (map + Loracle): fonts, parchment, wax, ink, glow, dusk, fleuron, ribbon. Stone (Loracle only):
+   wall, stone-*, edge, carve-*, moss, lichen, grain-stone, block-*, well, engraved, pebble,
+   tex-masonry/runes/moss/crack, wall-stack. */
 :root {
   --font-carved: 'Cinzel', 'Trajan Pro', Georgia, serif;
   --font-scroll: 'IM Fell English', 'Iowan Old Style', Georgia, serif;
@@ -4946,6 +4952,9 @@ body:has(.oracle-page) {
 
 /* --- Home: the way in, a small standing stone ---------------------------------------------- */
 
+/* RETIRED (D32): stone stays inside the Loracle. Home now uses .loracle-door (styles/map.css). Kept so the
+   stone door can come back by restoring the old markup (commit 671c2bc). */
+
 .oracle-teaser {
   position: relative;
   isolation: isolate;
@@ -5127,6 +5136,7 @@ body:has(.oracle-page) {
   }
 }
 
+/* RETIRED (D32): Crazy. Kept; offered again when its name is back in THEMES (lib/theme.ts). */
 /* ------------------------------------------------------------------ CRAZY
    Bright, solid colour everywhere. Every part of the page (sections, cards,
    chips, buttons, tabs, calendar days…) is a block of one vivid colour, and

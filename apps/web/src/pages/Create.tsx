@@ -10,7 +10,8 @@ const OPTIONS = [
     icon: Flame,
     title: LORACLE_LINES.createTitle,
     text: LORACLE_LINES.createText,
-    tone: ['#221a3d', '#ffb36b'],
+    // A small dusk sky with the fire's glow: the threshold to the stones, without stone.
+    tone: ['var(--dusk-sky)', 'var(--glow)'],
   },
   {
     to: '/events/new',
@@ -55,7 +56,7 @@ export function CreatePage() {
       <TopBar title="Create" />
       <div className="create-grid">
         {OPTIONS.map((o) => (
-          <Link key={o.to} to={o.to} className="create-tile">
+          <Link key={o.to} to={o.to} viewTransition={o.to === '/oracle'} className="create-tile">
             <span className="icon" style={{ background: o.tone[0], color: o.tone[1] }}>
               <o.icon size={22} />
             </span>

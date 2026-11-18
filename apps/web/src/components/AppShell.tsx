@@ -31,6 +31,12 @@ export function AppShell() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
+  // The browser bar matches the page: the look's own paper (--bg; map paper today), or stone in the temple.
+  useEffect(() => {
+    const temple = location.pathname === '/oracle' || location.pathname.startsWith('/oracle/');
+    const paper = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#efe3c8';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', temple ? '#24211e' : paper);
+  }, [location.pathname]);
 
   if (me.isLoading) return <Loading />;
   if (!me.data) return <Navigate to="/welcome" replace state={{ from: location.pathname }} />;
@@ -47,7 +53,14 @@ export function AppShell() {
               <Plus size={18} /> Create
             </NavLink>
           ) : (
-            <NavLink key={item.to} to={item.to} end={'end' in item} className={({ isActive }) => `rail-link${isActive ? ' active' : ''}`}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={'end' in item}
+              // The step into the temple cross-fades (styles/map.css); every other link is instant.
+              viewTransition={item.to === '/oracle'}
+              className={({ isActive }) => `rail-link${isActive ? ' active' : ''}`}
+            >
               {item.to === '/profile' ? <Avatar user={me.data!} size="sm" /> : <item.icon size={20} />}
               {item.label}
             </NavLink>

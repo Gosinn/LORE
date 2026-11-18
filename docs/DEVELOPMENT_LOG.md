@@ -1,5 +1,141 @@
 # LORE — Development log
 
+## 2026-11-18 (evening) — The Treasure Map, the daily sign and "Where do you stand?" (D32)
+
+The owner asked to retire the older themes (not delete them), make the new look present everywhere, keep
+stone for the Loracle only, and keep Home's little suggestion, near the Lorer if they allow it, with location
+recommended when the account is set up. Built in two parallel passes, then joined and checked together.
+
+**The look**
+
+- **Retired, kept.** `lib/theme.ts` offers `THEMES = ['map']`; Paper, Campfire, Match device and Crazy sit in
+  `RETIRED_THEMES` with their CSS untouched (app.css only gained "RETIRED" comments and one `:not()` so the
+  dark block never meets the map). A stored retired choice loads as the map and is not overwritten
+  (`applyTheme` no longer saves; `chooseTheme` does). `stopCrazy` now clears its paint. Profile → Appearance
+  lists `THEMES`: one pressed "Treasure Map" chip and a line saying the older looks are rolled up in the archive.
+- **`styles/map.css` (new, after app.css):** the tokens (AA contrast by the WCAG formula, not yet measured on
+  screenshots) and the shared pieces: neatline vellum cards, vermilion-wax primary buttons, outlined danger,
+  map-label chips with a tick when selected, stamped pills, index tabs, calendar-leaf date tiles, inked
+  tick-boxes, dotted ledger rows and section trails, brass medallion avatars and crew emoji, a swallowtail
+  pennant on CrewPage/CrewForm, dashed "uncharted" ideas, the Lorebook trail with an X at each year, mounted
+  chapter photos (taped on desktop), margin-note quotes, paper-slip comments, a wax-seal sheet handle, Cinzel
+  calendar with a hand-drawn today ring and diamond/round dots. The tab bar is a leather strap with brass
+  stitching, a glowing X under the active tab and a brass compass for Create; the desktop rail is the map
+  case's spine with a parchment bookmark for the current page. Cinzel and IM Fell English now load from
+  `main.tsx`. map.css is 43.7 kB unminified (about 10 kB gzipped), over the spec's ~20 kB guideline, because the
+  guard is written out on every selector.
+- **Stone stays in the Loracle.** Every map rule carries the guard
+  `:where(html[data-theme='map'] body:not(:has(.oracle-page)))`; the temple pins radius, shadows and avatar
+  colours back. The three ways in (Home's door, the Create tile, the rail link) cross-fade with a view
+  transition (off for reduced motion). The browser's theme-color is paper on map screens and stone in the
+  temple. The Create menu's Loracle tile is a small dusk sky with the fire's glow. The Loracle's own files
+  (`pages/Oracle.tsx`, `components/oracle.tsx`, `components/loracle.tsx`, the ORACLE section of app.css) are
+  untouched, apart from one comment in that section naming which variables are shared and which are stone;
+  `components/oracle.tsx` still imports Cinzel and IM Fell itself, a harmless duplicate of
+  `main.tsx`'s imports (one copy in the build).
+- **Native/PWA colours:** `index.html` (`data-theme="map"`, theme-color `#efe3c8`), the manifest, the splash
+  (`#efe3c8`) and the reminder notification icon (`#A3301A`). The splash and icon colours only change in a newly
+  built APK/AAB.
+- **Home and Welcome:** Home's stone teaser is now the Loracle door, the torn edge of the map with dusk and the
+  stones' silhouette (no rune band; its old CSS is kept); the page ends with a `CompassRose`
+  (`components/compass.tsx`). Welcome has a faint compass rose behind it and a dotted trail ending in an X.
+- **Left for the owner (DECISIONS Q9):** "Here be dragons" on Not Found, a "Lore maker" kicker on Profile,
+  "Provisions" for the packing list.
+
+**The daily sign on Home** (`GET /oracle/sign`, `OracleSign` in `types.ts`, `styles/sign.css`)
+
+- No home yet: the door asks "Where do you stand?" and links to `/welcome/where`.
+- Otherwise the first ask of the Lorer's day deals one mixed reading from the Futures engine around their home,
+  kept as an `oracle_readings` row with `mode = 'sign'`. It never counts toward the three
+  readings a day, never appears in `GET /oracle`, and reads back as `'mixed'`. It looks within
+  `min(radius_km, 250)` km, never the Loracle's ANYWHERE reach. The door shows the first open future (or the
+  one chosen today) with when and where ("Tomorrow · 22:30 · Old Light, 52 km"): "Choose it" makes a plan
+  only the Lorer sees (`crewId: null`) and opens it; "Not this one" shows the next, until there is none.
+- Saying where you stand again before answering deals it again (see the review fixes below for what counts);
+  a failing weather or places service stores nothing and is asked again next time; two requests at once share
+  one dealing. `POST /oracle/readings`
+  now shares the gathering code (`draw()`) with the sign; its behaviour is unchanged.
+- `PUT /oracle/settings` now clears `home_country` when the home moves (a moved home kept its old country).
+- While the sign is being dealt, or when nothing is near, the door is the plain way into the circle.
+
+**"Where do you stand?"** (`pages/WhereYouStand.tsx`, route `/welcome/where`)
+
+- A new account goes here before Home (a `?next=` inside the app is kept). "Allow location (recommended)"
+  rounds the point to two decimals (about a kilometre) on the device; or a town by name (`/oracle/geocode`);
+  or Later. It saves the Loracle's home (`PUT /loracle/settings` with the time zone).
+- The town at the point comes from the new `GET /oracle/reverse` (`world.reverse`: Nominatim reverse at town
+  level, cached 30 days, the point rounded to two decimals on the server too). With no town named the home is
+  "Near me".
+- **Fix found while joining the two passes:** the Loracle looked up a country-less home by its *label*, so a
+  "Near me" home could have been renamed to a far-away "Near me" and given the wrong country. `realmOf`
+  (`routes/loracle.ts`) now asks for the town at the home's own point first, and accepts a match by name only
+  within 100 km of it; otherwise it asks where the Lorer stands, as before.
+- Native: `ACCESS_COARSE_LOCATION` (and optional `uses-feature`s) in the Android manifest,
+  `NSLocationWhenInUseUsageDescription` in iOS `Info.plist`. Both need a new native build; a live update
+  doesn't carry them. Until then "Allow location" is refused and the page falls back to the town search.
+
+**Review fixes (same evening)**
+
+- **Android 7 to 11 could never allow location.** Capacitor's WebView asks for coarse *and* fine and accepts
+  coarse alone only on Android 12+; without fine declared, "Allow" ended as "denied". The manifest now
+  declares `ACCESS_FINE_LOCATION` with `maxSdkVersion="30"` (Android 11 and older have no approximate
+  choice); 12+ stays coarse-only, and the page still rounds to ~1 km. iOS gained
+  `NSLocationDefaultAccuracyReduced` (the prompt defaults to Approximate). Not verified on a device.
+- **The daily sign offered moments that had passed**, and "Choose it" made plans in the past. Only moments
+  still ahead are shown now; choose refuses a passed one ("That moment has passed."); an unanswered sign whose
+  moments have all passed is dealt again.
+- **The sign was dealt again by unrelated writes** (consent, reach and context all
+  bumped `updated_at`; the first home's `updated_at` also came from the database clock while the sign's came
+  from the app's). New column `oracle_settings.home_set_at` (migration `0008_sign_home_set_at`), set by the
+  app's clock only when a home is saved (`PUT /loracle/settings`, `PUT /oracle/settings`); the sign compares
+  with it. Interests no longer re-deal it (nothing in the web app edits them now).
+- **The engine could be driven without limit** (alternate a home move and `GET /oracle/sign`). The sign is now
+  dealt at most three times in a Lorer's day (a replaced sign is emptied, `futures = []`, not deleted, so it
+  still counts), and `GET /oracle/sign` is limited to 30 a minute per Lorer.
+- **A chosen sign's plan told invitees the home's distance** ("Where: X, 52 km from home." next to the place's
+  coordinates). The description now names the place only.
+- **Privacy Policy:** says the device's location may be read (rounded on the device, only after the device
+  asks), that each day's sign is kept with the readings and is in the download, and that Nominatim also gets
+  the rounded point. deploy/ios/README.md's Coarse Location answer and a Play Data safety note (ROADMAP)
+  match it.
+- **Map look, accessibility:** focus on text fields is now a 2px vermilion ring (it was only a change of hue,
+  1.4:1), including the Lorebook and Friends searches, which had none (`label.input:focus-within`); every
+  other native control is vermilion (`accent-color`), and the report sheet's "Also block" is an inked
+  tick-box. "Where do you stand?" announces search results and the location note through live regions that are
+  always in the page; town results stay usable while the location prompt is open, and a 30 s watchdog ends a
+  prompt the browser never answers. "Not this one" on Home moves focus to the next sign's line (or the plain
+  door) instead of dropping it.
+- **Map look, layout:** a calendar day shows at most four marks (they spilled into neighbouring days at 360 px:
+  up to three plans, then your own entries and reminders); the today ring no longer reaches into the dots'
+  gap. Long words in the door break instead of hiding under the sky. Chapter pages (story, accounts, quotes)
+  are plain paper without the graticule, as spec 7.1 says. Welcome's and "Where do you stand?"'s titles speak
+  in IM Fell, like the greeting. The voice font falls back to Fraunces (latin-ext) for letters IM Fell lacks
+  ("Łukasz"), via a map-only `--font-voice`; `--font-scroll`, which the Loracle uses, is unchanged.
+- **Native back button:** with no history behind the page (as on "Where do you stand?" right after sign-up)
+  it now leaves the app instead of doing nothing.
+- **Bringing an old look back:** the browser bar follows the look's `--bg` (not a fixed paper colour), and
+  `lib/theme.ts` and D32 now say to drop `data-theme="map"` from `index.html` too.
+- **Left as is:** the desktop rail's Loracle icon stays Sparkles (the rail shows inside the Loracle, which must
+  look as it did); added to DECISIONS Q9 for the owner.
+
+**Checks**
+
+- `npm run typecheck`: passes (shared, api, web).
+- `npm test`: 15 files, 231 tests passed (`oracle.test.ts` 38, with 10 for the daily sign, including local
+  midnight in Honolulu, the deal cap, passed moments and unrelated settings writes, and 1 for
+  `/oracle/reverse`; `loracle.test.ts` gained the "Near me" realm test).
+- `npm run build`: passes. One CSS file, 131.7 kB (26.3 kB gzipped); 14 woff2 files, as before; "Where do you
+  stand?" is its own lazy chunk (5.0 kB). map.css is 43.7 kB unminified.
+- Stone audit (the spec's `rg` for stone tokens and components): hits only in `styles/app.css` lines
+  1552–5010 (the ORACLE section and the retired teaser), `pages/Oracle.tsx` and `components/loracle.tsx`; none in
+  `map.css`, `sign.css`, Home or Welcome. `git diff` shows no change to the Loracle's files, and app.css's diff is
+  comments plus the one `:not([data-theme='map'])`.
+- **Not verified (nothing was opened in a browser or on a phone):** the before/after screenshots proving the
+  Loracle unchanged, the wordmark needle centred in the O, the compass Create button, the today ring at 320 px,
+  þ ð æ ö in Cinzel and IM Fell, the door with and without a sign at 320 px, the Where-you-stand page,
+  Nominatim's reverse answer on the live server, location on Android and iOS, the splash and notification
+  colours, status-bar icons, and scrolling on the test phone (spec 8.2 to 8.7).
+
 ## 2026-11-18 (later still) — The Loracle: review fixes
 
 A review of phase A found holes in safety, money and the owner's wishes. Fixed:

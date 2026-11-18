@@ -22,9 +22,11 @@ export async function setupNativeShell(router: MinimalRouter) {
   // fails to get this far, the updater rolls back to the previous build by itself.
   await CapacitorUpdater.notifyAppReady().catch(() => undefined);
 
-  // Android back button: go back inside the app; on Home, leave it.
-  await App.addListener('backButton', () => {
-    if (ROOTS.has(router.state.location.pathname)) void App.exitApp();
+  // Android back button: go back inside the app; on Home, or with nowhere to go back to, leave it.
+  // (Right after sign-up, "Where do you stand?" replaced Welcome, so it is the only page in the history;
+  // reached from Home's door it isn't, and back returns to Home.)
+  await App.addListener('backButton', ({ canGoBack }) => {
+    if (!canGoBack || ROOTS.has(router.state.location.pathname)) void App.exitApp();
     else void router.navigate(-1);
   });
 

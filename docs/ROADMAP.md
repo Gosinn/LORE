@@ -30,7 +30,7 @@ exercised in the browser with demo data.
 | 16 | Collaborative chapter contributions | ✅ | stories, quotes with speaker and context, photos; own-edit, organizer moderation |
 | 17 | Basic notifications | ✅ | in-app, collapsing, unread badge. No push or email yet. |
 | 18 | Privacy and permissions | ✅ | audiences + roles enforced in SQL on the server; 14 privacy tests |
-| 19 | Responsive interface | ✅ | phone tab bar, desktop side rail, light and dark themes, installable PWA |
+| 19 | Responsive interface | ✅ | phone tab bar, desktop side rail, one look, the Treasure Map (older looks retired, kept; D32), installable PWA |
 
 **Phase 1 gaps to close before real users** (in order):
 
@@ -55,7 +55,7 @@ exercised in the browser with demo data.
 | `node tools/android.mjs release --api https://…`: signed APK + AAB | ✅ 0.1.0 and 0.2.0 built for the live server |
 | Live updates: web changes reach installed apps without a new APK | ✅ server side tested (zip, checksum, `unzip -t`); on-phone update not yet observed |
 | Run on a real phone (layout under system bars, sign-in, photos) | ⬜ owner's phone |
-| Google Play listing (developer account is a one-time $25) | ⬜ |
+| Google Play listing (developer account is a one-time $25). Data safety must declare **Approximate location** (App functionality; the device's point rounded to ~1 km before it leaves, or a typed town), as deploy/ios/README.md does for Apple. The manifest declares fine location only up to Android 11 (API 30), where Android has no approximate choice | ⬜ |
 | iOS project (`apps/ios`), LORE icon and splash, live updates, `tools/ios.mjs prepare` | ✅ generated and synced on Windows; not yet built (needs Xcode) |
 | Cloud iPhone build → TestFlight (`.github/workflows/ios.yml`) | 🟡 written, not run: waits for the owner's Apple Developer account (deploy/ios/README.md) |
 | App Store rules: report + block, moderation screen (24 h), Terms agreed at sign-up, Privacy Policy, Help & contact page, App Privacy answers | ✅ 11 tests; report, moderation, public pages and sign-up checked in the browser |
@@ -79,6 +79,9 @@ exercised in the browser with demo data.
 | Loracle: owner sets `ANTHROPIC_API_KEY` (Render), a Console spend limit, and runs the live eval (`node tools/loracle-eval.mjs --yes`, est. US$15–25, unverified) and reads the scrolls | ⬜ owner |
 | Loracle: crisis lines, emergency numbers, Icelandic care phrases and the Anthropic consent/privacy wording checked by a person | ⬜ before release |
 | Loracle phase B/C: Ask deeper, Ask again, a dawn lane (batches), crew quests | ⬜ later |
+| **The Treasure Map** (D32): one look across the app (map paper, leather chrome, brass compass Create); the older looks retired, kept; stone only inside the Loracle | 🟡 typecheck and build pass; stone audit clean. **Not verified:** nothing looked at in a browser or on a phone, including the before/after check that the Loracle is unchanged |
+| **The daily sign on Home** (D32): one small future a day near where you stand, on the Loracle door; Choose it (a private plan) / Not this one; never counts as a reading, stays within 250 km; only moments still ahead; dealt again after a move or once all its moments passed, at most 3 deals a day | 🟡 API tested (`oracle.test.ts`, "the daily sign", incl. local midnight in Honolulu); the door not looked at in a browser |
+| **"Where do you stand?" at sign-up** (D32): location recommended (rounded to ~1 km), or a town by name, or Later; the town at a point from `GET /oracle/reverse` | 🟡 reverse endpoint and the "Near me" realm lookup tested with a fake world. **Not verified:** the page in a browser, Nominatim's live reverse answer, location permission on Android/iOS (needs a new native build) |
 | **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |
 | More signs: tides, opening hours, events happening nearby, sunset/golden hour | ⬜ |
 

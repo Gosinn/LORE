@@ -16,6 +16,7 @@ import { useMe, useUnreadCount } from '../lib/queries.ts';
 
 // ---------------------------------------------------------------- avatars
 
+// The retired looks' colours, used as the fallback. The Treasure Map sets --avatar-0..6 (styles/map.css).
 const AVATAR_COLORS = ['#1d5c58', '#d4461d', '#a87a12', '#6b4fa0', '#2f6db3', '#8a3d5c', '#3f7d3a'];
 
 export function Avatar({ user, size = 'md' }: { user: Pick<UserSummary, 'displayName' | 'avatarUrl' | 'id'>; size?: 'sm' | 'md' | 'lg' | 'xl' }) {
@@ -29,8 +30,9 @@ export function Avatar({ user, size = 'md' }: { user: Pick<UserSummary, 'display
     .join('')
     .slice(0, 2)
     .toUpperCase();
+  const i = Math.abs(hash) % AVATAR_COLORS.length;
   return (
-    <span className={cls} style={{ background: AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] }} aria-hidden>
+    <span className={cls} style={{ background: `var(--avatar-${i}, ${AVATAR_COLORS[i]})` }} aria-hidden>
       {initials}
     </span>
   );

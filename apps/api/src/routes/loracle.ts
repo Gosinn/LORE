@@ -99,6 +99,8 @@ const WEIGH_LATE_MS = 5_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** The same limit as a cast, for "Try again". */
 const CAST_RATE = { max: 10, timeWindow: '1 minute' } as const;
+/** A realm's label looked up by name counts only within this distance of the realm's own point. */
+const REALM_NAME_KM = 100;
 
 /** What /api/health and GET /loracle say about the stone's mind. */
 export const mindState = (mind: LoracleMind | undefined): LoracleMindState =>
@@ -353,15 +355,20 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
   }
 
   /**
-   * "Where do you stand?": the realm's label and country. A realm set before the Loracle (no
-   * country yet) is looked up once, and its label becomes the town the geocoder names (never a
-   * street: lib/world.ts gives town-level labels only).
+   * "Where do you stand?": the realm's label and country. A realm set without a country (before
+   * the Loracle, or from the device's location when no town was named) is looked up once: first the
+   * town at the realm's own point, then its label by name, and its label becomes the town the
+   * geocoder names (never a street: lib/world.ts gives town-level labels only). A name found far
+   * from the realm's point is another place ("Near me" is not a town): the realm is never moved there.
    */
   async function realmOf(me: string, row: SettingsRow | undefined): Promise<{ label: string; country: string }> {
     if (!row?.homeLabel || row.homeLat == null || row.homeLon == null) throw realmNeeded();
     if (row.homeCountry) return { label: row.homeLabel, country: row.homeCountry };
     const { homeLat, homeLon } = row;
-    const found = await world.geocode(row.homeLabel).catch(() => []);
+    const here = await world.reverse(homeLat, homeLon).catch(() => null);
+    const found = here?.country
+      ? [here]
+      : (await world.geocode(row.homeLabel).catch(() => [])).filter((f) => distanceKm(homeLat, homeLon, f.lat, f.lon) <= REALM_NAME_KM);
     const nearest = found
       .filter((f) => f.country && /^[A-Za-z]{2}$/.test(f.country))
       .sort((a, b) => distanceKm(homeLat, homeLon, a.lat, a.lon) - distanceKm(homeLat, homeLon, b.lat, b.lon))[0];
@@ -497,6 +504,8 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
         homeLat: input.home.lat,
         homeLon: input.home.lon,
         homeCountry: input.home.country ?? null,
+        // By the app's clock, like the daily sign it is compared with (routes/oracle.ts todaysSign).
+        homeSetAt: new Date(),
       }),
       // ANYWHERE is kept as null (the default), so "no limit" stays no limit.
       ...(input.radiusKm !== undefined && { loracleReachKm: input.radiusKm >= NO_LIMIT_KM ? null : input.radiusKm }),

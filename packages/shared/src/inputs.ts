@@ -380,6 +380,12 @@ export type OracleSettingsInput = z.infer<typeof OracleSettingsInput>;
 
 export const GeocodeQuery = z.object({ q: z.string().trim().min(2).max(120) });
 
+/** GET /oracle/reverse: the town at a point (the device's rough location; the server keeps two decimals). */
+export const ReverseGeocodeQuery = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+});
+
 export const NewReadingInput = z.object({ mode: z.enum(ORACLE_MODES).optional() });
 export type NewReadingInput = z.infer<typeof NewReadingInput>;
 

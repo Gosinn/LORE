@@ -117,7 +117,7 @@ function ReportSheet({
           onChange={(e) => setDetails(e.target.value)}
         />
         {subject && (
-          <label className="row small">
+          <label className="row small check">
             <input type="checkbox" checked={block} onChange={(e) => setBlock(e.target.checked)} /> Also block {subject.displayName}
           </label>
         )}

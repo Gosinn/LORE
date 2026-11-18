@@ -11,6 +11,8 @@ const page = (load: () => Promise<Record<string, unknown>>, name: string): Pick<
 
 export const router = createBrowserRouter([
   { path: '/welcome', element: <Welcome /> },
+  // "Where do you stand?": right after a new account, before Home (signed in; no tab bar).
+  { path: '/welcome/where', ...page(() => import('./pages/WhereYouStand.tsx'), 'WhereYouStand') },
   // Public pages: open without an account (the App Store links to them).
   { path: '/terms', ...page(() => import('./pages/Legal.tsx'), 'TermsPage') },
   { path: '/privacy', ...page(() => import('./pages/Legal.tsx'), 'PrivacyPage') },

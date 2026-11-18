@@ -2,6 +2,7 @@
 // Blocks are painted at random as they appear (data-c="0".."9"), never the same
 // colour as the block they sit in or the one right before them. Styles live in
 // app.css under [data-theme='crazy'].
+// Retired 2026-11-18 (D32); kept so it can come back.
 
 const BLOCKS = [
   '.section',
@@ -85,7 +86,7 @@ function paint(root: Element) {
   for (const el of found as HTMLElement[]) {
     if (el.dataset.c) continue;
     // The Oracle's stone and scrolls are objects: they keep their own colours.
-    if (el.closest('.oracle-page, .oracle-teaser')) continue;
+    if (el.closest('.oracle-page, .oracle-teaser, .loracle-door')) continue;
     el.dataset.c = pick(el);
     if (!el.matches(BLOCKS)) el.dataset.t = '';
   }
@@ -103,6 +104,11 @@ export function startCrazy() {
 export function stopCrazy() {
   observer?.disconnect();
   observer = null;
+  // Switching away mid-visit leaves no painted blocks behind.
+  for (const el of document.querySelectorAll<HTMLElement>('[data-c]')) {
+    delete el.dataset.c;
+    delete el.dataset.t;
+  }
 }
 
 /** New colours for everything on screen. */

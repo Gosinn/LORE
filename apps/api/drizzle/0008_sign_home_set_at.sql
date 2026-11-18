@@ -1,0 +1,1 @@
+ALTER TABLE "oracle_settings" ADD COLUMN "home_set_at" timestamp with time zone;

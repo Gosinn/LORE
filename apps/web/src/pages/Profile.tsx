@@ -8,14 +8,7 @@ import { Avatar, Empty, ErrorNote, Field, Section, Sheet, TopBar } from '../comp
 import { api, setNativeToken } from '../lib/api.ts';
 import { prepareImage } from '../lib/images.ts';
 import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useLoracle, useMe } from '../lib/queries.ts';
-import { applyTheme, loadTheme, rollColors, type ThemeChoice } from '../lib/theme.ts';
-
-const THEME_LABELS: Record<ThemeChoice, string> = {
-  system: 'Match device',
-  light: 'Paper',
-  dark: 'Campfire',
-  crazy: 'Crazy',
-};
+import { THEMES, THEME_LABELS, chooseTheme, loadTheme, rollColors, type ThemeChoice } from '../lib/theme.ts';
 
 export function MyProfile() {
   const me = useMe().data!;
@@ -129,14 +122,14 @@ export function MyProfile() {
         <div className="stack">
           <span className="label">Appearance</span>
           <div className="chips wrap">
-            {(['system', 'light', 'dark', 'crazy'] as const).map((t) => (
+            {THEMES.map((t) => (
               <button
                 key={t}
                 className="chip"
                 aria-pressed={theme === t}
                 onClick={() => {
                   setTheme(t);
-                  applyTheme(t);
+                  chooseTheme(t);
                 }}
               >
                 {THEME_LABELS[t]}
@@ -148,6 +141,9 @@ export function MyProfile() {
               </button>
             )}
           </div>
+          {THEMES.length < 2 && (
+            <p className="tiny muted">One map for every lore maker. The older looks are rolled up in the archive for now.</p>
+          )}
           {theme === 'crazy' && <p className="tiny muted">Every part gets its own bright color, new every time. Or roll them yourself.</p>}
           <p className="small muted" style={{ marginTop: 8 }}>
             Everything you create starts private. You choose who sees each event, idea and chapter.
