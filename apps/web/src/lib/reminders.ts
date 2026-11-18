@@ -44,6 +44,7 @@ export async function syncReminderNotifications(reminders: Note[]): Promise<void
       await LocalNotifications.schedule({
         notifications: upcoming.map((r) => ({
           id: notificationId(r.id),
+          // copy:plain (a phone notification: rewordable, never marked)
           title: r.event ? `Reminder · ${r.event.title}` : 'LORE reminder',
           body: r.body,
           schedule: { at: new Date(r.remindAt!), allowWhileIdle: true },

@@ -9,6 +9,7 @@ import { api } from '../lib/api.ts';
 import { dateKey, fmtLongDay, fmtMonthYear, fmtTime, fromDateInput, fromLocalInput, todayISO, toLocalInput } from '../lib/dates.ts';
 import { useAction, useEvents, useNotes, usePersonal } from '../lib/queries.ts';
 
+// copy:table
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 interface DaySlot {
@@ -123,8 +124,8 @@ export function CalendarPage() {
             </button>
           </div>
           <div className="month-grid" style={{ marginTop: 8 }}>
-            {DOW.map((d) => (
-              <span key={d} className="dow">
+            {DOW.map((d, i) => (
+              <span key={i} className="dow">
                 {d}
               </span>
             ))}

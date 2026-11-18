@@ -26,7 +26,7 @@ import {
   supportMessages,
   users,
 } from '../db/schema.ts';
-import { idParam, loadVisibleChapter, loadVisibleEvent, loadVisibleIdea } from '../lib/access.ts';
+import { idParam, loadVisibleChapter, loadVisibleEvent, loadVisibleIdea, requireOwner } from '../lib/access.ts';
 import { badRequest, forbidden, notFound } from '../lib/errors.ts';
 import { iso, isoOrNull, userColumns, toUserSummary, userSummaries } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
@@ -36,18 +36,13 @@ const clip = (s: string | null | undefined, n = 600) => (s ? (s.length > n ? `${
 
 /**
  * Keeping LORE safe (App Store guideline 1.2): anyone can report a person or
- * anything they can see, and block them in the same step. Moderators (the
- * usernames in ADMIN_USERNAMES) review reports, take content down, suspend
- * accounts, and read the contact form.
+ * anything they can see, and block them in the same step. Moderators (the owner:
+ * ADMIN_USERNAMES, or the default owner, lib/access.ts) review reports, take
+ * content down, suspend accounts, and read the contact form.
  */
 export async function safetyRoutes(app: FastifyInstance, { db, config, storage }: AppContext) {
-  async function requireAdmin(req: FastifyRequest) {
-    const me = requireUser(req);
-    const [u] = await db.select({ username: users.username }).from(users).where(eq(users.id, me)).limit(1);
-    // Not a moderator: these routes don't exist for you.
-    if (!u || !config.adminUsernames.includes(u.username)) throw notFound();
-    return me;
-  }
+  // Not a moderator: these routes don't exist for you (404). The rule lives in lib/access.ts.
+  const requireAdmin = (req: FastifyRequest) => requireOwner(req, { db, config });
 
   /** What's being reported, if the reporter can see it: who's behind it, what it says, where it lives. */
   async function describe(me: string, type: ReportTarget, id: string) {

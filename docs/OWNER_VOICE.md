@@ -48,3 +48,30 @@ written, it should sound like this.
 ## No limits (2026-11-18)
 
 > We only get one chance at life... putting a limit on adventure is not the way to go imo.
+
+## The look (2026-11-18)
+
+> that background is VERY bright,, bit too bright for a Dracula like me... add a dark version.. also,, can you
+> make the background look like paper? let me first see what it would look like , show me candidates first. the
+> compass thing at the login screen is cool.
+
+> to be quite frank ,, the new base theme doesnt roll with the Loracle vibe at all. when I click Loracle ,my head is
+> sent back like "whoah" . .not in a good mesmerizing way... I like the Loracle vibe , you know that.. but the new
+> bright thing.. mmmmm not quite I must say. and the buttons look different, and the text changes etc
+
+> the current theme is called treasure map but it resembles nothing close to a treasure map.. so fixing that would
+> be a nice addition to what you've conjured now.. and add a rocky mountain range background. fuck it.. let's give
+> the users some variety. Lets just keep those you made and make more but the leather one looks like rúgbrauð imo
+> haha.. we'll skip that one. also add a northern light blueish purple green star sky background..
+
+> also , see the button difference in the screenshots? not really professional from the consumer's perspective..
+> there has to be a level of consistency in the whole thing. the base. which is the UI itself. shape..
+
+## His own words, live (2026-11-18)
+
+> I want the ability to change all text myself manually and then a button to commit in real time. instead of
+> writing to you every time..
+
+On publishing (one tap, no password asked again):
+
+> no waddling, time is precious

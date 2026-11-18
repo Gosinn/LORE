@@ -50,6 +50,17 @@ Render → the `lore` service → **Environment** → add `ANTHROPIC_API_KEY` as
 `LORACLE_MONTHLY_USD`, default 150) → Save. After the redeploy `/api/health` should say
 `"loracle":"awake"`. Never paste the key into chat, the repo or a screenshot. Not yet tried on Render.
 
+**You are the owner (moderation and LORE's words).** With no `ADMIN_USERNAMES` variable, your account
+`gosinn` (created before 19 November 2026) is the owner: Profile shows **Moderation** and **Edit text**,
+and the words you publish there go live for everyone without a deploy (README: "Change LORE's words
+yourself"). A `gosinn` account made after that date (say, on a fresh database) is nobody special. To choose
+the owner yourself, add `ADMIN_USERNAMES` (usernames, separated with commas; an empty value means nobody).
+Something went wrong with the words? Add `COPY_OVERRIDES` = `off` and save: everyone sees the code's own
+words again and nothing can be published (your edits are kept; remove the variable to bring them back).
+Each deploy also re-attaches edited words whose text moved to another screen. Checked locally with a
+production-mode server (publish, the version header, the catalog check, undo, restart); not yet tried on
+Render.
+
 Every push to `main` on GitHub redeploys automatically.
 
 ## 3. Keep it awake: UptimeRobot (2 minutes)

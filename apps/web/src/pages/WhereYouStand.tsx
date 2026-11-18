@@ -2,16 +2,13 @@ import { useMutation } from '@tanstack/react-query';
 import { LocateFixed, MapPin, Search } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
-import type { GeocodeResult, LoracleSettings } from '#shared';
+import { copy, type GeocodeResult, type LoracleSettings } from '#shared';
 import { CompassRose } from '../components/compass.tsx';
 import { ErrorNote, Loading } from '../components/ui.tsx';
 import { api, ApiError, qs } from '../lib/api.ts';
 import { localTimeZone } from '../lib/dates.ts';
 import { useAction, useMe } from '../lib/queries.ts';
 import '../styles/sign.css';
-
-/** What a found point is called when no town's name comes back for it. */
-const NEAR_ME = 'Near me';
 
 /** Two decimals: about a kilometre north–south, less east–west. The exact point never leaves the device. */
 const roughly = (x: number) => Math.round(x * 100) / 100;
@@ -29,6 +26,7 @@ function nextPath(raw: string | null): string {
  */
 function where(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
+    // copy:ignore (never shown: the catch below words it)
     const watchdog = setTimeout(() => reject(Object.assign(new Error('No answer from the device'), { code: 3 })), 30_000);
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -107,14 +105,15 @@ export function WhereYouStand() {
       const town = await townAt(lat, lon);
       if (picked.current) return;
       // The rounded point is what's kept, whatever the town's own centre is.
-      save.mutate({ label: town?.label ?? NEAR_ME, lat, lon, country: town?.country ?? null });
+      // What a found point is called when no town's name comes back for it (saved: plain, never marked).
+      save.mutate({ label: town?.label ?? copy.plain('Near me'), lat, lon, country: town?.country ?? null });
     } catch (err) {
       if (picked.current) return;
       const denied = (err as GeolocationPositionError | undefined)?.code === 1;
       setLocateNote(
         denied
-          ? 'Your device kept your location to itself. Name your town instead.'
-          : 'Your device couldn’t find you just now. Name your town instead.',
+          ? copy('Your device kept your location to itself. Name your town instead.')
+          : copy('Your device couldn’t find you just now. Name your town instead.'),
       );
       townInput.current?.focus();
     } finally {

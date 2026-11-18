@@ -67,3 +67,10 @@ Secrets (database password, photo-link signing key) are generated on the server 
 - Logs: `ssh … ubuntu@<IP> "cd lore/deploy/oracle && docker compose --env-file ~/lore-config/.env logs -f app"`
 - Restore a backup: `pg_restore -h … -U lore -d lore --clean <file>` from inside the `db` container.
 - Updates to Ubuntu: `sudo apt-get upgrade` now and then (or enable unattended-upgrades).
+
+## The owner (moderation and live text)
+Without `ADMIN_USERNAMES`, the owner is the account `gosinn` **created before 19 November 2026**, so on a
+fresh database (not restored from the old one) nobody is: no Moderation, no **Edit text**. Add
+`ADMIN_USERNAMES: gosinn` under `app:` → `environment:` in `deploy/oracle/docker-compose.yml` and deploy
+again. The same place takes `COPY_OVERRIDES: 'off'`, the live-text kill switch (the code's own words show
+everywhere and nothing can be published until you remove it). Not tried on an Oracle server yet.

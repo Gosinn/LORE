@@ -1,6 +1,7 @@
 import { buildApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { openDatabase } from './db/index.ts';
+import { ownerStartupNote } from './lib/access.ts';
 import { DatabaseStorage, LocalDiskStorage } from './lib/storage.ts';
 import { openDataWorld } from './lib/world.ts';
 
@@ -24,6 +25,9 @@ const app = await buildApp({ db: database.db, config, storage, world, dbKind: da
 // Roads a previous process left in progress were interrupted: retry them once, else let them fade.
 // Wishes waiting for the new moon wake here too when the month allows.
 await app.wishJobs.sweep({ boot: true });
+// Who moderates and edits LORE's words (ADMIN_USERNAMES, or the default owner with its cut-off).
+const owner = await ownerStartupNote(database.db, config);
+app.log[owner.level](owner.message);
 
 const shutdown = async () => {
   // Closing the app stops the Loracle's jobs first; their rows stay for the next boot's sweep.

@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
+import type { CopyCatalog } from '#shared';
 import type { Config } from './config.ts';
 import type { Db } from './db/index.ts';
+import type { LiveCopy } from './lib/copy.ts';
 import { unauthorized } from './lib/errors.ts';
 import type { LoracleMind } from './lib/loracle/types.ts';
 import type { MediaStorage } from './lib/storage.ts';
@@ -19,6 +21,13 @@ export interface AppContext {
   mind?: LoracleMind;
   /** Which database is in use, reported by /api/health so a deploy can be checked from outside. */
   dbKind?: 'postgres' | 'pglite';
+  /**
+   * Live text: the catalog of texts in the served web build. Undefined: read
+   * `<publicDir>/copy-catalog.json` (never in tests); tests pass their own or null.
+   */
+  copyCatalog?: CopyCatalog | null;
+  /** Live text: the published words in memory (made by buildApp). */
+  liveCopy?: LiveCopy;
 }
 
 declare module 'fastify' {

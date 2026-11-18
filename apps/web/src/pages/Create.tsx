@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { LORACLE_LINES } from '#shared';
 import { TopBar } from '../components/ui.tsx';
 
+// copy:table
 const OPTIONS = [
   {
     to: '/oracle',

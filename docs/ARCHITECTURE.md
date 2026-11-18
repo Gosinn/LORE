@@ -132,6 +132,73 @@ rounded to two decimals) names the town at the device's location for "Where do y
 - **Not verified against the live API** (no key has been used): the prompts, structured output with
   fallbacks, the `_20260209` web tools' options and the real cost. See `tools/loracle-eval.mjs`.
 
+### Live text: the copy layer (D33)
+
+The owner rewords any screen from inside the app and publishes it; nobody needs a deploy.
+
+```
+ build (Vite, web only)                     every client (main bundle)                  server
+ apps/web/vite/copyPlugin.ts (enforce pre)  lib/copy/runtime.ts  (virtual:lore-copy)    routes/copy.ts + lib/copy.ts
+   rewrites static words in apps/web/src      __t / __tm / __tl: draft > published >      GET  /api/copy        public, from memory
+   and vocabulary.ts into lookups:            default; __useCopy re-renders              GET  /api/admin/copy  owner
+   <h2>Hi</h2> -> {__tm("pages/X#1a2b..",     lib/copy/sync.ts: cache, refetch when      GET  /api/admin/copy/history?key=
+   "Hi", {}, 2)}; tables become getters;        x-lore-copy differs, on focus/resume     PUT  /api/admin/copy  publish
+   __useCopy() into every component           lib/copy/gate.tsx: owner + switch ->       POST /api/admin/copy/undo
+   scans apps/api for static messages           drafts + lazy editor chunk              x-lore-copy on every /api/* response
+   emits dist/copy-catalog.json (every key)   components/copyEditor/* (copy-editor-*,    copy_overrides / copy_revisions /
+                                                not precached, owner only)                 copy_state; catalog read at boot
+```
+
+- **Keys** are `<scope>#<FNV-1a of the default>`: `pages/Home#…`, `shared/vocabulary#…`, or `srv#…` for server
+  messages (`packages/shared/src/copy.ts`: one `hashText`, message parser, `checkOverride`, `copy()` for
+  plugin, runtime and server). Changing a default in code changes its key, so an old edit becomes an
+  **orphan** (shown to the owner, never silently re-applied); the same words moved to another file are
+  re-attached at boot by `followMoved()` (one automatic `follow` revision).
+- **What the plugin rewrites**: JSX text (a whole element's children are one message, inline `em/strong/…`
+  kept as tags, other elements and expressions become `{placeholders}`), text attributes and props
+  (`copyNames.ts` classifies every name; the coverage test fails on an unknown one), `confirm/alert/prompt`,
+  template literals in those places, module tables named `*_LABELS`/`*_LINES` or marked `// copy:table`, and
+  `copy('…')` calls from `#shared`. Skipped: `lib/copy/**`, `components/copyEditor/**`, `<code>/<pre>/<textarea>`,
+  `data-copy="off"` (the logotype), `// copy:ignore` and the crisis data (`CRISIS_LINES`, `EMERGENCY_NUMBERS`,
+  `FIND_A_HELPLINE`, by name).
+- **Rendering is text only.** An override becomes React text, an allowlisted string attribute, or
+  `createElement` for `em strong b i u small mark br`; no HTML parsing, no URLs. An override whose
+  placeholders, tags or characters don't fit its default renders the default (and the editor lists it).
+  Node-mode messages return keyed arrays (`p:<name>` per placeholder), so reordered words never remount an
+  `<input>` inside them.
+- **Server words.** `app.ts`'s error handler says every message and field through `liveCopy.say()`
+  (`srv#` key, then `shared/vocabulary#`); notification titles and the stone's signs (`signLine`) are
+  `copy('{actor} wants to be friends', { actor })` templates resolved by the server at creation time (rows
+  already stored keep their words). Only static messages found by the build's scan are keys, so no Lorer's
+  data can end up in the public `GET /api/copy`. The web `serverCopy()` maps an incoming message back to its
+  key (by its own hash, by published words, or by a default the web uses) for edit marks and drafts.
+- **Edit mode** (owner only): `__t/__tm` append an invisible marker (`U+2063`, base-4 digits in
+  `U+200C U+2060–2062`, `U+2064`) so `scanner.ts` can outline marked text and a capture-phase tap opens the
+  editor. `api.ts` strips markers from every outgoing JSON string and form field, always.
+- **Staying current with no timers**: every API response carries `x-lore-copy: <version|0>` (exposed to the
+  native origins); `sync.ts` fetches `/api/copy?v=` once when it differs (1 s debounce), and on tab
+  visible / window focus / Capacitor resume. The cache (`localStorage['lore.copy']`) applies before the first
+  render. A render crash with live words applied drops the cache and reloads once (`guard.tsx`; also each
+  top-level route's `errorElement`).
+- **Who publishes**: `isOwner`/`requireOwner` in `lib/access.ts` (also moderation and `Me.isAdmin` /
+  `Me.canEditCopy`): `ADMIN_USERNAMES` when set; unset, the account `gosinn` created before
+  2026-11-19T00:00Z (`OWNER_DEFAULT` in config.ts; no cut-off for local development on the embedded
+  database). Admin routes: 401 signed out, 404 for everyone else. Publishing: one transaction, one revision,
+  optimistic `baseVersion` (409 when stale), 30 writes a minute and 20 publishes an hour; in production every
+  key must be in the served build's catalog (`<PUBLIC_DIR>/copy-catalog.json`). `COPY_OVERRIDES=off` is the
+  kill switch (read leniently: anything but unset/empty/`on`/`true`/`1`/`yes` is off).
+- **Hidden characters** never get in: `COPY_FORBIDDEN` (shared) refuses controls, bidi and zero-width
+  marks, separators, `U+2060–206F`, tag characters and the variation-selector supplement in an edit and
+  in its context; "Copy for Claude" and `copy:check` print any that reach them as `\u` escapes.
+- **The catalog lists what ships**: `generateBundle` drops keys no chunk carries (a word-list table no
+  screen uses), except `srv#` keys and word-list tables the API names itself.
+- **Moved or baked**: `followMoved()` skips an orphan whose words are now the code's own text in its file
+  (baked through "Copy for Claude"), so it never copies them onto another file's identical default.
+- **The crash guard ignores stale page code** (a lazy page chunk the new service worker dropped after a
+  deploy): that reloads once (at most once a minute) and keeps live text on.
+- `npm run copy:check` compares the keys at `HEAD` with the working tree and lists live edits a code change
+  would orphan.
+
 ## 3. Database schema
 
 Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` are generated from it
@@ -164,6 +231,9 @@ Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` ar
 | `wish_waypoints` | The waypoints of a road | position, kind, emblem, when/at, place/town/country + pin (`precision`), clue, trial, keeper, earns, steps, mystery; `seal_broken_at`, `inked_at`/`inked_on`/`note`; links to the event, idea, chapter and reminder that came of it (set null when those go) |
 | `loracle_spend` | One row per model request | stage, outcome, model, tokens, searches, fetches, `cost_micros`, `road_id` (no foreign key: a burn never refunds the hidden limit); **no text**; user and wish set null on delete so the month's spend survives burns and account deletion |
 | `oracle_readings` | The Oracle: what the stones showed | private; local `day` (for the 3-a-day limit), `mode`, `futures` (JSON, with each future's status and resulting event/idea). `mode = 'sign'` is Home's daily sign (D32): never counted, never returned by `GET /oracle` |
+| `copy_overrides` | Live text: the owner's published words (D33) | key `<scope>#<hash>` (primary key), `text` (1 to 8,000 characters), `original` (the default it replaces), `context`, `followed_from` (set when a deploy moved the words), `updated_by` (set null when the account goes). Public through `GET /api/copy`; never personal data |
+| `copy_revisions` | Every publish, undo and automatic follow | `kind` `publish` / `undo` / `follow`, `published_by` (null = automatic or deleted account), `undo_of`, `changes` (JSON: key, before, after, original, context) |
+| `copy_state` | One row: the published version | `version` = the latest revision id (optimistic publishing, the `x-lore-copy` header) |
 | `world_cache` | Cached open-data answers | places, weather, Kp, place search, town at a point (two decimals); stale data is used when a service is down |
 
 Integrity is enforced in the database too: enums, `CHECK` constraints (audiences per table, end after start,
@@ -286,9 +356,9 @@ LORE APP/
 ├─ CLAUDE.md               working rules for this repo
 ├─ deploy/oracle/          free hosting: compose (Caddy + app + Postgres + backups), setup script, guide
 ├─ docs/                   MASTER_BRIEF, ARCHITECTURE, DECISIONS, ROADMAP, DEVELOPMENT_LOG
-├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), android.mjs (builds the app), make-icons.mjs, loracle-eval.mjs (live eval; costs money, owner only)
+├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), android.mjs (builds the app), make-icons.mjs, loracle-eval.mjs (live eval; costs money, owner only), copy-check.mjs (live edits a change would orphan)
 ├─ apps/android/           Capacitor Android project (generated, plus icons, splash and signing setup)
-├─ packages/shared/src/    vocabulary.ts (enums + labels), inputs.ts (Zod schemas), types.ts (DTOs)
+├─ packages/shared/src/    vocabulary.ts (enums + labels), inputs.ts (Zod schemas), types.ts (DTOs), copy.ts (live text: keys, messages, checks, copy(); also `#shared/copy`)
 ├─ apps/api/
 │  ├─ src/
 │  │  ├─ server.ts         entry point: config → database → migrate → listen
@@ -297,19 +367,22 @@ LORE APP/
 │  │  ├─ context.ts        AppContext, requireUser
 │  │  ├─ auth/             password.ts (scrypt), sessions.ts
 │  │  ├─ db/               schema.ts, index.ts (Postgres or PGlite), migrate-cli.ts
-│  │  ├─ lib/              access.ts (privacy), queries.ts (read models), notify.ts, storage.ts, images.ts, world.ts, oracle.ts, …
+│  │  ├─ lib/              access.ts (privacy, the owner), queries.ts (read models), notify.ts, storage.ts, images.ts, world.ts, oracle.ts, copy.ts (live text), …
 │  │  │  └─ loracle/       the Loracle's mind and jobs: types, client, mind, prompts, schema, ledger, checks, draw, cost, fake, jobs
-│  │  ├─ routes/           auth, users, friends, crews, events, personal, ideas, chapters, media, comments, notifications, home, oracle, loracle
+│  │  ├─ routes/           auth, users, friends, crews, events, personal, ideas, chapters, media, comments, notifications, home, oracle, loracle, copy
 │  │  └─ seed.ts           demo data through the HTTP API
 │  ├─ drizzle/             generated SQL migrations
 │  └─ test/                auth, privacy and full-lifecycle tests (Vitest, in-memory Postgres)
 └─ apps/web/
-   ├─ index.html, vite.config.ts (PWA manifest and service worker)
+   ├─ index.html, vite.config.ts (PWA manifest and service worker; the copy plugin; the editor chunk kept out of the precache)
+   ├─ vite/                live text's build side: copyPlugin.ts, collect.ts, jsxText.ts, copyNames.ts, tests (`npm run test:copy`)
    ├─ public/              favicon and app icons
    └─ src/
       ├─ main.tsx, router.tsx
       ├─ lib/              api.ts, queries.ts (data hooks), dates.ts, images.ts, theme.ts
+      │  └─ copy/          live text runtime: runtime.ts, sync.ts, cache.ts, gate.tsx (owner + switch), guard.tsx (crash guard)
       ├─ components/       AppShell, ui, cards, pickers, CommentThread, compass (CompassRose)
+      │  └─ copyEditor/    the owner's editor (own chunk): quill, outlines, edit sheet, publish bar, Edited texts, Copy for Claude
       ├─ pages/            one file per screen (WhereYouStand: the location step after sign-up)
       └─ styles/
          ├─ app.css        base tokens, the retired looks (Paper, Campfire, Match device, Crazy; kept, D32),

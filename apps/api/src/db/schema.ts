@@ -40,6 +40,8 @@ import {
   RSVP_STATUSES,
   WISH_FAILURES,
   WISH_STATUSES,
+  type CopyChange,
+  type CopyRevisionKind,
   type Emblem,
   type Keeper,
   type LoracleContext,
@@ -773,3 +775,53 @@ export const notifications = pgTable(
   },
   (t) => [index('notifications_user_created_idx').on(t.userId, t.createdAt)],
 );
+
+// ---------------------------------------------------------------------------
+// Live text: words the owner changed in the app (lib/copy.ts, routes/copy.ts). Public: everyone's
+// app shows them. Never personal data: code text and the owner's words only (not in the export).
+
+/** One row per edited text, keyed `<scope>#<hash of the default>`. Rendered as text only. */
+export const copyOverrides = pgTable(
+  'copy_overrides',
+  {
+    key: text('key').primaryKey(),
+    /** What people see now. */
+    text: text('text').notNull(),
+    /** The default the words were written against (orphans and follows compare with it). */
+    original: text('original').notNull(),
+    /** Where it shows ("Home page › heading", "LORACLE_LINES.cast"). */
+    context: text('context'),
+    /** Set when re-attached automatically after a deploy moved the words (the old key). */
+    followedFrom: text('followed_from'),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check('copy_overrides_text_len', sql`char_length(${t.text}) between 1 and 8000`)],
+);
+
+/** Every publish, undo and automatic follow, for history and undo. */
+export const copyRevisions = pgTable(
+  'copy_revisions',
+  {
+    id: id(),
+    kind: text('kind').$type<CopyRevisionKind>().notNull().default('publish'),
+    /** Null for automatic follows (and once the publisher's account is deleted). */
+    publishedBy: uuid('published_by').references(() => users.id, { onDelete: 'set null' }),
+    /** undo: the revision it took back. */
+    undoOf: uuid('undo_of'),
+    changes: jsonb('changes').$type<CopyChange[]>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('copy_revisions_created_idx').on(t.createdAt),
+    check('copy_revisions_kind', sql`${t.kind} in ('publish', 'undo', 'follow')`),
+  ],
+);
+
+/** One row (id 1): the current published version, for optimistic publishing and the x-lore-copy header. */
+export const copyState = pgTable('copy_state', {
+  id: integer('id').primaryKey(),
+  /** The latest copy_revisions.id; null before the first publish. */
+  version: uuid('version'),
+});

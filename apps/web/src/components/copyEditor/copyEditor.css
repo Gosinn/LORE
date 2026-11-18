@@ -1,0 +1,846 @@
+/* ---------------------------------------------------------------- LIVE TEXT EDITOR
+   The owner's word editor (components/copyEditor). Its own chunk, loaded only for him. Drawn as a piece of
+   the Treasure Map whatever page it sits on: map paper, iron-gall ink, a vermilion wax seal to publish, a
+   quill for a pen. Its tokens are its own (.lce), so the Loracle's stone, a retired look or any page's
+   re-mapped --ember never change it. Outlines on the page exist only while Editing (html[data-copy-editing]),
+   so with the pen down every page, the Loracle included, looks exactly as it did. */
+
+.lce {
+  --lce-paper: #f8f0dc;
+  --lce-paper-2: #efe3c8;
+  --lce-paper-3: #e6d5b0;
+  --lce-ink: #2a1d10;
+  --lce-ink-2: #4a3620;
+  --lce-muted: #68512f;
+  --lce-line: #d9c49a;
+  --lce-edge: #8c6b3d;
+  --lce-wax: #a3301a;
+  --lce-wax-hi: #b23c24;
+  --lce-wax-lo: #7d220f;
+  --lce-wax-ink: #fdf3df;
+  --lce-ember-soft: #f3d6bd;
+  --lce-brass: #d9b45c;
+  --lce-gold: #76520e;
+  --lce-gold-soft: #f0dfac;
+  --lce-sea: #1e5858;
+  --lce-danger: #8a1c3a;
+  --lce-danger-soft: #f4d8dc;
+  --lce-leather: #3a2616;
+  --lce-voice: 'IM Fell English', 'Fraunces Variable', Georgia, serif;
+  --lce-carved: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --lce-ui: 'Instrument Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --lce-graticule:
+    linear-gradient(rgb(42 29 16 / 0.05) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(90deg, rgb(42 29 16 / 0.05) 1px, transparent 1px) 0 0 / 56px 56px;
+  --lce-bottom: calc(24px + env(safe-area-inset-bottom));
+  color: var(--lce-ink);
+  font: 400 15px/1.45 var(--lce-ui);
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+.lce *,
+.lce *::before,
+.lce *::after {
+  box-sizing: border-box;
+}
+/* Phones with a tab bar: stay above it and the home indicator. */
+@media (max-width: 899.98px) {
+  body:has(.tabbar) .lce {
+    --lce-bottom: calc(var(--tabbar-h, 68px) + env(safe-area-inset-bottom) + 12px);
+  }
+}
+
+.lce-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- page outlines (Editing only) */
+
+html[data-copy-editing] [data-lore-copy] {
+  outline: 1.5px dashed #a3301a;
+  outline-offset: 2px;
+  cursor: text;
+}
+html[data-copy-editing] [data-lore-copy-state~='live'] {
+  text-decoration: underline 2px #b8862b;
+  text-underline-offset: 3px;
+}
+html[data-copy-editing] [data-lore-copy-state~='draft'] {
+  outline-style: solid;
+  outline-width: 2px;
+  box-shadow: inset 0 0 0 100vmax rgb(243 214 189 / 0.55);
+}
+html[data-copy-editing] [data-lore-copy-state~='broken'] {
+  outline-style: dotted;
+  outline-color: #8a1c3a;
+}
+/* In the temple, and on the Treasure Map's dark leather tab bar and rail, ink would vanish: the outlines
+   glow instead (only while Editing). */
+html[data-copy-editing] .oracle-page [data-lore-copy],
+html[data-copy-editing] body:has(.oracle-page) :is(.tabbar, .rail) [data-lore-copy],
+html[data-theme='map'][data-copy-editing] :is(.tabbar, .rail) [data-lore-copy] {
+  outline-color: #ffb36b;
+}
+html[data-copy-editing] .oracle-page [data-lore-copy-state~='draft'],
+html[data-theme='map'][data-copy-editing] :is(.tabbar, .rail) [data-lore-copy-state~='draft'] {
+  box-shadow: inset 0 0 0 100vmax rgb(255 154 90 / 0.18);
+}
+html[data-copy-editing] .oracle-page [data-lore-copy-state~='live'],
+html[data-theme='map'][data-copy-editing] :is(.tabbar, .rail) [data-lore-copy-state~='live'] {
+  text-decoration-color: #e9c46a;
+}
+
+/* ------------------------------------------------------------------- the quill (pen) */
+
+.lce-dock {
+  position: relative;
+  z-index: 70;
+}
+.lce-pen {
+  position: fixed;
+  right: 16px;
+  bottom: var(--lce-bottom);
+  z-index: 72;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 2px solid var(--lce-brass);
+  border-radius: 47% 53% 51% 49% / 52% 46% 54% 48%;
+  background: radial-gradient(circle at 35% 30%, #c43a2c, #9b2418 55%, #6b120b);
+  color: var(--lce-wax-ink);
+  box-shadow:
+    inset 0 2px 2px rgb(255 255 255 / 0.25),
+    inset 0 -3px 6px rgb(0 0 0 / 0.35),
+    0 6px 16px -6px rgb(30 18 8 / 0.6);
+  cursor: pointer;
+  transition: transform 0.15s ease, bottom 0.2s ease;
+}
+.lce-pen:hover {
+  transform: rotate(-8deg);
+}
+.lce-pen[aria-pressed='true'] {
+  border-color: var(--lce-wax-ink);
+  background: radial-gradient(circle at 35% 30%, #f8f0dc, #efe3c8 60%, #d9c49a);
+  color: var(--lce-wax);
+  box-shadow:
+    0 0 0 3px var(--lce-wax),
+    0 6px 16px -6px rgb(30 18 8 / 0.6);
+}
+.lce-pen-lift {
+  bottom: calc(var(--lce-bottom) + 64px);
+}
+@media (min-width: 900px) {
+  .lce-pen {
+    right: 24px;
+  }
+  .lce-pen-lift {
+    bottom: var(--lce-bottom);
+  }
+}
+.lce :focus-visible {
+  outline: 2.5px solid var(--lce-sea);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------- the Editing pill (top) */
+
+/* Below the sticky top bar (60px, after the page's own top padding), so the page title, Back and the bell
+   stay tappable; the page scrolls under the pill. */
+.lce-pill {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 72px);
+  left: 50%;
+  z-index: 72;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--lce-edge);
+  border-radius: 999px;
+  background: var(--lce-paper);
+  box-shadow: 0 8px 22px -10px rgb(30 18 8 / 0.55);
+  transform: translateX(-50%);
+  animation: lce-drop 0.18s ease;
+}
+.lce-pill-text {
+  overflow: hidden;
+  font: italic 400 15px/1.2 var(--lce-voice);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lce-pill-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--lce-line);
+  border-radius: 999px;
+  background: var(--lce-paper-2);
+  color: var(--lce-ink);
+  font: 600 13px/1 var(--lce-ui);
+  cursor: pointer;
+}
+.lce-pill-done {
+  border-color: var(--lce-ink-2);
+  background: var(--lce-ink);
+  color: var(--lce-paper);
+}
+@media (min-width: 900px) {
+  .lce-pill {
+    top: calc(env(safe-area-inset-top) + 96px);
+  }
+}
+/* Phones: just the two buttons, so the pill stays small. */
+@media (max-width: 599.98px) {
+  .lce-pill-text {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------- the bar of unpublished changes */
+
+.lce-bar {
+  position: fixed;
+  right: 16px;
+  bottom: var(--lce-bottom);
+  left: 16px;
+  z-index: 71;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--lce-edge);
+  border-radius: 10px;
+  background: var(--lce-graticule), var(--lce-paper);
+  box-shadow:
+    inset 0 0 0 3px var(--lce-paper),
+    inset 0 0 0 4px var(--lce-line),
+    0 10px 24px -12px rgb(30 18 8 / 0.6);
+  animation: lce-rise 0.2s ease;
+}
+.lce-bar-count {
+  flex: 1;
+  min-width: 0;
+  font: 400 16px/1.2 var(--lce-voice);
+}
+@media (min-width: 900px) {
+  .lce-bar {
+    right: auto;
+    left: 50%;
+    width: min(560px, calc(100vw - 160px));
+    transform: translateX(-50%);
+  }
+}
+@media (max-width: 359.98px) {
+  .lce-bar {
+    flex-wrap: wrap;
+  }
+  .lce-bar-count {
+    flex-basis: 100%;
+  }
+}
+
+/* While the bar shows, pages get its height at the bottom, so their last lines can scroll above it. */
+body:has(.lce-bar) .main {
+  padding-bottom: calc(var(--tabbar-h, 68px) + 100px + env(safe-area-inset-bottom));
+}
+@media (min-width: 900px) {
+  body:has(.lce-bar) .main {
+    padding-bottom: 104px;
+  }
+}
+/* An app sheet or photo is open (portaled to body, z-index 50): the bar and toast step aside, the quill
+   moves to the top strip (backdrop: sheets are at most 92dvh tall). Publish after closing the sheet. */
+body:has(> .overlay, > .loracle-overlay, > .lightbox) .lce-bar,
+body:has(> .overlay, > .loracle-overlay, > .lightbox) .lce-toast {
+  display: none;
+}
+body:has(> .overlay, > .loracle-overlay, > .lightbox) .lce-pen {
+  top: calc(env(safe-area-inset-top) + 8px);
+  bottom: auto;
+}
+
+.lce-toast {
+  position: fixed;
+  bottom: calc(var(--lce-bottom) + 64px);
+  left: 50%;
+  z-index: 73;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--lce-leather);
+  color: #f4e6c4;
+  box-shadow: 0 10px 24px -12px rgb(30 18 8 / 0.7);
+  font: 400 16px/1.3 var(--lce-voice);
+  transform: translateX(-50%);
+  animation: lce-rise 0.2s ease;
+}
+
+/* ------------------------------------------------------------------------ buttons */
+
+.lce-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  font: 600 15px/1 var(--lce-ui);
+  cursor: pointer;
+}
+.lce-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lce-btn-sm {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/* Vermilion wax with a brass edge: the seal that publishes. */
+.lce-btn-wax {
+  border-color: var(--lce-wax-lo);
+  background: linear-gradient(var(--lce-wax-hi), var(--lce-wax) 55%, var(--lce-wax-lo));
+  color: var(--lce-wax-ink);
+  font-family: var(--lce-carved);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 2px 0 #5c180a;
+}
+.lce-btn-wax:hover:not(:disabled) {
+  background: linear-gradient(var(--lce-wax), var(--lce-wax-lo));
+}
+.lce-btn-wax:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+.lce-btn-ghost {
+  background: transparent;
+  color: var(--lce-ink-2);
+}
+.lce-btn-ghost:hover:not(:disabled) {
+  background: rgb(42 29 16 / 0.06);
+  text-decoration: underline dotted 1.5px;
+  text-underline-offset: 4px;
+}
+.lce-btn-quiet {
+  border-color: var(--lce-ink-2);
+  background: var(--lce-paper);
+  color: var(--lce-ink);
+  box-shadow: 0 2px 0 var(--lce-edge);
+}
+.lce-btn-danger {
+  border-color: var(--lce-danger);
+  background: transparent;
+  color: var(--lce-danger);
+}
+.lce-btn-danger:hover {
+  background: var(--lce-danger-soft);
+}
+.lce-icon {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lce-ink);
+  cursor: pointer;
+}
+.lce-icon:hover {
+  background: rgb(42 29 16 / 0.07);
+}
+.lce-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lce-wax);
+  box-shadow: 0 0 0 2px var(--lce-paper);
+}
+.lce-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--lce-wax);
+  font: 600 14px/1.2 var(--lce-ui);
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.lce-link:disabled {
+  color: var(--lce-muted);
+  cursor: not-allowed;
+}
+.lce-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--lce-edge);
+  border-radius: 6px;
+  background: var(--lce-paper);
+  color: var(--lce-ink);
+  font: 600 13px/1 ui-monospace, 'Cascadia Mono', Menlo, monospace;
+  cursor: pointer;
+}
+.lce-chip:hover {
+  background: var(--lce-gold-soft);
+}
+
+/* --------------------------------------------------------------------- sheets */
+
+.lce-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(30 18 8 / 0.5);
+  animation: lce-fade 0.15s ease;
+}
+.lce-overlay-sheet {
+  align-items: flex-end;
+  padding: 0;
+}
+/* The card under the words: the page stays visible, so the live preview can be seen. */
+.lce-overlay-clear {
+  background: transparent;
+}
+.lce-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  max-height: min(85vh, 760px);
+  border: 1px solid var(--lce-edge);
+  border-radius: 12px;
+  background: var(--lce-graticule), var(--lce-paper-2);
+  box-shadow: 0 18px 44px -18px rgb(30 18 8 / 0.7);
+  animation: lce-rise 0.2s ease;
+}
+.lce-panel-wide {
+  max-width: 620px;
+}
+.lce-panel-anchored {
+  max-width: none;
+  animation: lce-fade 0.12s ease;
+}
+/* 100%: the overlay's content box, which already leaves out the on-screen keyboard (Panel pads by it), so
+   a tall sheet scrolls its body instead of running off the top. */
+.lce-overlay-sheet .lce-panel {
+  max-width: none;
+  max-height: min(85vh, 100%);
+  border-width: 1px 0 0;
+  border-radius: 14px 14px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* A small wax seal as the grab handle on phones. */
+.lce-overlay-sheet .lce-panel::before {
+  content: '';
+  display: block;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 8px auto 0;
+  border-radius: 47% 53% 51% 49% / 52% 46% 54% 48%;
+  background: radial-gradient(circle at 35% 30%, #c43a2c, #9b2418 55%, #6b120b);
+  box-shadow:
+    inset 0 2px 2px rgb(255 255 255 / 0.27),
+    inset 0 -3px 5px rgb(0 0 0 / 0.4);
+}
+.lce-panel-head {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 10px 18px;
+  border-bottom: 1px solid var(--lce-line);
+}
+.lce-panel-head h2 {
+  margin: 0;
+  font: 400 22px/1.15 var(--lce-voice);
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.lce-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.lce-panel-foot {
+  flex: none;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--lce-line);
+}
+.lce-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+@media (max-width: 359.98px) {
+  .lce-actions {
+    flex-direction: column-reverse;
+  }
+  .lce-actions .lce-btn {
+    width: 100%;
+  }
+}
+.lce-kicker {
+  display: block;
+  margin: 0;
+  color: var(--lce-muted);
+  font: 600 11.5px/1.3 var(--lce-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.lce-h3 {
+  margin: 8px 0 0;
+  font: 400 18px/1.2 var(--lce-voice);
+}
+.lce-panel p {
+  margin: 0;
+}
+.lce-muted {
+  color: var(--lce-muted);
+}
+.lce-small {
+  font-size: 13px;
+}
+.lce-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lce-wrap {
+  flex-wrap: wrap;
+}
+/* A line of its own inside a wrapping row (what fills each placeholder). */
+.lce-full {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+.lce-full code {
+  font: 12.5px/1.4 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+.lce-meta {
+  color: var(--lce-muted);
+  font-size: 12.5px;
+}
+
+.lce-textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--lce-edge);
+  border-radius: 8px;
+  background: var(--lce-paper);
+  color: var(--lce-ink);
+  /* 16px: iOS doesn't zoom into it. */
+  font: 400 16px/1.45 var(--lce-ui);
+  resize: vertical;
+}
+.lce-textarea:focus {
+  border-color: var(--lce-wax);
+  outline: 2px solid var(--lce-ember-soft);
+  outline-offset: 0;
+}
+.lce-textarea[aria-invalid='true'] {
+  border-color: var(--lce-danger);
+}
+.lce-bake {
+  min-height: 160px;
+  font: 12.5px/1.4 ui-monospace, 'Cascadia Mono', Menlo, monospace;
+}
+.lce-original {
+  padding: 8px 12px;
+  border-left: 3px solid var(--lce-gold);
+  background: rgb(240 223 172 / 0.45);
+  border-radius: 0 6px 6px 0;
+}
+.lce-original p {
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+.lce-error {
+  color: var(--lce-danger);
+  font-weight: 600;
+}
+.lce-warn {
+  color: var(--lce-gold);
+  font-size: 13.5px;
+}
+.lce-ok {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #d5e2d3;
+  color: var(--lce-sea);
+  font-weight: 600;
+}
+.lce-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--lce-line);
+  border-radius: 6px;
+  background: var(--lce-paper);
+  font-size: 14px;
+}
+.lce-banner-legal {
+  border-color: var(--lce-gold);
+  background: var(--lce-gold-soft);
+  color: var(--lce-ink);
+}
+.lce-tick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lce-tick input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--lce-wax);
+}
+.lce-refused {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--lce-danger);
+  border-radius: 6px;
+  background: var(--lce-danger-soft);
+}
+.lce-legal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dotted var(--lce-edge);
+}
+
+/* ------------------------------------------------------------------- lists */
+
+.lce-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lce-item,
+.lce-change {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 0;
+  border-bottom: 1px dotted var(--lce-edge);
+  overflow-wrap: anywhere;
+}
+.lce-item:last-child,
+.lce-change:last-child {
+  border-bottom: 0;
+}
+.lce-item-actions {
+  gap: 14px;
+}
+.lce-before {
+  color: var(--lce-muted);
+  text-decoration: line-through 1px rgb(104 81 47 / 0.6);
+}
+.lce-original .lce-before,
+.lce-item .lce-before {
+  text-decoration: none;
+}
+.lce-after {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--lce-ink);
+}
+.lce-after svg {
+  flex: none;
+  color: var(--lce-wax);
+  transform: translateY(2px);
+}
+.lce-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--lce-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lce-pick:hover {
+  background: rgb(42 29 16 / 0.06);
+}
+.lce-empty {
+  padding: 14px 0;
+  color: var(--lce-muted);
+  font: italic 400 16px/1.35 var(--lce-voice);
+}
+.lce-tag {
+  color: var(--lce-gold);
+  font-family: var(--lce-ui);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lce-tag-bad {
+  color: var(--lce-danger);
+}
+.lce-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--lce-line);
+}
+.lce-history-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lce-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  margin: -4px -18px 4px;
+  padding: 0 14px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--lce-line);
+}
+.lce-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--lce-ink-2);
+  font: 600 13.5px/1 var(--lce-ui);
+  cursor: pointer;
+}
+.lce-tab[aria-selected='true'] {
+  border-color: var(--lce-ink);
+  background: var(--lce-ink);
+  color: var(--lce-paper);
+}
+.lce-count {
+  min-width: 20px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--lce-wax);
+  color: var(--lce-wax-ink);
+  font-size: 11.5px;
+  text-align: center;
+}
+.lce-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lce-edge);
+  border-radius: 8px;
+  background: var(--lce-paper);
+  color: var(--lce-muted);
+}
+.lce-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--lce-ink);
+  font: 400 16px/1.3 var(--lce-ui);
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@keyframes lce-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lce-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes lce-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+/* The bar and toast are centred with a transform; keep it while they rise. */
+.lce-toast {
+  animation-name: lce-fade;
+}
+@media (min-width: 900px) {
+  .lce-bar {
+    animation-name: lce-fade;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lce,
+  .lce *,
+  .lce-overlay,
+  .lce-panel {
+    animation: none !important;
+    transition: none !important;
+  }
+}

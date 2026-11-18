@@ -2,6 +2,8 @@
 // labels are all derived from these lists, so adding a value here is the one place
 // to start (followed by a migration: `npm run db:generate`).
 
+import { copy } from './copy.ts';
+
 export const CREW_ROLES = ['owner', 'admin', 'member'] as const;
 export type CrewRole = (typeof CREW_ROLES)[number];
 
@@ -345,31 +347,35 @@ export function searchWords(query: string): string {
     .trim();
 }
 
-/** A sign retold in the stone's voice. Search words are cleaned of machine marks and kept short. */
+/**
+ * A sign retold in the stone's voice. Search words are cleaned of machine marks and kept short.
+ * Written into the road when it happens (server side), so the owner's live words (copy(), `srv#` keys)
+ * apply to new signs only.
+ */
 export function signLine(sign: LoracleSign): string {
   switch (sign.kind) {
     case 'listening':
-      return 'The stone listens…';
+      return copy('The stone listens…');
     case 'moon':
-      return 'The new moon rises. The stone reads your wish.';
+      return copy('The new moon rises. The stone reads your wish.');
     case 'search': {
       const words = searchWords(sign.query);
-      return words ? `It asks the roads about ${clip(words, 60)}` : 'It asks the roads.';
+      return words ? copy('It asks the roads about {words}', { words: clip(words, 60) }) : copy('It asks the roads.');
     }
     case 'fetch':
-      return `It reads the sign over ${clip(sign.host.toLowerCase().replace(/^www\./, ''), 60)}`;
+      return copy('It reads the sign over {host}', { host: clip(sign.host.toLowerCase().replace(/^www\./, ''), 60) });
     case 'name':
-      return 'A name keeps coming up.';
+      return copy('A name keeps coming up.');
     case 'cost':
-      return 'It weighs the cost in coin and sweat.';
+      return copy('It weighs the cost in coin and sweat.');
     case 'compose':
-      return 'It draws your map.';
+      return copy('It draws your map.');
     case 'repair':
-      return 'It scratches out a line and draws again.';
+      return copy('It scratches out a line and draws again.');
     case 'seal':
-      return 'Sealing the scroll.';
+      return copy('Sealing the scroll.');
     case 'retry':
-      return 'The fog won. The stone tries again.';
+      return copy('The fog won. The stone tries again.');
   }
 }
 

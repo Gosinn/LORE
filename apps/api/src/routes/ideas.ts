@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import {
+  copy,
   ConvertIdeaInput,
   CreateIdeaInput,
   IdeaListQuery,
@@ -206,7 +207,7 @@ export async function ideaRoutes(app: FastifyInstance, { db }: AppContext) {
     await notify(db, invited, {
       type: 'idea_scheduled',
       actorId: me,
-      title: `${actor?.displayName} turned “${idea.title}” into a plan`,
+      title: copy('{actor} turned “{title}” into a plan', { actor: actor?.displayName, title: idea.title }),
       href: `/events/${eventId}`,
     });
     reply.status(201);

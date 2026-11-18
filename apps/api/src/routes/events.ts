@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance } from 'fastify';
 import {
+  copy,
   ChecklistItemInput,
   CreateEventInput,
   EventRangeQuery,
@@ -201,7 +202,7 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
     await notify(db, invited, {
       type: 'event_invite',
       actorId: me,
-      title: `${await actorName(me)} invited you to ${input.title}`,
+      title: copy('{actor} invited you to {title}', { actor: await actorName(me), title: input.title }),
       href: `/events/${eventId}`,
     });
     reply.status(201);
@@ -251,7 +252,7 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
       await notify(db, await activeRecipients(eventId), {
         type: 'event_changed',
         actorId: me,
-        title: `The plan for ${input.title ?? event.title} changed`,
+        title: copy('The plan for {title} changed', { title: input.title ?? event.title }),
         href: `/events/${eventId}`,
       }, { collapse: true });
     }
@@ -280,7 +281,7 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
       await notify(db, await activeRecipients(eventId), {
         type: 'event_canceled',
         actorId: me,
-        title: `${event.title} was canceled`,
+        title: copy('{title} was canceled', { title: event.title }),
         href: `/events/${eventId}`,
       });
     }
@@ -297,7 +298,7 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
     await notify(db, invited, {
       type: 'event_invite',
       actorId: me,
-      title: `${await actorName(me)} invited you to ${event.title}`,
+      title: copy('{actor} invited you to {title}', { actor: await actorName(me), title: event.title }),
       href: `/events/${eventId}`,
     });
     return loadEventDetail(db, me, eventId);

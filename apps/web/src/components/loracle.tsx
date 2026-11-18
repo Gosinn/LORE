@@ -60,6 +60,7 @@ import {
   MONEY_BANDS,
   NO_LIMIT_KM,
   PROVISION_GROUPS,
+  stripMarkers,
   PROVISION_LABELS,
   ROAD_IN_PROGRESS,
   STEP_KIND_LABELS,
@@ -67,6 +68,7 @@ import {
   TIME_BANDS,
   WAIT_PHASE_LABELS,
   WAIT_PHASES,
+  copy,
   fillLine,
   type AgeBand,
   type Calling,
@@ -100,6 +102,7 @@ const L = LORACLE_LINES;
  * Words these screens need that LORACLE_LINES does not carry (yet). Same voice: ancient, simple, true.
  * Candidates to move into packages/shared/src/vocabulary.ts → LORACLE_LINES.
  */
+// copy:table
 export const MORE = {
   realmPlaceholder: 'Your town',
   realmSearch: 'Seek the town',
@@ -123,6 +126,7 @@ export const MORE = {
   inVault: 'In your vault',
   readChapter: 'Read the chapter',
   inkedOn: 'Inked {date}.',
+  inked: 'Inked.',
   inkDay: 'The day you did it',
   legend: 'old lore',
   askOf: 'Ask them to {verb}.',
@@ -199,7 +203,7 @@ export function MarkDot({ mark }: { mark: Mark | null }) {
   const [open, setOpen] = useState(false);
   if (!mark) return null;
   const label = fillLine(MARK_LABELS[mark.status], { year: mark.year ?? '' }).trim();
-  const sources = mark.sources.length ? `${mark.sources.length === 1 ? 'source' : 'sources'} ${mark.sources.join(', ')}` : '';
+  const sources = mark.sources.length ? `${mark.sources.length === 1 ? copy('source') : copy('sources')} ${mark.sources.join(', ')}` : '';
   return (
     <span className="mark-wrap">
       <button
@@ -256,6 +260,7 @@ export function AsleepStone() {
 
 // ---------------------------------------------------------------------------------- sheets
 
+// copy:ignore (a CSS selector)
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -409,6 +414,7 @@ export function countryName(code: string | null | undefined): string {
 }
 
 // Countries that issue passports (ISO 3166-1 alpha-2, plus XK), for "Your passport".
+// copy:ignore (country codes)
 const PASSPORT_CODES =
   'AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW'.split(
     ' ',
@@ -802,8 +808,8 @@ export function WishWell({
       <div className="wish-examples">
         <p className="examples-kicker">{L.examples}</p>
         <ul>
-          {examples.slice(0, 5).map((ex) => (
-            <li key={ex}>
+          {examples.slice(0, 5).map((ex, i) => (
+            <li key={i}>
               <button type="button" className="example-scroll" onClick={() => take(ex)} aria-label={`${MORE.examplesTake}: ${ex}`}>
                 {ex}
               </button>
@@ -1046,8 +1052,9 @@ export function useSealedNotice(wish: Wish | undefined): SealedNotice {
           notifications: [
             {
               id: noticeId(id),
-              title: L.title,
-              body: L.notifyBody,
+              // A phone notification: never the owner's invisible edit marks.
+              title: stripMarkers(L.title),
+              body: stripMarkers(L.notifyBody),
               schedule: { at: new Date(Date.now() + 150_000), allowWhileIdle: true },
               extra: { href: `/oracle/quest/${id}` },
             },
@@ -1083,7 +1090,7 @@ export function useSealedNotice(wish: Wish | undefined): SealedNotice {
     remember(false);
     if (sealed && !visible && 'Notification' in window && Notification.permission === 'granted') {
       try {
-        new Notification(L.title, { body: L.notifyBody, tag: `loracle-${wish.id}` });
+        new Notification(stripMarkers(L.title), { body: stripMarkers(L.notifyBody), tag: `loracle-${wish.id}` });
       } catch {
         // Some mobile browsers only notify from a service worker; the scroll is waiting anyway.
       }
@@ -1418,7 +1425,7 @@ export function TrueMap({ road, nextSealed, onOpen }: { road: WishScroll; nextSe
 
 const civil = (date: string) => new Date(`${date.length === 7 ? `${date}-01` : date}T12:00:00`);
 const fmtDay = (date: string) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'long', year: 'numeric' }).format(civil(date));
-const inkedLine = (on: string | null) => (on ? fillLine(MORE.inkedOn, { date: fmtDay(on) }) : MORE.inkedOn.replace(' {date}', ''));
+const inkedLine = (on: string | null) => (on ? fillLine(MORE.inkedOn, { date: fmtDay(on) }) : MORE.inked);
 
 /** The map in words: the accessible twin, and where a waypoint's sheet opens. */
 export function WaypointList({ road, nextSealed, onOpen }: { road: WishScroll; nextSealed: string | null; onOpen: (id: string) => void }) {

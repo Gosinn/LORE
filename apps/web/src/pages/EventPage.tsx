@@ -1,7 +1,7 @@
 import { BellRing, BookOpen, CalendarClock, Feather, Lightbulb, MapPin, Pencil, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { EVENT_CATEGORY_LABELS, type ChapterDetail, type EventDetail, type EventParticipant, type Note, type RsvpStatus } from '#shared';
+import { EVENT_CATEGORY_LABELS, RSVP_LABELS, type ChapterDetail, type EventDetail, type EventParticipant, type Note, type RsvpStatus } from '#shared';
 import { CommentThread } from '../components/CommentThread.tsx';
 import { CrewTag } from '../components/cards.tsx';
 import { whenLabel } from '../components/notes.tsx';
@@ -40,12 +40,11 @@ function EventView({ event: e }: { event: EventDetail }) {
   const canWriteChapter = !e.chapterId && tookPart && happened && e.status !== 'canceled';
   const existingChapterId = (writeChapter.error as ApiError | null)?.fields?.chapterId;
 
-  const groups: [string, EventParticipant[]][] = [
-    ['Going', e.participants.filter((p) => p.rsvp === 'going')],
-    ['Maybe', e.participants.filter((p) => p.rsvp === 'maybe')],
-    ['Invited', e.participants.filter((p) => p.rsvp === 'invited')],
-    ["Can't make it", e.participants.filter((p) => p.rsvp === 'declined')],
-  ];
+  const groups = (['going', 'maybe', 'invited', 'declined'] as const).map((rsvp) => ({
+    rsvp,
+    label: RSVP_LABELS[rsvp],
+    people: e.participants.filter((p) => p.rsvp === rsvp),
+  }));
 
   return (
     <>
@@ -201,9 +200,9 @@ function EventView({ event: e }: { event: EventDetail }) {
         }
       >
         <div className="stack">
-          {groups.map(([label, people]) =>
+          {groups.map(({ rsvp, label, people }) =>
             people.length ? (
-              <div key={label} className="stack" style={{ gap: 6 }}>
+              <div key={rsvp} className="stack" style={{ gap: 6 }}>
                 <span className="tiny muted" style={{ fontWeight: 700 }}>
                   {label} ({people.length})
                 </span>
@@ -263,8 +262,8 @@ function RemindMe({ event }: { event: EventDetail }) {
       <span className="small muted row" style={{ gap: 6 }}>
         <BellRing size={15} /> Remind me
       </span>
-      {options.map((o) => (
-        <button key={o.label} className="chip" onClick={() => remind.mutate(o.at)} disabled={remind.isPending}>
+      {options.map((o, i) => (
+        <button key={i} className="chip" onClick={() => remind.mutate(o.at)} disabled={remind.isPending}>
           {o.label}
         </button>
       ))}

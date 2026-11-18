@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import {
+  copy,
   CreateCrewInput,
   InviteUsersInput,
   UpdateCrewInput,
@@ -119,7 +120,7 @@ export async function crewRoutes(app: FastifyInstance, { db }: AppContext) {
       await notify(db, invited, {
         type: 'crew_invite',
         actorId: me,
-        title: `${actor?.name} invited you to join ${detail.emoji} ${detail.name}`,
+        title: copy('{actor} invited you to join {emoji} {crew}', { actor: actor?.name, emoji: detail.emoji, crew: detail.name }),
         href: `/crews/${crewId}`,
       });
     }

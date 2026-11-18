@@ -5,6 +5,58 @@ Newest first within each list.
 
 ## Taken
 
+**D33 · Live text: the owner rewords LORE in the app and publishes it.** The owner (2026-11-18): "I want the
+ability to change all text myself manually and then a button to commit in real time. instead of writing to you
+every time.." How, and why:
+- **A build-time transform, not hand-wrapped strings.** `apps/web/vite/copyPlugin.ts` rewrites every static
+  word (about 1,130 texts: 747 in web code, 248 in the vocabulary, 135 server messages) into a lookup and
+  writes `copy-catalog.json`. Hand-wrapping a thousand strings, and remembering it for every new one, would not
+  hold; an i18n library wants hand-written keys and a third-party editor (against "own API + Postgres");
+  wrapper elements would add spans that break layouts. `copy()` stays as the escape hatch for text the
+  transform can't see (lib files, `switch` returns, the server). A coverage test keeps "all text" true.
+- **Keys are file + hash of the default** (`pages/Home#1a2b3c4d`). Keys by path would keep overriding a
+  default that changed in code; keys by text alone would make every "Cancel" one text. A changed default
+  orphans its edit (shown to the owner, never silently re-applied); the same words moved to another file
+  follow by themselves after the deploy. The editor offers "Change those too" for the same words in other
+  files (owner's answer: offer, don't force).
+- **Invisible markers find the text you tap**, only in the owner's edit mode (`U+2063 … U+2064`, never
+  `U+200B`/`U+200D`), and `api.ts` strips them from everything it sends, always.
+- **`GET /api/copy` is public** (Welcome, Terms and Support are shown signed out). It holds only code words and
+  the owner's words: only static server messages found in the code are keys, so no Lorer's name or title can
+  end up in it. Every API response carries the version (`x-lore-copy`); clients refetch when it differs or the
+  app comes to the front. No polling, no WebSocket, no timer on the server (the Neon database can sleep).
+  Owner's answer: "next tap / app to the front" is fast enough.
+- **The owner by default, with a cut-off.** With `ADMIN_USERNAMES` unset the owner is the account `gosinn`
+  created before 2026-11-19T00:00Z (the owner confirmed `gosinn` is his live username). A `gosinn` made later
+  (a fresh database, a deleted and re-taken name, a fork) is nobody. Set, `ADMIN_USERNAMES` means exactly those
+  people; set but empty means nobody. Moderation and live text share the rule (`lib/access.ts`); split them
+  (`COPY_EDITORS`) if other moderators arrive.
+- **Publishing is one tap on the confirm sheet, no password asked again** (owner: "no waddling, time is
+  precious"). Guarded instead by history and undo, 20 publishes an hour, the catalog check in production and
+  the `COPY_OVERRIDES=off` kill switch.
+- **Terms, Privacy and the Loracle's consent words are editable, flagged**: a banner in the editor and a
+  required "I've checked these are still true" tick when publishing (owner's answer). Material changes to the
+  Terms should still go through code, with re-consent.
+- **Not editable**: the Loracle's prompts and checks (coupled to the safety validators and tests; a careless
+  edit could weaken the care screen), crisis lines, emergency numbers and the helpline link (a typo could send
+  someone in danger to a wrong number; the sentences around them are editable), what Lorers and the Loracle
+  write, build and store texts, and the editor's own words.
+- **Text only, never HTML.** Overrides render as React text, allowlisted string attributes, or
+  `createElement` for a few inline tags.
+- **No hidden characters, anywhere words travel** (review, same night). An edit may not hold anything
+  invisible that could carry words of its own: controls, bidi and zero-width marks, line/paragraph
+  separators, `U+2060–206F`, interlinear annotations, tag characters (`U+E0000–E007F`, invisible ASCII) or the
+  variation-selector supplement. Otherwise one publish could slip a hidden instruction into every Lorer's
+  wish (the editable `wishStart` prefills it) and so into the Loracle's prompts. The stored context is checked
+  the same way and the server prefers the catalog's. "Copy for Claude" and `copy:check` write any such
+  character as a `\u` escape, so a code session never reads hidden text. Cost: the England, Scotland and
+  Wales flag emoji (built from tags) can't be used in edits.
+- **The kill switch fails safe** (review). `COPY_OVERRIDES` is typed in an emergency, so it is read
+  leniently: unset, empty, `on`, `true`, `1`, `yes` keep live text on; anything else (`OFF`, ` off`, `false`,
+  `0`) switches it off. It never stops the server from starting.
+- If the React Compiler is ever adopted, its memoized JSX would not see copy changes: feed `__copyTick()` into
+  it, as the transform already does for `useMemo` deps.
+
 **D32 · One look, the Treasure Map; the older looks are retired, not deleted.** The owner (2026-11-18):
 "retire all the older themes. dont delete them, just retire them ... i might change my mind in the future but
 probably not", "make the new theme more present throughout the app", "but keep the stone look for the

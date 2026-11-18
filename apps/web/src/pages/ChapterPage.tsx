@@ -1,7 +1,7 @@
 import { CalendarClock, ImagePlus, MapPin, Pencil, Quote, Trash2, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import type { ChapterDetail, Contribution, MediaRef } from '#shared';
+import { copy, type ChapterDetail, type Contribution, type MediaRef } from '#shared';
 import { CommentThread } from '../components/CommentThread.tsx';
 import { CrewTag } from '../components/cards.tsx';
 import { PeoplePicker } from '../components/pickers.tsx';
@@ -283,7 +283,7 @@ function Composer({ chapter }: { chapter: ChapterDetail }) {
     async (files: File[]) => {
       let last: ChapterDetail | null = null;
       for (const [i, file] of files.entries()) {
-        setProgress(`Adding photo ${i + 1} of ${files.length}…`);
+        setProgress(copy('Adding photo {n} of {total}…', { n: i + 1, total: files.length }));
         const { blob, name } = await prepareImage(file);
         const m = await api.upload<MediaRef>(`/media?chapterId=${chapter.id}`, blob, name);
         last = await api.post<ChapterDetail>(`/chapters/${chapter.id}/contributions`, { type: 'photo', mediaId: m.id });

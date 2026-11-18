@@ -1,6 +1,8 @@
 // Date helpers. Instants come from the API as ISO strings; calendar dates (chapter
 // days) as YYYY-MM-DD. Everything is shown in the viewer's own locale and zone.
 
+import { copy } from '#shared';
+
 export const localTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -46,13 +48,13 @@ export const fmtLongDay = (d: Date) => longDayFmt.format(d);
 function dayLabel(d: Date): string {
   const today = todayISO();
   const key = todayISO(d);
-  if (key === today) return 'Today';
+  if (key === today) return copy('Today');
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  if (key === todayISO(tomorrow)) return 'Tomorrow';
+  if (key === todayISO(tomorrow)) return copy('Tomorrow');
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  if (key === todayISO(yesterday)) return 'Yesterday';
+  if (key === todayISO(yesterday)) return copy('Yesterday');
   return dayFmt.format(d);
 }
 
@@ -61,7 +63,7 @@ export function fmtWhen(e: { startsAt: string; endsAt: string | null; allDay: bo
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : null;
   const multiDay = end && todayISO(end) !== todayISO(start);
-  if (e.allDay) return multiDay ? `${dayLabel(start)} – ${dayLabel(end!)}` : `${dayLabel(start)} · All day`;
+  if (e.allDay) return multiDay ? `${dayLabel(start)} – ${dayLabel(end!)}` : copy('{day} · All day', { day: dayLabel(start) });
   if (multiDay) return `${dayLabel(start)} ${fmtTime(e.startsAt)} – ${dayLabel(end!)}`;
   return `${dayLabel(start)} · ${fmtTime(e.startsAt)}${end ? `–${fmtTime(e.endsAt!)}` : ''}`;
 }
@@ -86,20 +88,20 @@ export function yearsAgo(date: string): number {
 
 export function timeAgo(iso: string): string {
   const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return copy('just now');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60) return copy('{minutes} min ago', { minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return copy('{hours} h ago', { hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days} d ago`;
+  if (days < 7) return copy('{days} d ago', { days });
   return dayFmt.format(new Date(iso));
 }
 
 export function greeting(d = new Date()): string {
   const h = d.getHours();
-  if (h < 5) return 'Still up';
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 5) return copy('Still up');
+  if (h < 12) return copy('Good morning');
+  if (h < 18) return copy('Good afternoon');
+  return copy('Good evening');
 }

@@ -94,7 +94,9 @@ function StoneFace({ state }: { state: LoracleState }) {
   const [line, setLine] = useState<string | null>(null);
   const [consentFor, setConsentFor] = useState<CastBody | null>(null);
   const [withdrawn, setWithdrawn] = useState(false);
-  const examples = state.examples.length ? state.examples : loracleExamples(isoWeek(new Date()));
+  // Built here from the editable table (same week as the server), so the owner's live edits show. The API
+  // still sends `examples` for older app builds.
+  const examples = loracleExamples(isoWeek(new Date()));
 
   const cast = useAction((b: CastBody) => api.post<CastResult>('/loracle/wishes', { ...b, context: ctx, timeZone: localTimeZone() }), {
     set: (r) => (r.route === 'quest' ? [['wish', r.wish.id], r.wish] : null),

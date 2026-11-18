@@ -6,6 +6,7 @@ import { useMe, useNotes } from '../lib/queries.ts';
 import { syncReminderNotifications } from '../lib/reminders.ts';
 import { Avatar, Backronym, Loading, Wordmark } from './ui.tsx';
 
+// copy:table
 const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },

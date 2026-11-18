@@ -69,8 +69,8 @@ function IdeaView({ idea }: { idea: IdeaDetail }) {
 
       {notes.length > 0 && (
         <div className="card stack section" style={{ marginTop: 18 }}>
-          {notes.map((n) => (
-            <div key={n.label} className="row">
+          {notes.map((n, i) => (
+            <div key={i} className="row">
               <n.icon size={17} className="muted" />
               <span className="small muted" style={{ width: 64 }}>
                 {n.label}

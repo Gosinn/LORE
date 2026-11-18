@@ -2,7 +2,10 @@
 // chapters or the Loracle's wishes goes through one of the `*Visible` predicates below,
 // so the rules live in exactly one place. See docs/ARCHITECTURE.md § Privacy and permissions.
 import { and, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import type { Config } from '../config.ts';
+import { requireUser } from '../context.ts';
 import type { Db } from '../db/index.ts';
 import {
   blocks,
@@ -13,6 +16,7 @@ import {
   events,
   friendships,
   ideas,
+  users,
   wishes,
   wishRoads,
   wishWaypoints,
@@ -204,4 +208,60 @@ export async function canReach(db: Db, from: string, to: string): Promise<boolea
   if (from === to) return false;
   const r = await relationship(db, from, to);
   return !r.blocked && (r.friends || r.shareCrew);
+}
+
+// ---------------------------------------------------------------------------
+// The owner: moderation and live text. One rule, used by loadMe, safety.ts and routes/copy.ts.
+
+type OwnerConfig = Pick<Config, 'adminUsernames' | 'ownerDefault'>;
+
+/**
+ * Whether an account is the owner: listed in ADMIN_USERNAMES (exactly today's rule), or, when that
+ * variable is unset, the default owner's username on an account created before the cut-off
+ * (config.ts OWNER_DEFAULT), so a name taken later never inherits the role.
+ */
+export function ownerMatch(config: OwnerConfig, user: { username: string; createdAt: Date }): boolean {
+  if (config.adminUsernames.includes(user.username)) return true;
+  const d = config.ownerDefault;
+  return !!d && user.username === d.username && (d.createdBefore === null || user.createdAt < d.createdBefore);
+}
+
+export async function isOwner(db: Db, config: OwnerConfig, userId: string): Promise<boolean> {
+  const [u] = await db
+    .select({ username: users.username, createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return !!u && ownerMatch(config, u);
+}
+
+/** The signed-in owner's id: 401 when signed out, 404 for everyone else (the routes don't exist for them). */
+export async function requireOwner(req: FastifyRequest, ctx: { db: Db; config: OwnerConfig }): Promise<string> {
+  const me = requireUser(req);
+  if (!(await isOwner(ctx.db, ctx.config, me))) throw notFound();
+  return me;
+}
+
+/** One line for the start-up log: who the owner is, and a warning when nobody can be. */
+export async function ownerStartupNote(db: Db, config: OwnerConfig): Promise<{ level: 'info' | 'warn'; message: string }> {
+  const d = config.ownerDefault;
+  if (d) {
+    const [u] = await db
+      .select({ username: users.username, createdAt: users.createdAt })
+      .from(users)
+      .where(eq(users.username, d.username))
+      .limit(1);
+    if (u && ownerMatch(config, u)) {
+      return { level: 'info', message: `Owner: ${d.username} (default; set ADMIN_USERNAMES to change)` };
+    }
+    const when = d.createdBefore ? ` created before ${d.createdBefore.toISOString().slice(0, 10)}` : '';
+    return {
+      level: 'warn',
+      message: `Owner: nobody. The default owner is the account ${d.username}${when}, and there is none here. Set ADMIN_USERNAMES to choose.`,
+    };
+  }
+  if (config.adminUsernames.length === 0) {
+    return { level: 'warn', message: 'Owner: nobody (ADMIN_USERNAMES is empty): no one can moderate or change words.' };
+  }
+  return { level: 'info', message: `Owner: ${config.adminUsernames.join(', ')} (ADMIN_USERNAMES)` };
 }

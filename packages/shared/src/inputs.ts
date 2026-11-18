@@ -2,6 +2,19 @@
 // body and query with these; clients can use them for form validation.
 import { z } from 'zod';
 import {
+  checkOverride,
+  COPY_FORBIDDEN,
+  COPY_KEY_RE,
+  copyCore,
+  copyProblemText,
+  hashText,
+  keyHash,
+  MAX_COPY_BATCH,
+  MAX_COPY_BATCH_CHARS,
+  MAX_COPY_TEXT,
+  normalizeOverride,
+} from './copy.ts';
+import {
   AGE_BANDS,
   CALLINGS,
   CHAPTER_AUDIENCES,
@@ -554,3 +567,78 @@ export const SupportMessageInput = z.object({
   replyTo: z.string().trim().toLowerCase().pipe(z.email().max(254)).optional(),
 });
 export type SupportMessageInput = z.infer<typeof SupportMessageInput>;
+
+// ---------------------------------------------------------------------------
+// Live text (the owner changes LORE's words in the app)
+
+const copyKeyField = z.string().max(120).regex(COPY_KEY_RE, 'That isn’t a text LORE knows');
+/**
+ * Context the editor shows ("Home page › heading"); never trusted for anything else. The server
+ * prefers the catalog's. No invisible characters: it reaches "Copy for Claude" like the words do.
+ */
+const copyContext = z
+  .string()
+  .max(300)
+  .refine((v) => !COPY_FORBIDDEN.test(v), 'Invisible or control characters aren’t allowed.')
+  .nullish()
+  .transform((v) => (v ? v : null));
+
+export const CopySetItem = z
+  .object({
+    key: copyKeyField,
+    /** The new words. Stored NFC, CRLF as LF, edge whitespace off. */
+    text: z.string().max(MAX_COPY_TEXT * 2).transform(normalizeOverride),
+    /** The default from the code the words replace (its hash is the key's). */
+    original: z.string().min(1).max(20_000).transform(copyCore),
+    context: copyContext,
+  })
+  .superRefine((item, ctx) => {
+    if (keyHash(item.key) !== hashText(item.original)) {
+      ctx.addIssue({ code: 'custom', path: ['original'], message: 'That original doesn’t belong to this text' });
+      return;
+    }
+    // Tags are checked against the catalog's kind on the server; here only what holds for every kind.
+    const problem = checkOverride(item.text, item.original, 'n');
+    if (problem) ctx.addIssue({ code: 'custom', path: ['text'], message: copyProblemText(problem) });
+  });
+export type CopySetItem = z.infer<typeof CopySetItem>;
+
+export const CopyPublishInput = z
+  .object({
+    /** The version the edits were made on (null before the first publish). A stale one answers 409. */
+    baseVersion: z.uuid().nullable(),
+    set: z.array(CopySetItem).max(MAX_COPY_BATCH).default([]),
+    /** Back to the default from the code. */
+    revert: z.array(copyKeyField).max(MAX_COPY_BATCH).default([]),
+  })
+  .superRefine((input, ctx) => {
+    const count = input.set.length + input.revert.length;
+    if (count === 0) ctx.addIssue({ code: 'custom', path: ['set'], message: 'Nothing to publish' });
+    if (count > MAX_COPY_BATCH) {
+      ctx.addIssue({ code: 'custom', path: ['set'], message: `At most ${MAX_COPY_BATCH} texts at once` });
+    }
+    const chars = input.set.reduce((n, s) => n + s.text.length, 0);
+    if (chars > MAX_COPY_BATCH_CHARS) ctx.addIssue({ code: 'custom', path: ['set'], message: 'Too many words at once' });
+    const seen = new Set<string>();
+    for (const key of [...input.set.map((s) => s.key), ...input.revert]) {
+      if (seen.has(key)) {
+        ctx.addIssue({ code: 'custom', path: ['set'], message: 'Each text only once per publish' });
+        break;
+      }
+      seen.add(key);
+    }
+  });
+export type CopyPublishInput = z.infer<typeof CopyPublishInput>;
+
+export const CopyUndoInput = z.object({
+  revisionId: id,
+  baseVersion: z.uuid().nullable(),
+});
+export type CopyUndoInput = z.infer<typeof CopyUndoInput>;
+
+export const CopyHistoryQuery = z.object({ key: copyKeyField });
+export type CopyHistoryQuery = z.infer<typeof CopyHistoryQuery>;
+
+/** GET /api/copy?v=<version you have>. */
+export const CopyQuery = z.object({ v: z.string().max(64).optional() });
+export type CopyQuery = z.infer<typeof CopyQuery>;

@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import type { ApiErrorBody } from '#shared';
+import { copy } from '#shared/copy';
+import { serverCopy, stripMarkers } from './copy/runtime.ts';
 
 /** True inside the Android/iOS app (Capacitor), false in a browser. */
 export const isNative = Capacitor.isNativePlatform();
@@ -18,6 +20,7 @@ const BASE = (
   ''
 ).replace(/\/$/, '');
 const TOKEN_KEY = 'lore.token';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ApiError extends Error {
   readonly status: number;
@@ -25,11 +28,39 @@ export class ApiError extends Error {
   readonly fields: Record<string, string>;
 
   constructor(status: number, body: ApiErrorBody | null) {
-    super(body?.error.message ?? 'Something went wrong. Check your connection and try again.');
+    // Static server messages can be reworded live by the owner (lib/copy, "srv#" keys).
+    super(body?.error.message ? serverCopy(body.error.message) : copy('Something went wrong. Check your connection and try again.'));
     this.status = status;
     this.code = body?.error.code ?? 'network';
-    this.fields = body?.error.fields ?? {};
+    // Field messages may be reworded; ids (`{ chapterId: <uuid> }` on a 409) are data and stay exactly as sent.
+    this.fields = Object.fromEntries(Object.entries(body?.error.fields ?? {}).map(([k, m]) => [k, UUID.test(m) ? m : serverCopy(m)]));
   }
+}
+
+/**
+ * Live text (lib/copy/sync.ts): every API response says which version of LORE's words is published, in
+ * the `x-lore-copy` header. Sync compares it with what it shows and fetches the new words when it differs.
+ */
+let copyVersionListener: ((version: string) => void) | null = null;
+export function onCopyVersion(listener: ((version: string) => void) | null) {
+  copyVersionListener = listener;
+}
+
+/**
+ * Edit markers (invisible characters the owner's edit mode adds to texts) never leave the device: they are
+ * stripped from every JSON string and form field, always, since a draft started in edit mode can outlive it.
+ */
+function cleanJson(body: unknown): string {
+  return JSON.stringify(body, (_key, value: unknown) => (typeof value === 'string' ? stripMarkers(value) : value));
+}
+
+function cleanForm(form: FormData): FormData {
+  let marked = false;
+  for (const [, value] of form) if (typeof value === 'string' && stripMarkers(value) !== value) marked = true;
+  if (!marked) return form;
+  const out = new FormData();
+  for (const [name, value] of form) out.append(name, typeof value === 'string' ? stripMarkers(value) : value);
+  return out;
 }
 
 function token(): string | null {
@@ -60,16 +91,20 @@ function headers(): Record<string, string> {
 async function send(method: string, path: string, body?: unknown): Promise<Response> {
   const h = headers();
   let payload: BodyInit | undefined;
-  if (body instanceof FormData) payload = body;
+  if (body instanceof FormData) payload = cleanForm(body);
   else if (body !== undefined) {
     h['content-type'] = 'application/json';
-    payload = JSON.stringify(body);
+    payload = cleanJson(body);
   }
+  let res: Response;
   try {
-    return await fetch(`${BASE}/api${path}`, { method, headers: h, body: payload, credentials: 'include' });
+    res = await fetch(`${BASE}/api${path}`, { method, headers: h, body: payload, credentials: 'include' });
   } catch {
     throw new ApiError(0, null);
   }
+  const copyVersion = res.headers.get('x-lore-copy');
+  if (copyVersion !== null) copyVersionListener?.(copyVersion);
+  return res;
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {

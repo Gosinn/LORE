@@ -14,12 +14,17 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 import { isNative } from './lib/api.ts';
+import { CopyEditorGate } from './lib/copy/gate.tsx';
+import { CopyCrashBoundary } from './lib/copy/guard.tsx';
+import { startCopySync } from './lib/copy/sync.ts';
 import { setupNativeShell } from './lib/native.ts';
 import { queryClient } from './lib/queries.ts';
 import { applyTheme, loadTheme } from './lib/theme.ts';
 import { router } from './router.tsx';
 
 applyTheme(loadTheme());
+// Live text: the owner's published words (cached ones are already applied) stay current from here on.
+startCopySync();
 
 if (isNative) {
   // The app's files ship inside the APK, so no service worker; wire up the back
@@ -31,8 +36,12 @@ if (isNative) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <CopyCrashBoundary>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        {/* Live text: the owner's drafts and, when his switch is on, the editor (own chunk). */}
+        <CopyEditorGate />
+      </QueryClientProvider>
+    </CopyCrashBoundary>
   </StrictMode>,
 );

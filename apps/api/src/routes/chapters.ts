@@ -2,6 +2,7 @@ import { and, asc, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { FastifyInstance } from 'fastify';
 import {
+  copy,
   ChapterListQuery,
   CreateChapterInput,
   CreateContributionInput,
@@ -188,7 +189,7 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
     await notify(db, recipients, {
       type: 'chapter_added',
       actorId,
-      title: `${actor?.displayName} added you to the chapter “${title}”`,
+      title: copy('{actor} added you to the chapter “{title}”', { actor: actor?.displayName, title }),
       href: `/chapters/${chapterId}`,
     });
   }
@@ -449,7 +450,7 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
       {
         type: 'chapter_contribution',
         actorId: me,
-        title: `${actor?.displayName} added to “${chapter.title}”`,
+        title: copy('{actor} added to “{title}”', { actor: actor?.displayName, title: chapter.title }),
         href: `/chapters/${chapterId}`,
       },
       { collapse: true },

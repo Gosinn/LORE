@@ -7,19 +7,27 @@ import { requireUser, type AppContext } from '../context.ts';
 import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { users } from '../db/schema.ts';
+import { ownerMatch } from '../lib/access.ts';
 import { conflict, HttpError, isUniqueViolation, unauthorized } from '../lib/errors.ts';
 import { iso, toUserSummary } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
-export async function loadMe(db: Db, userId: string, config: Pick<Config, 'adminUsernames'>): Promise<Me> {
+export async function loadMe(
+  db: Db,
+  userId: string,
+  config: Pick<Config, 'adminUsernames' | 'ownerDefault'>,
+): Promise<Me> {
   const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!u) throw unauthorized();
+  // The owner moderates and edits LORE's words: the same people for now (lib/access.ts).
+  const owner = ownerMatch(config, u);
   return {
     ...toUserSummary(u),
     email: u.email,
     bio: u.bio,
     createdAt: iso(u.createdAt),
-    isAdmin: config.adminUsernames.includes(u.username),
+    isAdmin: owner,
+    canEditCopy: owner,
   };
 }
 

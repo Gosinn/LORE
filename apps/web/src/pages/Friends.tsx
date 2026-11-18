@@ -110,8 +110,14 @@ export function FriendsPage() {
   );
 }
 
+const FRIENDSHIP_LABELS: Record<string, string> = {
+  friends: 'Friends',
+  outgoing: 'Requested',
+  incoming: 'Wants to be friends',
+  blocked: 'Blocked',
+};
+
 function SearchRow({ u, onAdd }: { u: UserSearchResult; onAdd: () => void }) {
-  const label: Record<string, string> = { friends: 'Friends', outgoing: 'Requested', incoming: 'Wants to be friends', blocked: 'Blocked' };
   return (
     <div className="list-item">
       <Link to={`/u/${u.username}`} className="person grow">
@@ -128,7 +134,7 @@ function SearchRow({ u, onAdd }: { u: UserSearchResult; onAdd: () => void }) {
           Add
         </button>
       ) : (
-        <span className="pill">{label[u.friendship]}</span>
+        <span className="pill">{FRIENDSHIP_LABELS[u.friendship]}</span>
       )}
     </div>
   );

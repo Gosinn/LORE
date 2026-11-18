@@ -1,5 +1,137 @@
 # LORE — Development log
 
+## 2026-11-18 (night) — Live text: the owner changes LORE's words in the app and publishes them (D33)
+
+The owner: "I want the ability to change all text myself manually and then a button to commit in real time.
+instead of writing to you every time..". Built from a reviewed spec in three parallel tracks (API and shared;
+the build transform and coverage; the runtime and the editor), then joined and checked together. His answers
+to the spec's questions: `gosinn` is his live username (so he is the owner by default, with a cut-off of
+2026-11-19T00:00Z); Terms and Privacy are editable but flagged; the same words in other files are offered
+("Change those too"); "next tap / app to the front" is fast enough; publishing stays one tap.
+
+**How the owner uses it:** Profile → Help → **Edit text** → the quill (bottom right) → tap any words → type →
+**Keep** → **Publish** (bar) → **Publish** (sheet). Details in README "Change LORE's words yourself".
+
+**What was built**
+
+- **Shared** (`packages/shared/src/copy.ts`, also `#shared/copy`): keys (`<scope>#<FNV-1a>`), the message
+  syntax (`{placeholders}`, `em strong b i u small mark br`), `checkOverride`, edit markers and
+  `stripMarkers`, `copy()` with a resolver the server installs. Types in `types.ts`, inputs in `inputs.ts`
+  (an `original` must hash to its key), `Me.canEditCopy`.
+- **API** (`routes/copy.ts`, `lib/copy.ts`, migration `0009_live_text`: `copy_overrides`, `copy_revisions`
+  with `kind` publish/undo/follow and `undo_of`, `copy_state`): public `GET /api/copy?v=` from memory;
+  owner-only admin state, per-text history, publish (one transaction and revision, optimistic `baseVersion`,
+  409 when stale, 20 an hour) and undo; `x-lore-copy` on every `/api/*` response, exposed to the native
+  origins; `COPY_OVERRIDES=off`; in production every key must be in the served `copy-catalog.json`;
+  `followMoved()` at boot re-attaches words whose text moved file. One owner rule in `lib/access.ts`
+  (`isOwner`/`requireOwner`, used by moderation, `loadMe` and live text; start-up log line). Error messages
+  and fields go out through `liveCopy.say()`; the 11 notification titles are `copy()` templates.
+- **Build transform** (`apps/web/vite/`): rewrites the words in 40 web files and `vocabulary.ts`, injects
+  `__useCopy()` into 137 components and the copy tick into 8 `useMemo`s, scans `apps/api` (and
+  `inputs.ts`) for static messages, emits `copy-catalog.json`. Coverage test: every web word reached, no
+  unclassified prop names, crisis data never editable. Five word-based React keys became ids or indexes.
+- **Runtime and editor** (`apps/web/src/lib/copy/`, `components/copyEditor/`): cached words before the
+  first render, refetch on a new version header or when the app comes to the front, drafts only for the
+  owner with his switch on, crash guard (root boundary and each top-level route's `errorElement`); the
+  quill, outlines, capture-phase taps, the edit sheet with live preview, placeholders and "Change those
+  too", the publish bar and sheet (legal tick), Edited texts (unpublished, published with earlier versions,
+  orphans, history with undo, find, on this screen, recently shown) and **Copy for Claude**.
+- `npm run copy:check` (`tools/copy-check.mjs`): live edits a code change would orphan.
+
+**Fixed while joining the tracks**
+
+- The fixed replies in `app.ts` (`say('Not found.')`, "That file is too large." and two more) were missing
+  from the catalog, so they couldn't be published in production: the server scan now reads `say('…')`.
+- The stone's signs (`signLine`, written into new roads by the server) were not editable: they are `copy()`
+  templates now (`srv#` keys; `vocabulary.ts` imports `./copy.ts`, and the scan accepts that inside
+  `packages/shared`).
+- The server already sends static messages in the published words, so the web `serverCopy()` couldn't tell
+  which text they were: it now also looks them up by published words, so edit mode marks the right key and
+  the owner's drafts (including "back to the original") show on server messages. The editor only trusts the
+  device's default for a key when it hashes to that key (else the catalog's), so a draft's `original` always
+  matches its key.
+- `magic-string` is now an explicit devDependency; a comment in `app.ts` had slid above the wrong block; the
+  deploy guides now name the switch as it reads ("Edit text").
+
+**Review fixes (same night: all 22 findings confirmed and fixed, two differently than proposed)**
+
+- *Hidden characters:* `COPY_FORBIDDEN` (now written with escapes) also refuses `U+061C`, LRM/RLM,
+  `U+2028–2029`, all of `U+2060–206F`, `U+FFF9–FFFB`, tag characters and the variation-selector supplement,
+  so a publish can't hide an instruction in `wishStart` (and so in every wish sent to the Loracle). The
+  context is checked too and the server prefers the catalog's. "Copy for Claude" and `copy:check` write such
+  characters as `\u` escapes (`visibleJson`).
+- *Kill switch:* `COPY_OVERRIDES` is read leniently and fails safe; `OFF`, ` off`, `false`, `0` no longer stop
+  the boot.
+- *Sign-out:* the gate read `useMe()`, whose observer `qc.clear()` strands, so after signing out the quill
+  and the owner's drafts stayed for whoever signed in next in that tab. It now reads ['me'] from the query
+  cache and keys the editor by owner (`gate.test.ts`).
+- *Baked words followed elsewhere:* after "Copy for Claude", `followMoved()` copied the owner's words onto
+  another file's identical default (AppShell "Profile" → "Me" turned the Profile page title into "Me"). Baked
+  rows are skipped now; "Copy for Claude" no longer re-sends baked or followed orphans.
+- *Crash guard:* a lazy page that fails to load after a deploy (stale chunk) is not a live-text crash any more;
+  it reloads once (at most once a minute). After a real crash, a publish or undo that met a 409 kept
+  failing (the crashed session never took the new version): the editor now fetches and applies explicitly
+  (`catchUpCopy`), and a crashed session stops fetching words it won't show.
+- *Words that never changed anything:* the 40 Loracle example wishes now come from the editable table on the
+  device (the server's list ignored edits); the catalog drops keys no chunk ships (`INTEREST_LABELS`,
+  `ORACLE_MODE_LABELS`); `inkedLine` no longer edits a template in code (`MORE.inked`); "source"/"sources"
+  in the mark note are editable, and the coverage test now catches such ternaries.
+- *Build:* a half-edited file no longer stops `npm run dev` (syntax errors are Vite's to show, with a code
+  frame; the coverage test reports the real line). An empty inline tag (the Calendar swatch `<i />`) stays
+  outside the message, so rewording can't delete it.
+- *Ids:* `ApiError` no longer rewords or marks ids in error fields (`chapterId` on a 409 broke the link in
+  edit mode).
+- *Editor:* places read as plain words ("Event form › field name", code names as a tooltip); a refused
+  change is named in the publish sheet with **Leave it out**; the phone sheet stays above the keyboard and
+  scrolls; the Editing pill sits below the top bar (no hint text on phones); the bar and toast step aside
+  while an app sheet is open (the quill moves up); pages get the bar's height at the bottom; outlines glow
+  on the leather tab bar and rail; tapping words in pinned chrome no longer scrolls the page; the quill's
+  label no longer flips with its pressed state.
+
+**Numbers**
+
+- Catalog: 1,142 texts (744 web, 264 vocabulary, 134 server); 294 may hold inline tags, 51 have
+  placeholders, 81 legal or consent, 4 plain (never marked). 174 kB (36 kB gzip), not precached; fetched only
+  by the editor and the server. After the review fixes: 1,130 (747 web, 248 vocabulary, 135 server; the 16
+  unshipped table texts gone), every non-server key present in the built JS, 81 legal or consent.
+- Size against `HEAD` (12ede92): JS loaded at start 513 → 546 kB raw, 160.8 → 171.2 kB gzip (+10.3 kB, runtime
+  included); all JS except the editor +17.3 kB gzip. The editor chunk (`copy-editor-*`, 39 kB JS + 13 kB CSS,
+  15.5 kB gzip) is absent from `sw.js`'s precache list (72 entries, none of them copy files).
+- Tests: `npm test` passes 274 API tests in 17 files (live text: 24 in `copy.test.ts`, 16 in
+  `copyShared.test.ts`, 5 in `config.test.ts`), then `npm run test:copy` passes 154 in 6 files (transform,
+  render equality, coverage, runtime, sync, Copy for Claude). `npm run typecheck` and `npm run build` pass.
+- After the review fixes: `npm test` passes 276 API tests in 17 files, then 165 web tests in 8 files (new:
+  `gate.test.ts`, `where.test.ts`); typecheck and build pass. Start JS +0.4 kB gzip against the integration
+  build; the editor chunk 17.7 kB gzip (was 16.0). Logs: `D:\LORE-devenv\lt-fix-test.log`, `lt-fix-build.log`.
+  Not seen in a browser or on a phone: the CSS changes (pill, sheet above the keyboard, bar beside app
+  sheets, bottom padding, glow on leather) and the publish sheet's refused-change box are unverified.
+
+**Checked by hand** (local server in production mode, PGlite, fake Loracle, port 4100, built web app):
+`GET /api/copy` signed out (`x-lore-copy: 0`, `no-cache`); `gosinn` created today is the owner
+(`canEditCopy`), another account gets 404 and signed-out 401; a publish of a tab label and "Not found."
+moved every response's header to the new version; `?v=` current answered `unchanged`; the 404 body spoke the
+new words; an unknown key was refused (`copy_unknown_key`), `<em>` on a label refused, a stale base 409, a
+cross-site cookie PUT 403; undo restored the defaults and wrote history; a restart kept the words and logged
+"Owner: gosinn (default; set ADMIN_USERNAMES to change)".
+
+**Not verified:** nothing of this has been looked at in a browser or on a phone yet (the quill, outlines,
+tapping inside links and buttons, the sheet above the keyboard, live preview, publishing from the UI, another
+device picking the words up, TalkBack/VoiceOver). Not deployed: the live server has none of it, so
+`npm run copy:check` has not read real live edits. Left for the owner: the spec's proposed CLAUDE.md line
+("Visible words may carry live edits (Live text). Before changing UI text run `npm run copy:check`.").
+
+**Completeness check against the spec (same night).** Every section of the spec walked against the code and
+its tests. Fixed: the render-equality tests ran the transformed fixture against a stand-in runtime; they now
+run it against the app's own `lib/copy/runtime.ts` (the stand-in is gone), and the fixture gained the
+`confirm()` case the spec lists. The edit-marker characters in `copy.ts`, `runtime.ts` and `scanner.ts` were
+literal invisible characters in the source; they are `\u` escapes now (an editor or a re-encode could have
+dropped them silently). The edit sheet shows what fills each placeholder as text (phones have no hover).
+`deploy/oracle/README.md` says how to name the owner and switch live text off there. Deliberately not as
+the spec wrote: the gate doesn't follow routes (`router.subscribe`): the scanner's MutationObserver already
+sees new screens; `touchstart` is listened to passively so the page still scrolls under the quill (taps are
+stopped at `pointerdown`/`mousedown`/`click`). `npm test`: 276 API tests in 17 files, then 166 web tests in 8
+files; typecheck and build pass (logs `D:\LORE-devenv\lt-critic-*.log`). Still not seen in a browser.
+
 ## 2026-11-18 (evening) — The Treasure Map, the daily sign and "Where do you stand?" (D32)
 
 The owner asked to retire the older themes (not delete them), make the new look present everywhere, keep

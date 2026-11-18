@@ -73,11 +73,11 @@ export function QuickNote({ autoFocus, placeholder = 'Note to self…' }: { auto
           <span className="tiny muted row" style={{ gap: 4, flex: 'none' }}>
             <BellRing size={13} /> Remind me
           </span>
-          {times.map((t) => {
+          {times.map((t, i) => {
             const iso = t.at().toISOString();
             const on = !!remindAt && Math.abs(Date.parse(remindAt) - Date.parse(iso)) < 90_000;
             return (
-              <button type="button" key={t.label} className="chip" aria-pressed={on} onClick={() => setRemindAt(on ? null : iso)}>
+              <button type="button" key={i} className="chip" aria-pressed={on} onClick={() => setRemindAt(on ? null : iso)}>
                 {t.label}
               </button>
             );

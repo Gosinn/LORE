@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronRight, Dices, Download, KeyRound, LogOut, ShieldCheck, Users } from 'lucide-react';
+import { Camera, ChevronRight, Dices, Download, Feather, KeyRound, LogOut, ShieldCheck, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { LORACLE_LINES, type Me, type MediaRef } from '#shared';
 import { ChapterCard, CrewChip } from '../components/cards.tsx';
 import { Avatar, Empty, ErrorNote, Field, Section, Sheet, TopBar } from '../components/ui.tsx';
 import { api, setNativeToken } from '../lib/api.ts';
+import { canEditCopy, setCopyEditorOn, useCopyEditorOn } from '../lib/copy/gate.tsx';
 import { prepareImage } from '../lib/images.ts';
 import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useLoracle, useMe } from '../lib/queries.ts';
 import { THEMES, THEME_LABELS, chooseTheme, loadTheme, rollColors, type ThemeChoice } from '../lib/theme.ts';
@@ -189,6 +190,7 @@ export function MyProfile() {
               <ShieldCheck size={15} /> Moderation
             </Link>
           )}
+          {canEditCopy(me) && <EditTextSwitch />}
           <p className="small">
             <Link to="/support">Help &amp; contact</Link> · <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
           </p>
@@ -203,6 +205,21 @@ export function MyProfile() {
       {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
       {changingPassword && <ChangePasswordSheet onClose={() => setChangingPassword(false)} />}
     </>
+  );
+}
+
+/** Owner only: the switch that brings out the quill for changing LORE's words live (lib/copy). */
+function EditTextSwitch() {
+  const on = useCopyEditorOn();
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      <button type="button" className="chip" aria-pressed={on} onClick={() => setCopyEditorOn(!on)} style={{ alignSelf: 'flex-start' }}>
+        <Feather size={15} /> Edit text
+      </button>
+      <p className="tiny muted">
+        {on ? 'The quill is out, bottom right. Tap it, then tap any words.' : 'Change any words in LORE yourself and publish them live.'}
+      </p>
+    </div>
   );
 }
 

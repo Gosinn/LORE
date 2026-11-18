@@ -23,6 +23,33 @@ the stones where that is (a new account is asked right after sign-up; location i
 - What's done and what's next: [docs/ROADMAP.md](docs/ROADMAP.md)
 - History: [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md)
 
+## Change LORE's words yourself (owner)
+
+Every word on LORE's screens can be changed from inside the app and published live, no code and no deploy
+(D33). Only the owner can (the account `gosinn`, or whoever `ADMIN_USERNAMES` names).
+
+1. **Profile → Help → Edit text.** A quill appears at the bottom right of every screen.
+2. **Tap the quill.** Every word you can change gets a dashed outline, and taps stop doing what they normally
+   do (links, buttons and tabs wait).
+3. **Tap any words**, type the new ones, then **Keep**. Only your screen changes, live as you type. Keep
+   `{placeholders}` such as `{displayName}`: they are filled in for each person. Page text may use `<em>`,
+   `<strong>` and a line break; buttons, labels and messages stay plain words.
+4. A bar shows **N changes not live yet**. Tap **Publish**, look over before → after, then **Publish**.
+   Everyone sees the new words on their next tap, or when they bring the app back to the front (web, Android
+   and iPhone). Terms, Privacy and the Loracle's consent words ask for a tick ("I've checked these are still
+   true") first.
+5. Tap the quill again (or **Done**) to use LORE normally. Unpublished changes stay on your device only.
+
+**Texts** (in the editing bar) lists your unpublished and published changes, each text's earlier versions,
+orphans (edits whose words changed in the code), the last 20 publishes with **Undo**, **Find** (every text,
+including error messages and confirm dialogs that are hard to reach), what is on this screen, and **Copy for
+Claude** (your published edits as a note a code session can write into the source). If anything goes wrong,
+`COPY_OVERRIDES=off` on the server shows the code's own words everywhere until you remove it.
+
+Not editable on purpose: crisis lines and emergency numbers, the Loracle's prompts to Claude, what Lorers and
+the Loracle write, the LORE logotype, the app's name and store texts, and the editor's own words. **Not yet
+checked in a browser or on a phone**; the server side is tested and was tried by hand with a local server.
+
 ## Run it locally
 
 Requires Node 22.18+ (Node 24 LTS recommended). Nothing else: development uses an embedded Postgres
@@ -74,7 +101,9 @@ prompts are unproven until the owner sets a key and runs the eval.
 | Command | What it does |
 |---|---|
 | `npm run dev` | API (auto-restart) + web dev server |
-| `npm test` | API tests: auth, privacy rules, full Phase 1 lifecycle, the Loracle with stub minds (in-memory Postgres, no network) |
+| `npm test` | API tests: auth, privacy rules, full Phase 1 lifecycle, the Loracle with stub minds, live text (in-memory Postgres, no network); then `npm run test:copy` |
+| `npm run test:copy` | live text on the web side: the build transform, coverage of every screen's words, the runtime, sync and Copy for Claude |
+| `npm run copy:check` | before changing words in the code: lists the owner's live edits the change would orphan (reads the live server's `GET /api/copy`) |
 | `npm run typecheck` | strict TypeScript check of shared, API and web |
 | `npm run build` | production build of the web app into `apps/web/dist` |
 | `npm start` | production server: API + built web app on one port |

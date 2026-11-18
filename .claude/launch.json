@@ -23,6 +23,16 @@
         "apps/web/vite.config.ts"
       ],
       "port": 5173
+    },
+    {
+      "name": "design-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "const h=require('http'),f=require('fs'),p=require('path');const d=process.argv[1];h.createServer((q,s)=>{const u=decodeURIComponent(q.url.split('?')[0]);const fp=p.join(d,u==='/'?'index.html':u);if(!fp.startsWith(d)){s.writeHead(403);return s.end()}f.readFile(fp,(e,b)=>{if(e){s.writeHead(404);return s.end()}s.writeHead(200,{'content-type':fp.endsWith('.html')?'text/html; charset=utf-8':fp.endsWith('.svg')?'image/svg+xml':'application/octet-stream','cache-control':'no-store'});s.end(b)})}).listen(4300,'127.0.0.1')",
+        "D:\\LORE-devenv\\previews"
+      ],
+      "port": 4300
     }
   ]
 }

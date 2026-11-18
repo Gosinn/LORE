@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { FriendRequestInput, type FriendRequest, type UserSummary } from '#shared';
+import { copy, FriendRequestInput, type FriendRequest, type UserSummary } from '#shared';
 import { requireUser, type AppContext } from '../context.ts';
 import { blocks, friendships, users } from '../db/schema.ts';
 import { relationship, idParam } from '../lib/access.ts';
@@ -66,7 +66,7 @@ export async function friendRoutes(app: FastifyInstance, { db }: AppContext) {
       await notify(db, [target.id], {
         type: 'friend_accepted',
         actorId: me,
-        title: `${actor?.displayName} accepted your friend request`,
+        title: copy('{actor} accepted your friend request', { actor: actor?.displayName }),
         href: `/u/${actor?.username}`,
       });
       return { status: 'accepted' as const };
@@ -76,7 +76,7 @@ export async function friendRoutes(app: FastifyInstance, { db }: AppContext) {
     await notify(db, [target.id], {
       type: 'friend_request',
       actorId: me,
-      title: `${actor?.displayName} wants to be friends`,
+      title: copy('{actor} wants to be friends', { actor: actor?.displayName }),
       href: '/friends',
     });
     reply.status(201);
@@ -94,7 +94,7 @@ export async function friendRoutes(app: FastifyInstance, { db }: AppContext) {
     await notify(db, [request.requesterId], {
       type: 'friend_accepted',
       actorId: me,
-      title: `${actor?.displayName} accepted your friend request`,
+      title: copy('{actor} accepted your friend request', { actor: actor?.displayName }),
       href: `/u/${actor?.username}`,
     });
     return { status: 'accepted' as const };

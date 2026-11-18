@@ -1,7 +1,7 @@
 import { Feather, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { LORACLE_LINES, fillLine, type Future, type OracleReading, type WishSummary } from '#shared';
+import { LORACLE_LINES, copy, fillLine, type Future, type OracleReading, type WishSummary } from '#shared';
 import { ChapterCard, CrewChip, EventCard, IdeaCard } from '../components/cards.tsx';
 import { CompassRose } from '../components/compass.tsx';
 import { NoteItem, QuickNote } from '../components/notes.tsx';
@@ -203,21 +203,22 @@ export function HomePage() {
 function teaserLine(w: WishSummary): string {
   switch (w.status) {
     case 'listening':
-      return 'The stone is drawing your road.';
+      return copy('The stone is drawing your road.');
     case 'moon':
-      return 'Written down. It will be read at the new moon.';
+      return copy('Written down. It will be read at the new moon.');
     case 'faded':
-      return 'The fog won. Try again when you like.';
+      return copy('The fog won. Try again when you like.');
     case 'silent':
-      return 'The stone was silent on this one.';
+      return copy('The stone was silent on this one.');
     case 'fulfilled':
-      return 'It came true. It is lore now.';
+      return copy('It came true. It is lore now.');
     default:
       return w.total ? fillLine(LORACLE_LINES.inked, { inked: w.inked, total: w.total }) : LORACLE_LINES.teaserSub;
   }
 }
 
 /** The door's own words. */
+// copy:table
 const L = {
   signAsk: 'The stones showed this today. Will you choose it?',
   chosen: 'You chose it. The road is yours now.',
@@ -332,7 +333,7 @@ function DoorFrame({
 
 /** When it starts and where: "Tomorrow · 22:30 · Old Light, 52 km". */
 const signMeta = (f: Future) =>
-  [fmtWhen({ startsAt: f.startsAt, endsAt: null, allDay: false }), f.place && `${f.place.name}, ${f.place.distanceKm} km`]
+  [fmtWhen({ startsAt: f.startsAt, endsAt: null, allDay: false }), f.place && copy('{place}, {km} km', { place: f.place.name, km: f.place.distanceKm })]
     .filter(Boolean)
     .join(' · ');
 

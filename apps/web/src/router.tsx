@@ -1,6 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { AppShell } from './components/AppShell.tsx';
 import { Loading } from './components/ui.tsx';
+import { CopyRouteError } from './lib/copy/guard.tsx';
 import { HomePage } from './pages/Home.tsx';
 import { Welcome } from './pages/Welcome.tsx';
 
@@ -9,7 +10,10 @@ const page = (load: () => Promise<Record<string, unknown>>, name: string): Pick<
   lazy: async () => ({ Component: (await load())[name] as React.ComponentType }),
 });
 
-export const router = createBrowserRouter([
+// Live text's crash guard: the router catches render errors itself, so each top-level route gets it.
+const guarded = (routes: RouteObject[]): RouteObject[] => routes.map((r) => ({ errorElement: <CopyRouteError />, ...r }));
+
+export const router = createBrowserRouter(guarded([
   { path: '/welcome', element: <Welcome /> },
   // "Where do you stand?": right after a new account, before Home (signed in; no tab bar).
   { path: '/welcome/where', ...page(() => import('./pages/WhereYouStand.tsx'), 'WhereYouStand') },
@@ -50,4 +54,4 @@ export const router = createBrowserRouter([
       { path: '*', ...page(() => import('./pages/NotFound.tsx'), 'NotFound') },
     ],
   },
-]);
+]));

@@ -43,8 +43,10 @@ export interface Me extends UserSummary {
   email: string;
   bio: string | null;
   createdAt: string;
-  /** Moderators see reports and support messages (ADMIN_USERNAMES on the server). */
+  /** Moderators see reports and support messages (the owner: ADMIN_USERNAMES, or the default owner). */
   isAdmin: boolean;
+  /** May change LORE's words live and publish them (the owner; the same people as isAdmin for now). */
+  canEditCopy: boolean;
 }
 
 export type FriendshipState = 'self' | 'none' | 'friends' | 'outgoing' | 'incoming' | 'blocked';
@@ -686,4 +688,128 @@ export interface ApiErrorBody {
     message: string;
     fields?: Record<string, string>;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Live text: the words the owner changed in the app (packages/shared/src/copy.ts)
+
+/** GET /api/copy (public, no sign-in): every published text, by key. */
+export interface CopyState {
+  /** The published revision; null before the first publish (and when live text is switched off). */
+  version: string | null;
+  texts: Record<string, string>;
+}
+
+/** GET /api/copy?v=<version> when the caller already has that version. */
+export interface CopyUnchanged {
+  version: string | null;
+  unchanged: true;
+}
+
+export type CopyFetch = CopyState | CopyUnchanged;
+
+/** One text's change inside a revision. `null` means "the default from the code". */
+export interface CopyChange {
+  key: string;
+  before: string | null;
+  after: string | null;
+  /** The default the text was written against. */
+  original: string;
+  context: string | null;
+}
+
+/** publish: the owner's publish · undo: a publish taken back · follow: words re-attached after a deploy. */
+export type CopyRevisionKind = 'publish' | 'undo' | 'follow';
+
+export interface CopyRevisionSummary {
+  id: string;
+  kind: CopyRevisionKind;
+  /** Null for automatic follows (and after the publisher's account was deleted). */
+  publishedBy: UserSummary | null;
+  /** undo: the revision it took back. */
+  undoOf: string | null;
+  changes: CopyChange[];
+  createdAt: string;
+}
+
+/** A published text (owner view). */
+export interface CopyOverride {
+  key: string;
+  text: string;
+  original: string;
+  context: string | null;
+  /** Set when the server re-attached these words after a deploy moved them (the old key). */
+  followedFrom: string | null;
+  updatedAt: string;
+  updatedBy: UserSummary | null;
+}
+
+/** GET /api/admin/copy (owner only). */
+export interface CopyAdminState {
+  version: string | null;
+  /** False when the server has live text switched off (COPY_OVERRIDES=off): nothing shows, nothing publishes. */
+  enabled: boolean;
+  overrides: CopyOverride[];
+  /** The last 20 revisions, newest first. */
+  revisions: CopyRevisionSummary[];
+  /** The build whose copy-catalog.json the server checks keys against; null without one. */
+  catalogBuild: string | null;
+  /** Whether keys are checked against that catalog (production only). */
+  catalogChecked: boolean;
+}
+
+/** PUT /api/admin/copy: the new public state. */
+export interface CopyPublishResult extends CopyState {
+  /** The revision written; null when nothing actually changed. */
+  revisionId: string | null;
+}
+
+/** POST /api/admin/copy/undo. */
+export interface CopyUndoResult extends CopyPublishResult {
+  /** Keys left alone because their words changed again after that revision. */
+  skipped: string[];
+}
+
+/** One earlier text of a key (GET /api/admin/copy/history?key=). */
+export interface CopyHistoryEntry {
+  revisionId: string;
+  kind: CopyRevisionKind;
+  /** The words before and after; null = the default from the code. */
+  before: string | null;
+  after: string | null;
+  publishedBy: UserSummary | null;
+  createdAt: string;
+}
+
+export interface CopyHistory {
+  key: string;
+  /** Newest first, at most 20. */
+  entries: CopyHistoryEntry[];
+}
+
+/**
+ * One text in `copy-catalog.json` (emitted by the build plugin into the web build, read by the API at
+ * start and by the owner's editor). File paths and snippets are code, already public in the bundle.
+ */
+export interface CopyCatalogEntry {
+  /** The default from the code (core: NFC, edge whitespace off; canonical message syntax). */
+  text: string;
+  /** `n`: page content (may gain <em>/<strong>/<br/> in an override) · `s`: shown as a string. */
+  kind: 's' | 'n';
+  /** Placeholder name → the source snippet it stands for. */
+  ph?: Record<string, string>;
+  /** Where it is used: `pages/Home.tsx:42`. */
+  at?: string[];
+  /** Human context: `Home › h2`, `LORACLE_LINES.cast`. */
+  ctx?: string;
+  /** Legal or consent text: what it promises must stay true. */
+  legal?: 1;
+  /** Never marked in edit mode (used as data). */
+  plain?: 1;
+}
+
+export interface CopyCatalog {
+  /** The web build it came from (build.json's id), or null. */
+  build: string | null;
+  keys: Record<string, CopyCatalogEntry>;
 }

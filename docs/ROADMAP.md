@@ -85,6 +85,20 @@ exercised in the browser with demo data.
 | **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |
 | More signs: tides, opening hours, events happening nearby, sunset/golden hour | ⬜ |
 
+## Live text: the owner's own words (D33, owner request 2026-11-18)
+
+"I want the ability to change all text myself manually and then a button to commit in real time."
+
+| Step | Status |
+|---|---|
+| Build transform: every static word in the web app, the vocabulary and the static server messages becomes an editable key; `copy-catalog.json` (about 1,130 texts, only what ships) | ✅ transform, render-equality and coverage tests (`npm run test:copy`); build checked: catalog emitted, page chunks call the runtime |
+| API: public `GET /api/copy`, owner-only publish / undo / history, version header, catalog check in production, words following a move after a deploy, kill switch, owner `gosinn` by default with the cut-off | ✅ `copy.test.ts`, `copyShared.test.ts`, `config.test.ts`; tried by hand against a local production-mode server (publish, header change, 404 for others, 403 cross-site, unknown key refused, undo, restart) |
+| Runtime and sync on every client: cached words before the first render, refetch on a new version or when the app comes to the front, crash guard | ✅ unit tests (node, no browser) |
+| The owner's editor: Profile → Edit text, the quill, outlines, tap to edit with live preview, publish bar and sheet (legal tick), discard, Edited texts (published, earlier versions, orphans, history with undo, find, on this screen), "Change those too" | 🟡 typecheck and build pass; the editor is its own chunk, kept out of the service worker. **Not verified:** nothing looked at in a browser or on a phone yet (tapping, outlines, the sheet above the keyboard, TalkBack/VoiceOver) |
+| Server words: static error messages, notification titles, the stone's signs (new ones) | ✅ tested |
+| `npm run copy:check` (live edits a code change would orphan) and **Copy for Claude** (bake published edits into the code) | ✅ unit-tested / tried offline and against a fake server; not yet run against the live server |
+| Deploy to Render and edit for real (the live server has none of this yet) | ⬜ next deploy |
+
 ## Phase 2 — Spontaneity and identity
 
 Who's Down? (spontaneous, expiring invitations; *I'M DOWN / MAYBE / NOT TODAY*), Quote Archive across

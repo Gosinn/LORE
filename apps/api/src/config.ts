@@ -25,8 +25,17 @@ const Env = z.object({
   WEB_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
   /** Origins of the native apps (Capacitor WebViews). They authenticate with bearer tokens. */
   NATIVE_ORIGINS: z.string().default('https://localhost,capacitor://localhost,http://localhost'),
-  /** Comma-separated LORE usernames that may moderate (reports, suspensions, support messages). */
-  ADMIN_USERNAMES: z.string().default(''),
+  /**
+   * Comma-separated LORE usernames that may moderate (reports, suspensions, support messages) and
+   * change LORE's words live. Unset: the default owner (OWNER_DEFAULT). Set but empty: nobody.
+   */
+  ADMIN_USERNAMES: z.string().optional(),
+  /**
+   * `off`: the kill switch for live text. Nobody sees edited words and nothing can be published.
+   * Read leniently and failing safe, since it is typed in an emergency: unset, empty, `on`, `true`,
+   * `1` or `yes` (any case, spaces ignored) keep it on; anything else (`OFF`, ` off`, `false`, `0`) is off.
+   */
+  COPY_OVERRIDES: z.string().optional(),
   /** Signs photo links; set it in production so links survive restarts. */
   MEDIA_URL_SECRET: z.string().min(16).optional(),
   COOKIE_SECURE: bool.optional(),
@@ -50,6 +59,21 @@ const Env = z.object({
   /** The owner's monthly spend ceiling for the Loracle, in US$. Past it, wishes wait for the new moon. */
   LORACLE_MONTHLY_USD: z.coerce.number().min(0).default(150),
 });
+
+/**
+ * The owner when ADMIN_USERNAMES is unset: the account `gosinn`, but only one created before the
+ * cut-off (the release of live text). A `gosinn` registered later (a fresh or wiped database, a
+ * deleted and re-taken name, a fork) is nobody special. The owner confirmed `gosinn` is his live
+ * username (2026-11-18). Development and test on the embedded database skip the cut-off (local data
+ * only).
+ */
+export const OWNER_DEFAULT = { username: 'gosinn', createdBefore: new Date('2026-11-19T00:00:00Z') } as const;
+
+export interface OwnerDefault {
+  username: string;
+  /** Only an account created before this counts; null = no cut-off (development and test). */
+  createdBefore: Date | null;
+}
 
 /** Claude's effort levels (output_config.effort). */
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -104,7 +128,12 @@ export interface Config {
   publicDir: string;
   webOrigins: string[];
   nativeOrigins: string[];
+  /** ADMIN_USERNAMES as set (no cut-off). Empty when unset: then ownerDefault decides. */
   adminUsernames: string[];
+  /** The implicit owner when ADMIN_USERNAMES is unset; null when it is set (even to nothing). */
+  ownerDefault: OwnerDefault | null;
+  /** Live text on (COPY_OVERRIDES is not `off`). */
+  copyOverrides: boolean;
   mediaUrlSecret: string | undefined;
   cookieSecure: boolean;
   trustProxy: boolean;
@@ -171,7 +200,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     publicDir: e.PUBLIC_DIR,
     webOrigins: list(e.WEB_ORIGINS),
     nativeOrigins: list(e.NATIVE_ORIGINS),
-    adminUsernames: list(e.ADMIN_USERNAMES).map((u) => u.toLowerCase()),
+    adminUsernames: list(e.ADMIN_USERNAMES ?? '').map((u) => u.toLowerCase()),
+    ownerDefault:
+      e.ADMIN_USERNAMES === undefined
+        ? {
+            username: OWNER_DEFAULT.username,
+            // No cut-off only for purely local data: development/test on the embedded database. A
+            // server that forgot NODE_ENV (on Render, or with a real database) keeps the cut-off.
+            createdBefore:
+              e.NODE_ENV !== 'production' && !onRender && !e.DATABASE_URL ? null : OWNER_DEFAULT.createdBefore,
+          }
+        : null,
+    copyOverrides: e.COPY_OVERRIDES === undefined || /^\s*(?:on|true|1|yes)?\s*$/i.test(e.COPY_OVERRIDES),
     // Without an explicit secret, derive a stable one from the (secret) database
     // URL so photo links survive restarts.
     mediaUrlSecret:
@@ -202,6 +242,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 export function testConfig(overrides: Partial<Config> = {}): Config {
   return {
     ...loadConfig({ NODE_ENV: 'test' }),
+    // Nobody is the owner unless a test says so (adminUsernames or ownerDefault).
+    ownerDefault: null,
     scryptCost: 2 ** 10,
     logLevel: 'silent',
     ...overrides,

@@ -5,6 +5,7 @@ import { api } from '../lib/api.ts';
 import { useAction, useMe } from '../lib/queries.ts';
 import { ErrorNote, Sheet } from './ui.tsx';
 
+// copy:table
 const WHAT: Record<ReportTarget, string> = {
   user: 'this person',
   event: 'this plan',

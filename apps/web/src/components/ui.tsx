@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router';
 import {
   AUDIENCE_LABELS,
+  copy,
   EVENT_STATUS_LABELS,
   IDEA_STATUS_LABELS,
   type Audience,
@@ -39,6 +40,7 @@ export function Avatar({ user, size = 'md' }: { user: Pick<UserSummary, 'display
 }
 
 /** Someone who has deleted their account. Their contributions stay, anonymised. */
+// copy:table
 export const FORMER_MEMBER = { id: 'former-member', displayName: 'A former member', avatarUrl: null } as const;
 
 export function AvatarStack({ users, max = 5 }: { users: UserSummary[]; max?: number }) {
@@ -102,7 +104,8 @@ export function TopBar({ title, back, actions }: { title?: ReactNode; back?: boo
 export function Wordmark({ tag = true }: { tag?: boolean }) {
   return (
     <span className="wordmark">
-      <span className="wordmark-name">
+      {/* The logotype is the name itself, not words to reword. */}
+      <span className="wordmark-name" data-copy="off">
         L<span className="o">O</span>RE
       </span>
       {tag && <span className="wordmark-tag">No scrolling. Only rolling.</span>}
@@ -114,8 +117,8 @@ export function Wordmark({ tag = true }: { tag?: boolean }) {
 export function Backronym({ className = '' }: { className?: string }) {
   return (
     <span className={`backronym ${className}`} aria-label="Life Of Regular Epics">
-      {['Life', 'Of', 'Regular', 'Epics'].map((word) => (
-        <span key={word} aria-hidden>
+      {copy.list(['Life', 'Of', 'Regular', 'Epics']).map((word, i) => (
+        <span key={i} aria-hidden>
           <b>{word[0]}</b>
           {word.slice(1)}{' '}
         </span>
@@ -155,10 +158,9 @@ export function Loading() {
 
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
-  const message = (error as ApiError).message ?? 'Something went wrong.';
   return (
     <p className="form-error" role="alert">
-      {message}
+      {(error as ApiError).message ?? 'Something went wrong.'}
     </p>
   );
 }

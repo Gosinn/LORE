@@ -165,11 +165,10 @@ function MemberRow({ crew, m }: { crew: CrewDetail; m: CrewMember }) {
   const setRole = useAction((role: 'admin' | 'member') => api.patch<CrewDetail>(`/crews/${crew.id}/members/${m.user.id}`, { role }), { set: setCrew });
   const remove = useAction(() => api.del<CrewDetail>(`/crews/${crew.id}/members/${m.user.id}`), { set: setCrew });
   const isMe = m.user.id === me.data?.id;
-  const sub = m.status === 'invited' ? 'Invited' : `${CREW_ROLE_LABELS[m.role]}${isMe ? ' · You' : ''}`;
   const canRemove = crew.canManage && !isMe && m.role !== 'owner' && (m.role !== 'admin' || crew.myRole === 'owner');
   return (
     <div className="spread">
-      <Person user={m.user} sub={sub} />
+      <Person user={m.user} sub={m.status === 'invited' ? 'Invited' : `${CREW_ROLE_LABELS[m.role]}${isMe ? ' · You' : ''}`} />
       <span className="row" style={{ gap: 4 }}>
         {crew.myRole === 'owner' && !isMe && m.status === 'active' && m.role !== 'owner' && (
           <button className="btn btn-ghost btn-sm" onClick={() => setRole.mutate(m.role === 'admin' ? 'member' : 'admin')}>

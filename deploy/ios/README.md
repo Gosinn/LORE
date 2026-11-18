@@ -64,7 +64,7 @@ have extra rules.
 | Delete your account inside the app | ✅ built |
 | Block people | ✅ built |
 | **Report** people, plans, ideas, chapters, stories and messages (with block in the same step) | ✅ built |
-| Someone acts on reports within 24 hours | ✅ Moderation screen; **you** are the moderator once `ADMIN_USERNAMES` is set (below) |
+| Someone acts on reports within 24 hours | ✅ Moderation screen; **you** (`gosinn`) are the moderator by default (below) |
 | **Terms** that say abusive content isn't tolerated; agreed to at sign-up | ✅ https://lore-g8co.onrender.com/terms |
 | **Privacy policy** page | ✅ https://lore-g8co.onrender.com/privacy |
 | **Support** page with a contact form | ✅ https://lore-g8co.onrender.com/support |
@@ -77,10 +77,13 @@ have extra rules.
 
 ## Become the moderator
 
-Render → your LORE service → **Environment** → **Add Environment Variable**: key `ADMIN_USERNAMES`,
-value = your LORE username (several: separate with commas) → **Save**. After the redeploy, Profile shows
-**Moderation**, and Home tells you when there's a report or a message waiting. Apple expects reports to
-be handled within 24 hours.
+You already are: your account `gosinn` (created before 19 November 2026) is the owner by default, so
+Profile shows **Moderation** (and **Edit text**, for changing LORE's words live), and Home tells you when
+there's a report or a message waiting. Apple expects reports to be handled within 24 hours.
+
+To choose someone else (or several people): Render → your LORE service → **Environment** → **Add
+Environment Variable**: key `ADMIN_USERNAMES`, value = the LORE usernames, separated with commas →
+**Save**. Once that variable is set, exactly those people are moderators (an empty value means nobody).
 
 ## App Privacy answers (App Store Connect → App Privacy)
 

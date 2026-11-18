@@ -1,9 +1,11 @@
 import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { copy } from '#shared';
 import { Wordmark } from '../components/ui.tsx';
 
-const UPDATED = '18 November 2026';
+/** Editable live, read once at start (a module constant): reload to see an edit. */
+const UPDATED = copy('18 November 2026');
 
 /** A page anyone can open, signed in or not (the App Store links here). */
 export function PublicPage({ title, children }: { title: string; children: ReactNode }) {

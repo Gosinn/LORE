@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { loreCopy } from './vite/copyPlugin.ts';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const appVersion: string = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
@@ -26,6 +27,12 @@ function buildInfo(): Plugin {
   };
 }
 
+// The owner's text editor (components/copyEditor) is its own chunk with a fixed name, so the
+// service worker can leave it out of the precache: no other Lorer downloads it.
+const EDITOR = /[\\/]components[\\/]copyEditor[\\/]/;
+const isEditorChunk = (c: { facadeModuleId?: string | null; moduleIds?: readonly string[] }) =>
+  EDITOR.test(c.facadeModuleId ?? '') || (!!c.moduleIds?.length && c.moduleIds.every((id) => EDITOR.test(id)));
+
 export default defineConfig({
   root,
   // Keep Vite's dependency cache inside the repo (on D:), not in a temp folder.
@@ -35,6 +42,9 @@ export default defineConfig({
     __LORE_VERSION__: JSON.stringify(appVersion),
   },
   plugins: [
+    // Live text: every static word becomes a lookup the owner can reword from the app (before React's
+    // transform: it reads the raw TSX). Emits copy-catalog.json next to the build.
+    loreCopy({ legal: ['pages/Legal'], build: buildId }),
     react(),
     buildInfo(),
     VitePWA({
@@ -58,6 +68,8 @@ export default defineConfig({
         // The app shell works offline; API data always comes from the server.
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Only the owner loads the text editor.
+        globIgnores: ['**/node_modules/**/*', '**/copy-editor-*'],
       },
     }),
   ],
@@ -67,5 +79,17 @@ export default defineConfig({
     proxy: { '/api': 'http://127.0.0.1:4000' },
   },
   preview: { port: 5173, proxy: { '/api': 'http://127.0.0.1:4000' } },
-  build: { outDir: 'dist', emptyOutDir: true },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        chunkFileNames: (c) => (isEditorChunk(c) ? 'assets/copy-editor-[hash].js' : 'assets/[name]-[hash].js'),
+        assetFileNames: (a) =>
+          a.originalFileNames.some((f) => EDITOR.test(f)) || a.names.some((n) => /^copyEditor\.css$|^CopyEditor/.test(n))
+            ? 'assets/copy-editor-[hash][extname]'
+            : 'assets/[name]-[hash][extname]',
+      },
+    },
+  },
 });
