@@ -10,6 +10,7 @@ import { resolveSession, SESSION_COOKIE } from './auth/sessions.ts';
 import type { AppContext } from './context.ts';
 import { forbidden, HttpError } from './lib/errors.ts';
 import { setMediaUrlSecret } from './lib/mediaUrls.ts';
+import { ownerRecoveryStatus } from './lib/owner-recovery.ts';
 import { accountRoutes } from './routes/account.ts';
 import { appUpdateRoutes } from './routes/appUpdates.ts';
 import { authRoutes } from './routes/auth.ts';
@@ -113,6 +114,7 @@ export async function buildApp(ctx: AppContext) {
     ok: true,
     database: ctx.dbKind === 'pglite' ? 'embedded' : (ctx.dbKind ?? 'unknown'),
     photos: config.mediaStorage,
+    ...(ownerRecoveryStatus ? { recovery: ownerRecoveryStatus } : {}),
   }));
 
   await app.register(
