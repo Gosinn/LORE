@@ -36,6 +36,13 @@
       "when": 1794976887974,
       "tag": "0004_oracle",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794979321335,
+      "tag": "0005_safety",
+      "breakpoints": true
     }
   ]
 }

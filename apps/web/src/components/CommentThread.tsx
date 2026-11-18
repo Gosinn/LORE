@@ -4,6 +4,7 @@ import type { Comment } from '#shared';
 import { api } from '../lib/api.ts';
 import { timeAgo } from '../lib/dates.ts';
 import { useAction, useComments, type CommentKind } from '../lib/queries.ts';
+import { ReportButton } from './report.tsx';
 import { Avatar, ErrorNote, FORMER_MEMBER } from './ui.tsx';
 
 export function CommentThread({ kind, id, placeholder = 'Say something…' }: { kind: CommentKind; id: string; placeholder?: string }) {
@@ -33,6 +34,7 @@ export function CommentThread({ kind, id, placeholder = 'Say something…' }: { 
                   <Trash2 size={13} />
                 </button>
               )}
+              <ReportButton targetType="comment" targetId={c.id} subject={c.author} />
             </span>
             <div className="comment-body">{c.body}</div>
           </div>

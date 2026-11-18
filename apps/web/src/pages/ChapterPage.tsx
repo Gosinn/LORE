@@ -6,6 +6,7 @@ import { CommentThread } from '../components/CommentThread.tsx';
 import { CrewTag } from '../components/cards.tsx';
 import { PeoplePicker } from '../components/pickers.tsx';
 import { Avatar, AvatarStack, ErrorNote, Field, FORMER_MEMBER, Loading, PageError, PrivacyBadge, Section, Sheet, TopBar } from '../components/ui.tsx';
+import { ReportButton } from '../components/report.tsx';
 import { api, mediaSrc } from '../lib/api.ts';
 import { fmtChapterDate, timeAgo } from '../lib/dates.ts';
 import { prepareImage } from '../lib/images.ts';
@@ -130,6 +131,10 @@ function ChapterView({ c }: { c: ChapterDetail }) {
         <CommentThread kind="chapters" id={c.id} placeholder="Remember when…" />
       </Section>
 
+      <p className="report-foot">
+        <ReportButton targetType="chapter" targetId={c.id} subject={c.createdBy} variant="link" />
+      </p>
+
       <div className="section row-wrap" style={{ justifyContent: 'center' }}>
         {c.isPerson && c.createdBy?.id !== me.data?.id && (
           <button className="btn btn-ghost btn-sm" onClick={() => confirm('Remove yourself from this chapter? Your own contributions stay unless you delete them.') && leave.mutate(undefined)}>
@@ -189,6 +194,7 @@ function ContributionView({ chapterId, x }: { chapterId: string; x: Contribution
           <Pencil size={14} />
         </button>
       )}
+      <ReportButton targetType="contribution" targetId={x.id} subject={x.author} />
       {x.canDelete && (
         <button className="btn btn-ghost btn-sm" aria-label="Delete" onClick={() => confirm('Delete this?') && remove.mutate(undefined)}>
           <Trash2 size={14} />

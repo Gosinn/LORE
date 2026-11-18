@@ -14,7 +14,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 const notBlockedEitherWay = (viewerId: string) =>
   sql`not exists (select 1 from ${blocks} where (${blocks.blockerId} = ${viewerId} and ${blocks.blockedId} = ${users.id}) or (${blocks.blockerId} = ${users.id} and ${blocks.blockedId} = ${viewerId}))`;
 
-export async function userRoutes(app: FastifyInstance, { db }: AppContext) {
+export async function userRoutes(app: FastifyInstance, { db, config }: AppContext) {
   /** Find people by username (prefix) or display name. Ten results, no browsing. */
   app.get('/users/search', async (req): Promise<UserSearchResult[]> => {
     const me = requireUser(req);
@@ -108,6 +108,6 @@ export async function userRoutes(app: FastifyInstance, { db }: AppContext) {
       .update(users)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(users.id, me));
-    return loadMe(db, me);
+    return loadMe(db, me, config);
   });
 }

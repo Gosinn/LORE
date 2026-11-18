@@ -11,7 +11,10 @@ import type {
   OracleMode,
   NotificationType,
   ParticipantRole,
+  ReportReason,
+  ReportTarget,
   RsvpStatus,
+  SupportTopic,
 } from './vocabulary.ts';
 
 export interface UserSummary {
@@ -25,6 +28,8 @@ export interface Me extends UserSummary {
   email: string;
   bio: string | null;
   createdAt: string;
+  /** Moderators see reports and support messages (ADMIN_USERNAMES on the server). */
+  isAdmin: boolean;
 }
 
 export type FriendshipState = 'self' | 'none' | 'friends' | 'outgoing' | 'incoming' | 'blocked';
@@ -313,6 +318,46 @@ export interface OracleReading {
 export interface OracleState {
   settings: OracleSettings;
   reading: OracleReading | null;
+}
+
+// ---------------------------------------------------------------------------
+// Safety (moderators only)
+
+export interface ModerationReport {
+  id: string;
+  targetType: ReportTarget;
+  targetId: string;
+  reason: ReportReason;
+  details: string | null;
+  /** What it said when it was reported. */
+  snapshot: string | null;
+  /** Where to look, if it still exists. */
+  href: string | null;
+  reporter: UserSummary | null;
+  subject: (UserSummary & { suspended: boolean }) | null;
+  status: 'open' | 'actioned' | 'dismissed';
+  resolution: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  /** Other open reports about the same thing. */
+  sameTarget: number;
+}
+
+export interface SupportMessage {
+  id: string;
+  topic: SupportTopic;
+  body: string;
+  replyTo: string | null;
+  user: UserSummary | null;
+  createdAt: string;
+  handledAt: string | null;
+}
+
+export interface ModerationSummary {
+  openReports: number;
+  /** The oldest open report, to keep the 24-hour promise. */
+  oldestOpenAt: string | null;
+  openMessages: number;
 }
 
 /** Every Home section is a short, finite list. There is no feed. */

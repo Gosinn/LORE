@@ -63,14 +63,43 @@ have extra rules.
 |---|---|
 | Delete your account inside the app | ✅ built |
 | Block people | ✅ built |
-| **Report** posts, comments and people; someone acts on reports within 24 hours | ⬜ to build |
-| **Terms** that say abusive content isn't tolerated | ⬜ to write |
-| **Privacy policy** page (a public URL) | ⬜ to write (needs a contact address) |
-| **Support** page or contact | ⬜ |
-| App Privacy answers (what data LORE collects and why) | ⬜ I'll prepare them |
+| **Report** people, plans, ideas, chapters, stories and messages (with block in the same step) | ✅ built |
+| Someone acts on reports within 24 hours | ✅ Moderation screen; **you** are the moderator once `ADMIN_USERNAMES` is set (below) |
+| **Terms** that say abusive content isn't tolerated; agreed to at sign-up | ✅ https://lore-g8co.onrender.com/terms |
+| **Privacy policy** page | ✅ https://lore-g8co.onrender.com/privacy |
+| **Support** page with a contact form | ✅ https://lore-g8co.onrender.com/support |
+| App Privacy answers | ✅ below |
+| Forgot-password by email | ⬜ needs an email service; until then people write via the support page |
 | A demo account for the reviewer | ⬜ at submission time |
 | More than a website in a wrapper (4.2) | 🟡 notifications, live updates, the Oracle; Apple decides |
 | Sign in with Apple | Not required: LORE has no Google/Facebook sign-in |
+
+## Become the moderator
+
+Render → your LORE service → **Environment** → **Add Environment Variable**: key `ADMIN_USERNAMES`,
+value = your LORE username (several: separate with commas) → **Save**. After the redeploy, Profile shows
+**Moderation**, and Home tells you when there's a report or a message waiting. Apple expects reports to
+be handled within 24 hours.
+
+## App Privacy answers (App Store Connect → App Privacy)
+
+- Tracking: **No**, LORE doesn't track people across apps or websites.
+- Data collected, all *linked to the user*, all used only for *App Functionality*:
+  - Contact Info: **Name**, **Email Address**
+  - User Content: **Photos or Videos**, **Other User Content** (plans, stories, comments, notes)
+  - Location: **Coarse Location** (the Oracle's realm, which people type in themselves)
+  - Identifiers: **User ID**
+- Not collected: payment info (Apple handles it), contacts, browsing history, precise location,
+  diagnostics, advertising data.
+
+## Selling it
+
+- Price: set in App Store Connect → *Pricing and Availability* (for example the 2.99 USD tier).
+- In the EU, anyone *selling* an app is a trader: Apple shows a contact **address, phone number and
+  email** on LORE's EU App Store page (Digital Services Act). Use details you're happy to make public, or
+  leave the EU out of the countries list at first.
+- The website stays free and works on any phone. Decide later whether it should ask for the App Store
+  version, a web payment, or stay as the free door into LORE.
 
 ## Costs
 

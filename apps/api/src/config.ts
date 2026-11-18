@@ -25,6 +25,8 @@ const Env = z.object({
   WEB_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
   /** Origins of the native apps (Capacitor WebViews). They authenticate with bearer tokens. */
   NATIVE_ORIGINS: z.string().default('https://localhost,capacitor://localhost,http://localhost'),
+  /** Comma-separated LORE usernames that may moderate (reports, suspensions, support messages). */
+  ADMIN_USERNAMES: z.string().default(''),
   /** Signs photo links; set it in production so links survive restarts. */
   MEDIA_URL_SECRET: z.string().min(16).optional(),
   COOKIE_SECURE: bool.optional(),
@@ -51,6 +53,7 @@ export interface Config {
   publicDir: string;
   webOrigins: string[];
   nativeOrigins: string[];
+  adminUsernames: string[];
   mediaUrlSecret: string | undefined;
   cookieSecure: boolean;
   trustProxy: boolean;
@@ -87,6 +90,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     publicDir: e.PUBLIC_DIR,
     webOrigins: list(e.WEB_ORIGINS),
     nativeOrigins: list(e.NATIVE_ORIGINS),
+    adminUsernames: list(e.ADMIN_USERNAMES).map((u) => u.toLowerCase()),
     // Without an explicit secret, derive a stable one from the (secret) database
     // URL so photo links survive restarts.
     mediaUrlSecret:

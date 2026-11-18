@@ -25,6 +25,7 @@ import { noteRoutes } from './routes/notes.ts';
 import { notificationRoutes } from './routes/notifications.ts';
 import { oracleRoutes } from './routes/oracle.ts';
 import { personalRoutes } from './routes/personal.ts';
+import { safetyRoutes } from './routes/safety.ts';
 import { userRoutes } from './routes/users.ts';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -132,6 +133,7 @@ export async function buildApp(ctx: AppContext) {
         commentRoutes,
         notificationRoutes,
         oracleRoutes,
+        safetyRoutes,
         homeRoutes,
       ]) {
         await routes(api, ctx);

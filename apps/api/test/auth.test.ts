@@ -33,7 +33,7 @@ describe('accounts and sessions', () => {
     const res = await t.app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { username: 'Dupe', displayName: 'Other', email: 'dupe@example.test', password: 'correct horse battery' },
+      payload: { username: 'Dupe', displayName: 'Other', email: 'dupe@example.test', password: 'correct horse battery', acceptTerms: true },
     });
     expect(res.statusCode).toBe(409);
     expect(JSON.parse(res.body).error.fields).toMatchObject({ username: expect.any(String), email: expect.any(String) });

@@ -5,6 +5,7 @@ import { EVENT_CATEGORY_LABELS, type IdeaDetail } from '#shared';
 import { CommentThread } from '../components/CommentThread.tsx';
 import { CrewTag, EventCard } from '../components/cards.tsx';
 import { AvatarStack, ErrorNote, Field, IdeaStatusPill, Loading, PageError, PrivacyBadge, Section, Sheet, TopBar } from '../components/ui.tsx';
+import { ReportButton } from '../components/report.tsx';
 import { api } from '../lib/api.ts';
 import { fromLocalInput, localTimeZone, toLocalInput } from '../lib/dates.ts';
 import { useAction, useIdea } from '../lib/queries.ts';
@@ -119,6 +120,10 @@ function IdeaView({ idea }: { idea: IdeaDetail }) {
       <Section title="Talk it over">
         <CommentThread kind="ideas" id={idea.id} placeholder="Thoughts, options, links…" />
       </Section>
+
+      <p className="report-foot">
+        <ReportButton targetType="idea" targetId={idea.id} subject={idea.createdBy} variant="link" />
+      </p>
 
       {idea.canEdit && (
         <div className="section" style={{ textAlign: 'center' }}>

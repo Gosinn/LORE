@@ -1,5 +1,18 @@
 # LORE — Development log
 
+## 2026-11-18 (evening) — Ready for strangers: report, moderate, Terms, Privacy, Help (0.5.0)
+
+- Report (with optional block) on messages, chapter stories, chapters, plans, ideas and profiles;
+  Moderation screen for `ADMIN_USERNAMES` (dismiss / take down / suspend / lift); Home banner for
+  moderators; suspended accounts can't sign in.
+- Terms of Use and Privacy Policy (public pages), Terms checkbox at sign-up, Help & contact page with a
+  contact form (also for people who aren't signed in). Export includes reports and messages; messages
+  are deleted with the account.
+- Migration 0005. 11 new tests (86 total, all passing). Checked in the browser: reporting a story, the
+  moderation screen, dismissing, Privacy and Help pages, the sign-up form with the checkbox.
+- Owner's answers: paid download, code private, iPhone available for TestFlight.
+- Not done: forgot-password emails (needs an email service).
+
 ## 2026-11-18 (later) — Stone and scrolls, the reminder, iPhone
 
 - The Oracle now looks like an ancient magic stone (granite, glowing SVG runes, a window onto the night)

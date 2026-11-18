@@ -13,6 +13,7 @@ import type {
   IdeaDetail,
   IdeaSummary,
   Me,
+  ModerationSummary,
   NotesData,
   OracleState,
   PersonalEntry,
@@ -65,6 +66,10 @@ export const usePersonal = (from: string, to: string, enabled = true) =>
 
 /** Your realm and today's reading. Cheap: the server only reads its own tables here. */
 export const useOracle = () => useQuery({ queryKey: ['oracle'], queryFn: () => api.get<OracleState>('/oracle') });
+
+/** Moderators only. */
+export const useModerationSummary = (enabled: boolean) =>
+  useQuery({ queryKey: ['admin', 'summary'], queryFn: () => api.get<ModerationSummary>('/admin/summary'), enabled });
 
 export const useNotes = (enabled = true) =>
   useQuery({ queryKey: ['notes'], queryFn: () => api.get<NotesData>('/notes'), enabled });

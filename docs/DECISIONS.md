@@ -5,6 +5,17 @@ Newest first within each list.
 
 ## Taken
 
+**D29 · Safety for going public (App Store guideline 1.2).** Anyone can report a person, plan, idea,
+chapter, story or message they can see (and block the person in the same step); the report keeps a
+snapshot of what it said. Moderators are configured by username (`ADMIN_USERNAMES`), not stored in the
+database, so only whoever controls the server can appoint them. They can dismiss, take content down, or
+suspend the account (suspended accounts are signed out everywhere and can't sign in); one decision settles
+all open reports about the same thing. Moderators see reported content even when it's private: the
+Privacy Policy says so. New accounts must agree to the Terms (`terms_accepted_at`). Public pages (Terms,
+Privacy, Help & contact) open without an account. The contact form stores messages for moderators to
+answer by email; they're deleted with the account. Owner's answers (2026-11-18): **paid download** on the
+App Store, the code stays private, the owner tests on their iPhone via TestFlight.
+
 **D28 · iPhone next, built in the cloud.** The owner's Android phone stopped working and they chose to
 go public on the App Store and sell LORE (2026-11-18). The iOS app is the same Capacitor app
 (`apps/ios`, Swift Package Manager, so the project can be generated and synced on Windows). Builds run on

@@ -104,7 +104,7 @@ export async function createTestApp(
       const res = await app.inject({
         method: 'POST',
         url: '/api/auth/register',
-        payload: { username, displayName, email: `${username}@example.test`, password: 'correct horse battery' },
+        payload: { username, displayName, email: `${username}@example.test`, password: 'correct horse battery', acceptTerms: true },
       });
       if (res.statusCode !== 201) throw new Error(`signUp failed: ${res.statusCode} ${res.body}`);
       const setCookie = res.cookies.find((c) => c.name === 'lore_session');

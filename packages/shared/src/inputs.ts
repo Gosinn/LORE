@@ -10,6 +10,9 @@ import {
   IDEA_STATUSES,
   INTERESTS,
   ORACLE_MODES,
+  REPORT_REASONS,
+  REPORT_TARGETS,
+  SUPPORT_TOPICS,
 } from './vocabulary.ts';
 
 const id = z.uuid();
@@ -53,6 +56,7 @@ export const RegisterInput = z.object({
   displayName: text(60),
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
   password: z.string().min(10, 'Use at least 10 characters').max(200),
+  acceptTerms: z.literal(true, { error: 'Please agree to the Terms to continue' }),
 });
 export type RegisterInput = z.infer<typeof RegisterInput>;
 
@@ -373,3 +377,31 @@ export type ChooseFutureInput = z.infer<typeof ChooseFutureInput>;
 
 export const CreateCommentInput = z.object({ body: text(4000) });
 export type CreateCommentInput = z.infer<typeof CreateCommentInput>;
+
+// ---------------------------------------------------------------------------
+// Safety
+
+export const ReportInput = z.object({
+  targetType: z.enum(REPORT_TARGETS),
+  targetId: id,
+  reason: z.enum(REPORT_REASONS),
+  details: optionalText(1000).optional(),
+  /** Also block the person behind it. */
+  block: z.boolean().optional(),
+});
+export type ReportInput = z.infer<typeof ReportInput>;
+
+export const ResolveReportInput = z.object({
+  /** dismiss: nothing wrong · remove: take the content down · suspend: the person can't sign in any more. */
+  action: z.enum(['dismiss', 'remove', 'suspend']),
+  note: optionalText(500).optional(),
+});
+export type ResolveReportInput = z.infer<typeof ResolveReportInput>;
+
+export const SupportMessageInput = z.object({
+  topic: z.enum(SUPPORT_TOPICS),
+  body: z.string().trim().min(10, 'Tell us a little more').max(4000),
+  /** Where to answer. Signed-in people can leave it out: their account email is used. */
+  replyTo: z.string().trim().toLowerCase().pipe(z.email().max(254)).optional(),
+});
+export type SupportMessageInput = z.infer<typeof SupportMessageInput>;

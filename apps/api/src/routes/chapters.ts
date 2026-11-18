@@ -147,7 +147,7 @@ async function chapterAudience(db: Db, chapter: { id: string; createdBy: string 
   return [...rows.map((r) => r.userId), ...(chapter.createdBy ? [chapter.createdBy] : [])];
 }
 
-async function deleteMediaFiles(db: Db, storage: MediaStorage, where: ReturnType<typeof eq>) {
+export async function deleteMediaFiles(db: Db, storage: MediaStorage, where: ReturnType<typeof eq>) {
   const files = await db.select({ key: media.storageKey }).from(media).where(where);
   await Promise.all(files.map((f) => storage.delete(f.key)));
 }

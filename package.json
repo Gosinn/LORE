@@ -1,7 +1,7 @@
 {
   "name": "lore",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "LORE: no scrolling, only rolling. Plan experiences together and preserve the stories.",
   "type": "module",
   "engines": {

@@ -8,6 +8,7 @@ import { whenLabel } from '../components/notes.tsx';
 import { ensureReminderPermission } from '../lib/reminders.ts';
 import { PeoplePicker } from '../components/pickers.tsx';
 import { Avatar, ErrorNote, EventStatusPill, Loading, PageError, Person, PrivacyBadge, Section, Sheet, TopBar } from '../components/ui.tsx';
+import { ReportButton } from '../components/report.tsx';
 import { api, ApiError } from '../lib/api.ts';
 import { fmtWhen } from '../lib/dates.ts';
 import { useAction, useEvent, useMe } from '../lib/queries.ts';
@@ -220,6 +221,10 @@ function EventView({ event: e }: { event: EventDetail }) {
       <Section title="Discussion">
         <CommentThread kind="events" id={e.id} placeholder="Ask, plan, coordinate…" />
       </Section>
+
+      <p className="report-foot">
+        <ReportButton targetType="event" targetId={e.id} subject={e.createdBy} variant="link" />
+      </p>
 
       {e.myRsvp && !(e.myRole === 'organizer' && e.participants.filter((p) => p.role === 'organizer').length === 1) && (
         <div className="section" style={{ textAlign: 'center' }}>

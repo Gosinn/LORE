@@ -11,6 +11,10 @@ const page = (load: () => Promise<Record<string, unknown>>, name: string): Pick<
 
 export const router = createBrowserRouter([
   { path: '/welcome', element: <Welcome /> },
+  // Public pages: open without an account (the App Store links to them).
+  { path: '/terms', ...page(() => import('./pages/Legal.tsx'), 'TermsPage') },
+  { path: '/privacy', ...page(() => import('./pages/Legal.tsx'), 'PrivacyPage') },
+  { path: '/support', ...page(() => import('./pages/Support.tsx'), 'SupportPage') },
   {
     path: '/',
     element: <AppShell />,
@@ -39,6 +43,7 @@ export const router = createBrowserRouter([
       { path: 'notifications', ...page(() => import('./pages/Notifications.tsx'), 'NotificationsPage') },
       { path: 'notes', ...page(() => import('./pages/Notes.tsx'), 'NotesPage') },
       { path: 'oracle', ...page(() => import('./pages/Oracle.tsx'), 'OraclePage') },
+      { path: 'admin', ...page(() => import('./pages/Admin.tsx'), 'AdminPage') },
       { path: '*', ...page(() => import('./pages/NotFound.tsx'), 'NotFound') },
     ],
   },

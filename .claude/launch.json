@@ -4,13 +4,23 @@
     {
       "name": "lore-api",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["--watch", "apps/api/src/server.ts"],
-      "port": 4000
+      "runtimeArgs": [
+        "--watch",
+        "apps/api/src/server.ts"
+      ],
+      "port": 4000,
+      "env": {
+        "ADMIN_USERNAMES": "gunna"
+      }
     },
     {
       "name": "lore-web",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--config", "apps/web/vite.config.ts"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--config",
+        "apps/web/vite.config.ts"
+      ],
       "port": 5173
     }
   ]

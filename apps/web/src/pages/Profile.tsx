@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronRight, Dices, Download, LogOut, Users } from 'lucide-react';
+import { Camera, ChevronRight, Dices, Download, LogOut, ShieldCheck, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { Me, MediaRef } from '#shared';
@@ -166,6 +166,19 @@ export function MyProfile() {
             </button>
           </div>
           <ErrorNote error={exportData.error} />
+        </div>
+      </Section>
+
+      <Section title="Help">
+        <div className="stack">
+          {me.isAdmin && (
+            <Link to="/admin" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
+              <ShieldCheck size={15} /> Moderation
+            </Link>
+          )}
+          <p className="small">
+            <Link to="/support">Help &amp; contact</Link> · <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
+          </p>
         </div>
       </Section>
 

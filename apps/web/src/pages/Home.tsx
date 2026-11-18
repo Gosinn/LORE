@@ -6,7 +6,7 @@ import { StoneCircle } from '../components/oracle.tsx';
 import { Empty, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { fmtLongDay, greeting } from '../lib/dates.ts';
-import { useAction, useHome, useMe, useOracle } from '../lib/queries.ts';
+import { useAction, useHome, useMe, useModerationSummary, useOracle } from '../lib/queries.ts';
 
 export function HomePage() {
   const me = useMe();
@@ -34,6 +34,8 @@ export function HomePage() {
       <div className="section" style={{ marginTop: 16 }}>
         <QuickNote />
       </div>
+
+      {me.data?.isAdmin && <ModerationBanner />}
 
       <OracleTeaser />
 
@@ -211,6 +213,21 @@ function OracleTeaser() {
         <span className="eyebrow">The Oracle</span>
         <strong>{line}</strong>
         <span className="small">{sub}</span>
+      </span>
+    </Link>
+  );
+}
+
+/** Moderators only: open reports are a 24-hour promise. */
+function ModerationBanner() {
+  const summary = useModerationSummary(true);
+  const s = summary.data;
+  if (!s || (!s.openReports && !s.openMessages)) return null;
+  return (
+    <Link to="/admin" className="banner section" style={{ marginTop: 18 }}>
+      <span className="grow small">
+        <strong>Moderation:</strong> {s.openReports} open {s.openReports === 1 ? 'report' : 'reports'}
+        {s.openMessages ? `, ${s.openMessages} ${s.openMessages === 1 ? 'message' : 'messages'}` : ''}
       </span>
     </Link>
   );

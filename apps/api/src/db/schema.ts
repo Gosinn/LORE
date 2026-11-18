@@ -67,6 +67,10 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   bio: text('bio'),
   avatarMediaId: uuid('avatar_media_id').references((): AnyPgColumn => media.id, { onDelete: 'set null' }),
+  /** When they agreed to the Terms (at sign-up). Null for accounts from before the Terms existed. */
+  termsAcceptedAt: ts('terms_accepted_at'),
+  /** Set by a moderator: a suspended account can't sign in. */
+  suspendedAt: ts('suspended_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -313,6 +317,52 @@ export const notes = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [index('notes_user_remind_idx').on(t.userId, t.remindAt), index('notes_user_created_idx').on(t.userId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Safety: reports, and messages to the people running LORE
+
+/** Someone reported a person or something they can see. Reviewed by moderators (ADMIN_USERNAMES). */
+export const reports = pgTable(
+  'reports',
+  {
+    id: id(),
+    reporterId: uuid('reporter_id').references(() => users.id, { onDelete: 'set null' }),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    /** The person reported, or whose content it is. */
+    subjectId: uuid('subject_id').references(() => users.id, { onDelete: 'set null' }),
+    reason: text('reason').notNull(),
+    details: text('details'),
+    /** What it said when reported, so it can be judged even after edits. */
+    snapshot: text('snapshot'),
+    href: text('href'),
+    status: text('status').notNull().default('open'),
+    resolution: text('resolution'),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: ts('resolved_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('reports_status_idx').on(t.status, t.createdAt),
+    index('reports_target_idx').on(t.targetType, t.targetId),
+    check('reports_status', sql`${t.status} in ('open', 'actioned', 'dismissed')`),
+  ],
+);
+
+/** The contact form: help, bugs, privacy requests. Anyone can write, signed in or not. */
+export const supportMessages = pgTable(
+  'support_messages',
+  {
+    id: id(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    replyTo: text('reply_to'),
+    topic: text('topic').notNull(),
+    body: text('body').notNull(),
+    handledAt: ts('handled_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('support_messages_created_idx').on(t.createdAt)],
 );
 
 // ---------------------------------------------------------------------------

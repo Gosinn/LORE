@@ -4,16 +4,23 @@ import { LoginInput, RegisterInput, type Me } from '#shared';
 import { burnPasswordCheck, hashPassword, needsRehash, verifyPassword } from '../auth/password.ts';
 import { createSession, deleteSession, SESSION_COOKIE } from '../auth/sessions.ts';
 import { requireUser, type AppContext } from '../context.ts';
+import type { Config } from '../config.ts';
 import type { Db } from '../db/index.ts';
 import { users } from '../db/schema.ts';
 import { conflict, HttpError, isUniqueViolation, unauthorized } from '../lib/errors.ts';
 import { iso, toUserSummary } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
-export async function loadMe(db: Db, userId: string): Promise<Me> {
+export async function loadMe(db: Db, userId: string, config: Pick<Config, 'adminUsernames'>): Promise<Me> {
   const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!u) throw unauthorized();
-  return { ...toUserSummary(u), email: u.email, bio: u.bio, createdAt: iso(u.createdAt) };
+  return {
+    ...toUserSummary(u),
+    email: u.email,
+    bio: u.bio,
+    createdAt: iso(u.createdAt),
+    isAdmin: config.adminUsernames.includes(u.username),
+  };
 }
 
 export async function authRoutes(app: FastifyInstance, { db, config }: AppContext) {
@@ -31,7 +38,7 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
       expires: expiresAt,
     });
     const native = req.headers['x-lore-client'] === 'native';
-    return { user: await loadMe(db, userId), ...(native ? { token } : {}) };
+    return { user: await loadMe(db, userId, config), ...(native ? { token } : {}) };
   }
 
   app.post('/auth/register', limit(10), async (req, reply) => {
@@ -49,7 +56,13 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
     const passwordHash = await hashPassword(input.password, hashCost);
     const [user] = await db
       .insert(users)
-      .values({ username: input.username, displayName: input.displayName, email: input.email, passwordHash })
+      .values({
+        username: input.username,
+        displayName: input.displayName,
+        email: input.email,
+        passwordHash,
+        termsAcceptedAt: new Date(),
+      })
       .returning({ id: users.id })
       .catch((err: unknown) => {
         if (isUniqueViolation(err)) throw conflict('That username or email is already taken.');
@@ -62,7 +75,7 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
   app.post('/auth/login', limit(10), async (req, reply) => {
     const input = parse(LoginInput, req.body);
     const [user] = await db
-      .select({ id: users.id, passwordHash: users.passwordHash })
+      .select({ id: users.id, passwordHash: users.passwordHash, suspendedAt: users.suspendedAt })
       .from(users)
       .where(or(eq(users.username, input.login), eq(users.email, input.login)))
       .limit(1);
@@ -72,6 +85,9 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
     }
     if (!(await verifyPassword(input.password, user.passwordHash))) {
       throw new HttpError(401, 'invalid_login', 'That username and password don’t match.');
+    }
+    if (user.suspendedAt) {
+      throw new HttpError(403, 'suspended', 'This account has been suspended for breaking the LORE Terms. Write to us from the support page if you think that’s a mistake.');
     }
     if (needsRehash(user.passwordHash, hashCost)) {
       await db
@@ -88,5 +104,5 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
     return { ok: true };
   });
 
-  app.get('/auth/me', async (req) => loadMe(db, requireUser(req)));
+  app.get('/auth/me', async (req) => loadMe(db, requireUser(req), config));
 }

@@ -2,6 +2,7 @@ import { Navigate, useParams } from 'react-router';
 import type { PublicProfile } from '#shared';
 import { ChapterCard, CrewTag } from '../components/cards.tsx';
 import { Avatar, Empty, ErrorNote, Loading, PageError, Section, TopBar } from '../components/ui.tsx';
+import { ReportButton } from '../components/report.tsx';
 import { api } from '../lib/api.ts';
 import { useAction, useProfile } from '../lib/queries.ts';
 
@@ -69,6 +70,7 @@ function ProfileView({ p }: { p: PublicProfile }) {
               Block
             </button>
           )}
+          <ReportButton targetType="user" targetId={p.id} subject={p} variant="button" />
         </div>
         <ErrorNote error={error} />
       </div>

@@ -35,7 +35,7 @@ async function account(username: string, displayName: string): Promise<Session> 
     res = await fetch(`${API}/auth/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username, displayName, email: `${username}@lore.test`, password: PASSWORD }),
+      body: JSON.stringify({ username, displayName, email: `${username}@lore.test`, password: PASSWORD, acceptTerms: true }),
     });
   }
   if (!res.ok) throw new Error(`Could not sign in ${username}: ${res.status} ${await res.text()}`);

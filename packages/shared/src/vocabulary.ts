@@ -184,3 +184,30 @@ export const CREW_ROLE_LABELS: Record<CrewRole, string> = {
   admin: 'Admin',
   member: 'Member',
 };
+
+// Safety
+export const REPORT_TARGETS = ['user', 'event', 'idea', 'chapter', 'contribution', 'comment'] as const;
+export type ReportTarget = (typeof REPORT_TARGETS)[number];
+
+export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'self_harm', 'illegal', 'other'] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  spam: 'Spam or a scam',
+  harassment: 'Bullying or harassment',
+  hate: 'Hate or discrimination',
+  sexual: 'Sexual content',
+  violence: 'Violence or threats',
+  self_harm: 'Someone may hurt themselves',
+  illegal: 'Something illegal',
+  other: 'Something else',
+};
+
+export const SUPPORT_TOPICS = ['help', 'bug', 'idea', 'privacy', 'other'] as const;
+export type SupportTopic = (typeof SUPPORT_TOPICS)[number];
+export const SUPPORT_TOPIC_LABELS: Record<SupportTopic, string> = {
+  help: 'I need help',
+  bug: 'Something is broken',
+  idea: 'An idea for LORE',
+  privacy: 'Privacy or my data',
+  other: 'Something else',
+};

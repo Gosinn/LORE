@@ -22,6 +22,8 @@ import {
   oracleReadings,
   oracleSettings,
   personalEntries,
+  reports,
+  supportMessages,
   users,
 } from '../db/schema.ts';
 import { signedMediaPath } from './mediaUrls.ts';
@@ -139,6 +141,9 @@ export async function deleteAccount(db: Db, storage: MediaStorage, userId: strin
       await tx.delete(media).where(inArray(media.id, unused.map((u) => u.id)));
       filesToRemove.push(...unused.map((u) => u.key));
     }
+
+    // Their messages to support go with them (they hold their email address).
+    await tx.delete(supportMessages).where(eq(supportMessages.userId, userId));
 
     // The account itself. Sessions, friendships, blocks, memberships, RSVPs, chapter
     // listings, interest, personal calendar and notifications cascade; contributions,
@@ -270,6 +275,17 @@ export async function exportAccount(db: Db, userId: string) {
     .where(eq(oracleReadings.userId, userId))
     .orderBy(asc(oracleReadings.createdAt));
 
+  const reportRows = await db
+    .select({ targetType: reports.targetType, reason: reports.reason, details: reports.details, status: reports.status, createdAt: reports.createdAt })
+    .from(reports)
+    .where(eq(reports.reporterId, userId))
+    .orderBy(asc(reports.createdAt));
+  const supportRows = await db
+    .select({ topic: supportMessages.topic, body: supportMessages.body, replyTo: supportMessages.replyTo, createdAt: supportMessages.createdAt })
+    .from(supportMessages)
+    .where(eq(supportMessages.userId, userId))
+    .orderBy(asc(supportMessages.createdAt));
+
   const commentRows = await db
     .select({ body: comments.body, createdAt: comments.createdAt })
     .from(comments)
@@ -295,6 +311,8 @@ export async function exportAccount(db: Db, userId: string) {
     personalCalendar: personal,
     notesAndReminders: noteRows,
     oracle: { settings: oracle ?? null, readings },
+    reportsYouFiled: reportRows,
+    messagesToSupport: supportRows,
     comments: commentRows,
   };
 }

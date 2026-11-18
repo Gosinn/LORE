@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import type { Me } from '#shared';
 import { ReminderScroll } from '../components/oracle.tsx';
 import { Backronym, Field, Loading, Wordmark } from '../components/ui.tsx';
@@ -11,6 +11,7 @@ export function Welcome() {
   const me = useMe();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ login: '', username: '', displayName: '', email: '', password: '' });
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
@@ -35,6 +36,7 @@ export function Welcome() {
               displayName: form.displayName,
               email: form.email,
               password: form.password,
+              acceptTerms,
             });
       if (res.token) setNativeToken(res.token);
       qc.setQueryData(['me'], res.user);
@@ -108,6 +110,16 @@ export function Welcome() {
               required
             />
           </Field>
+          {mode === 'register' && (
+            <label className="row small terms-check">
+              <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} required />
+              <span>
+                I agree to the <Link to="/terms">Terms</Link> (no abuse, ever) and I’ve read the{' '}
+                <Link to="/privacy">Privacy Policy</Link>.
+              </span>
+            </label>
+          )}
+          {fe.acceptTerms && <p className="form-error">{fe.acceptTerms}</p>}
           {error && !Object.keys(fe).length && <p className="form-error">{error.message}</p>}
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'One moment…' : mode === 'login' ? 'Sign in' : 'Start your Lorebook'}
@@ -115,6 +127,9 @@ export function Welcome() {
         </form>
         <p className="tiny muted" style={{ textAlign: 'center' }}>
           Everything you add is private until you choose to share it.
+        </p>
+        <p className="tiny muted" style={{ textAlign: 'center' }}>
+          <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/support">Help &amp; contact</Link>
         </p>
         <ReminderScroll collapsible={false} />
       </div>
