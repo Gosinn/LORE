@@ -3020,6 +3020,12 @@ body:has(.oracle-page) {
   text-align: center;
   color: var(--ink);
 }
+.reminder-scroll .scroll-knock {
+  margin-top: -6px;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  color: var(--wax, #8b1e1e);
+}
 .scroll-seal {
   margin: 0 auto 4px;
 }

@@ -224,18 +224,25 @@ export function ReminderScroll({ collapsible = true }: { collapsible?: boolean }
       <p className="scroll-kicker">A friendly reminder</p>
       <h2>The one who almost stayed home</h2>
       <p>
-        Once there was someone who loved their armchair, their books and their garden. When a wanderer knocked at the
-        door and spoke of a grand adventure, they said <em>no</em>. Then <em>no</em> again.
+        Once, in a green and gentle country of kettles and armchairs, there lived someone who wanted nothing more than a
+        full pantry and a quiet afternoon. Then one fine morning a grey wanderer leaned upon the garden gate, tapped his
+        staff on the path, and spoke of mountains and of roads that run on past the edge of every map.
       </p>
       <p>
-        The wanderer only smiled: the world isn’t kept on a shelf. It waits past the garden gate.
+        They said <em>no</em>. Politely, then firmly, then with the door half closed.
       </p>
       <p>
-        By morning the armchair was empty. They had left everything as it was and run down the road after the company,
-        and they turned out to be exactly the one the company needed.
+        The wanderer only smiled, the way the old ones smile when they already know how the story ends.{' '}
+        <em>“Every map on your shelf,”</em> he said, <em>“was drawn by someone who went.”</em>
+      </p>
+      <p>
+        By sunrise the armchair stood empty and the kettle was still warm. They had run down the lane without a
+        handkerchief or a second thought, after strangers with a long road ahead of them, and somewhere past the edge of
+        the world they knew, they found they had been the one the story needed all along.
       </p>
       <div className="ink-rule" aria-hidden />
-      <p className="scroll-moral">Every legend starts with someone who almost stayed home.</p>
+      <p className="scroll-moral">Every legend begins with someone who almost stayed home.</p>
+      <p className="scroll-moral scroll-knock">Now the stones are knocking at your door.</p>
       <span className="seal scroll-seal" aria-hidden>
         <RuneGlyph c="l" />
       </span>
