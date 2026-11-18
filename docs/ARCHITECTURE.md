@@ -67,6 +67,21 @@ The Lore Engine lifecycle from the brief maps onto real transitions:
 None of the steps is mandatory: chapters can be written with no event (including years later), ideas can
 stay ideas, events can end without a chapter.
 
+**The Oracle** feeds the front of that lifecycle with futures nobody thought of yet:
+
+```
+ lib/world.ts (WorldData)                      routes/oracle.ts                    lib/oracle.ts (pure)
+ Wikidata places ─┐                           gathers, per reading:               templates → candidates
+ Open-Meteo ──────┼─ world_cache ──> realm ──> free time, crews, ideas, ──> generateFutures ──> deal 3
+ NOAA Kp ─────────┤   (stale on                memories, recent places          (seeded)      (mode)
+ Nominatim ───────┘    failure)                                                         │
+                                                         oracle_readings <──────────────┘
+                                                                │ choose → events (+lat/lon)
+                                                                │ save   → ideas (only_me)
+```
+
+`WorldData` is injected through `AppContext`; tests pass a fake world, so they never touch the network.
+
 ## 3. Database schema
 
 Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` are generated from it
@@ -92,6 +107,10 @@ Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` ar
 | `media` | Uploaded files | `storage_key`; scoped to at most one of chapter / event / crew (none = profile picture) |
 | `comments` | Discussion threads | exactly one of event / idea / chapter |
 | `notifications` | In-app notifications | title rendered at creation, `href` to open |
+| `notes` | Notes to self and reminders | private to the owner; `remind_at` makes it a reminder; optional `event_id` |
+| `oracle_settings` | The Oracle: your realm | private; home label + rounded coordinates, `radius_km`, `interests[]`, `time_zone` |
+| `oracle_readings` | The Oracle: what the stones showed | private; local `day` (for the 3-a-day limit), `mode`, `futures` (JSON, with each future's status and resulting event/idea) |
+| `world_cache` | Cached open-data answers | places, weather, Kp, place search; stale data is used when a service is down |
 
 Integrity is enforced in the database too: enums, `CHECK` constraints (audiences per table, end after start,
 one comment target, photo contributions need media), unique indexes, and foreign keys with explicit delete

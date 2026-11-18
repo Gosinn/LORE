@@ -7,6 +7,15 @@ import { buildApp } from '../src/app.ts';
 import { testConfig, type Config } from '../src/config.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
 import { DatabaseStorage, LocalDiskStorage } from '../src/lib/storage.ts';
+import type { WorldData } from '../src/lib/world.ts';
+
+/** A world with nothing in it: tests never touch the network. */
+export const quietWorld: WorldData = {
+  places: async () => [],
+  forecast: async () => null,
+  kp: async () => [],
+  geocode: async () => [],
+};
 
 /** A 1×1 PNG, for upload tests. */
 export const PNG_1X1 = Buffer.from(
@@ -40,7 +49,7 @@ export interface TestApp {
 }
 
 export async function createTestApp(
-  opts: { mediaStorage?: 'disk' | 'database'; config?: Partial<Config> } = {},
+  opts: { mediaStorage?: 'disk' | 'database'; config?: Partial<Config>; world?: WorldData } = {},
 ): Promise<TestApp & { db: Db }> {
   // TEST_DATABASE_URL runs a file against a real Postgres server (fresh, empty
   // database) through the production `pg` driver instead of in-memory PGlite.
@@ -48,7 +57,7 @@ export async function createTestApp(
   await database.migrate();
   const mediaDir = mkdtempSync(path.join(tmpdir(), 'lore-media-'));
   const storage = opts.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(mediaDir);
-  const app = await buildApp({ db: database.db, config: testConfig(opts.config), storage });
+  const app = await buildApp({ db: database.db, config: testConfig(opts.config), storage, world: opts.world ?? quietWorld });
   await app.ready();
 
   const request = async (method: string, url: string, cookie: string | undefined, body?: unknown): Promise<Response> => {

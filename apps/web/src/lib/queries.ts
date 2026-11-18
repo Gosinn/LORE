@@ -14,6 +14,7 @@ import type {
   IdeaSummary,
   Me,
   NotesData,
+  OracleState,
   PersonalEntry,
   PublicProfile,
   UserSearchResult,
@@ -61,6 +62,9 @@ export const usePersonal = (from: string, to: string, enabled = true) =>
     queryFn: () => api.get<PersonalEntry[]>(`/personal${qs({ from, to })}`),
     enabled,
   });
+
+/** Your realm and today's reading. Cheap: the server only reads its own tables here. */
+export const useOracle = () => useQuery({ queryKey: ['oracle'], queryFn: () => api.get<OracleState>('/oracle') });
 
 export const useNotes = (enabled = true) =>
   useQuery({ queryKey: ['notes'], queryFn: () => api.get<NotesData>('/notes'), enabled });

@@ -1,5 +1,24 @@
 # LORE — Development log
 
+## 2026-11-18 — The Oracle (0.4.0)
+
+- **The Oracle** (owner's "expand" vision, D26): set a realm (town search via Nominatim, or "Use my
+  location" on the web, rounded to ~1 km), a radius and interests; read the stones up to three times a
+  day for three possible futures. The engine is pure and seeded; it reads Wikidata places, Open-Meteo
+  weather (night/dawn cloud), NOAA Kp, the moon, your free time, crews, ideas and old chapters.
+- *Choose this destiny* makes a real plan (events now have `lat`/`lon` for the coming Lore Map), *Save
+  to vault* makes a private idea, *Not this path* dismisses. Export includes the realm and readings.
+- Migration 0004 (`oracle_settings`, `oracle_readings`, `world_cache`, `events.lat/lon`).
+- 20 new tests (engine: conditions, modes, busy time, realm radius, recency, ideas/memories; API:
+  settings, privacy, choose/save/dismiss, daily limit, export). 75 in total, all passing.
+- Checked in the browser against the real services from a local server: Reykjavík realm → aurora night at
+  Ægissíðufoss (Kp 2.3, 43% cloud), a hot soak, a museum wildcard on a rainy Monday; chose the aurora and
+  got a real plan with the crew. Fixed from that run: snow vs rain wording, distance shown once, hot soaks
+  within 90 km, English place names.
+- Local dev hit a full commit limit (Windows page file on the nearly full C:): the 128 MB scrypt check for
+  the demo login failed until the Vite dev server was stopped. Tested via a production build instead.
+- Not yet verified: the Oracle on the owner's phone (it should arrive by live update).
+
 ## 2026-10-23 — Crazy theme, notes and reminders (0.3.0)
 
 - **Crazy theme** (owner's idea): random neon per container, re-rolled per visit or with the Roll button.

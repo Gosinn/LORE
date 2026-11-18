@@ -1,4 +1,4 @@
-import { BookOpen, CalendarDays, Home, Plus, UserRound } from 'lucide-react';
+import { BookOpen, CalendarDays, Home, Plus, Sparkles, UserRound } from 'lucide-react';
 import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
 import { isNative } from '../lib/api.ts';
@@ -9,6 +9,8 @@ import { Avatar, Backronym, Loading, Wordmark } from './ui.tsx';
 const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
+  // Phones reach the Oracle from Home and Create; the tab bar keeps five tabs.
+  { to: '/oracle', label: 'Oracle', icon: Sparkles, railOnly: true },
   { to: '/create', label: 'Create', icon: Plus, create: true },
   { to: '/lorebook', label: 'Lorebook', icon: BookOpen },
   { to: '/profile', label: 'Profile', icon: UserRound },
@@ -62,7 +64,7 @@ export function AppShell() {
       {isNative && <ReminderSync />}
 
       <nav className="tabbar" aria-label="Main">
-        {NAV.map((item) =>
+        {NAV.filter((item) => !('railOnly' in item)).map((item) =>
           'create' in item ? (
             <NavLink key={item.to} to={item.to} className="tab-create" aria-label="Create">
               <Plus size={26} strokeWidth={2.4} />

@@ -14,7 +14,9 @@ import {
   check,
   customType,
   date,
+  doublePrecision,
   index,
+  jsonb,
   integer,
   pgEnum,
   pgTable,
@@ -217,6 +219,9 @@ export const events = pgTable(
     crewId: uuid('crew_id').references(() => crews.id, { onDelete: 'set null' }),
     audience: audience('audience').notNull().default('participants'),
     capacity: integer('capacity'),
+    /** Where it happens, when known (e.g. chosen from the Oracle); for the Lore Map. */
+    lat: doublePrecision('lat'),
+    lon: doublePrecision('lon'),
     ideaId: uuid('idea_id').references(() => ideas.id, { onDelete: 'set null' }),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     completedAt: ts('completed_at'),
@@ -309,6 +314,48 @@ export const notes = pgTable(
   },
   (t) => [index('notes_user_remind_idx').on(t.userId, t.remindAt), index('notes_user_created_idx').on(t.userId, t.createdAt)],
 );
+
+// ---------------------------------------------------------------------------
+// The Oracle
+
+/** Private: where someone's realm is and what they're into. Never shown to others. */
+export const oracleSettings = pgTable('oracle_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  homeLabel: text('home_label'),
+  homeLat: doublePrecision('home_lat'),
+  homeLon: doublePrecision('home_lon'),
+  radiusKm: integer('radius_km').notNull().default(80),
+  /** The lore maker's own IANA zone, so "today" means their day. */
+  timeZone: text('time_zone').notNull().default('UTC'),
+  interests: text('interests').array().notNull().default(sql`'{}'::text[]`),
+  updatedAt: updatedAt(),
+});
+
+/** A reading of the stones: three futures, kept so the day's answer stays the same. */
+export const oracleReadings = pgTable(
+  'oracle_readings',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The reader's local calendar day, for the daily limit. */
+    day: date('day', { mode: 'string' }).notNull(),
+    mode: text('mode').notNull(),
+    futures: jsonb('futures').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('oracle_readings_user_day_idx').on(t.userId, t.day)],
+);
+
+/** Cached answers from the open-data services (places, weather, aurora). */
+export const worldCache = pgTable('world_cache', {
+  key: text('key').primaryKey(),
+  data: jsonb('data').notNull(),
+  fetchedAt: ts('fetched_at').notNull().defaultNow(),
+});
 
 // ---------------------------------------------------------------------------
 // Lorebook

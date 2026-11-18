@@ -5,6 +5,28 @@ Newest first within each list.
 
 ## Taken
 
+**D26 · The Oracle reads the world, not your data stream.** Owner's vision (2026-11-18): LORE as a
+"stone circle in your pocket" that reveals possible futures, either following the lore maker's interests
+or ignoring them. Built as a deterministic engine (`apps/api/src/lib/oracle.ts`), not an AI model: it
+combines free open data (notable places from Wikidata, Open-Meteo weather with night and dawn cloud cover,
+the NOAA SWPC aurora Kp forecast, a computed moon phase, Nominatim for typing in a town) with the lore
+maker's own free time (personal calendar and plans they're going to), crews, Idea Vault and memories from
+the same week in earlier years. Each template (aurora night, stargazing, dawn, wild day trip, road trip,
+ancient sites, coast, hot soak, museums on wet days, crew gathering on rainy nights, idea revival, memory
+echo) only appears when its conditions hold, and every future lists **the signs** it was read from.
+Modes: *Mixed* (two from your interests, one wildcard), *My path*, *Wild*. Seeded per person, day and
+reading, so an answer is stable and testable. **Three readings a day** (in the lore maker's own time zone):
+it should feel like consulting something, not pulling a slot machine (brief XXXV: no infinite lists).
+*Choose this destiny* creates a real plan (organizer, crew if wanted, place with coordinates); *Save to
+vault* makes a private idea; *Not this path* lets it go. Private by default: the realm (rounded location),
+interests and readings are visible only to their owner, included in the export, deleted with the account.
+Answers from the services are cached in `world_cache` (places 30 days, weather and Kp 1 hour, place search
+30 days); a service being down means older data or fewer futures, never an error. Usage policies
+respected: identifying User-Agent, caching, at most one Nominatim request per second; attribution shown
+on the Oracle screen. The services see the realm's coordinates (rounded to a 0.5° cell for places) and
+the typed town name, never who is asking. Limits: no opening hours, road closures or tides; the screen
+says to check before going.
+
 **D25 · Notes to self and reminders are one thing.** A note with a time is a reminder (`notes` table).
 Private to the owner like the personal calendar; linked optionally to an event ("Remind me 1 hour / 1 day
 before"). Due-within-a-day reminders show on Home; reminders sit on the Calendar's personal layer. In the

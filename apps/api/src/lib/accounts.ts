@@ -19,6 +19,8 @@ import {
   ideas,
   media,
   notes,
+  oracleReadings,
+  oracleSettings,
   personalEntries,
   users,
 } from '../db/schema.ts';
@@ -251,6 +253,23 @@ export async function exportAccount(db: Db, userId: string) {
     .where(eq(notes.userId, userId))
     .orderBy(asc(notes.createdAt));
 
+  const [oracle] = await db
+    .select({
+      homeLabel: oracleSettings.homeLabel,
+      homeLat: oracleSettings.homeLat,
+      homeLon: oracleSettings.homeLon,
+      radiusKm: oracleSettings.radiusKm,
+      timeZone: oracleSettings.timeZone,
+      interests: oracleSettings.interests,
+    })
+    .from(oracleSettings)
+    .where(eq(oracleSettings.userId, userId));
+  const readings = await db
+    .select({ day: oracleReadings.day, mode: oracleReadings.mode, futures: oracleReadings.futures, createdAt: oracleReadings.createdAt })
+    .from(oracleReadings)
+    .where(eq(oracleReadings.userId, userId))
+    .orderBy(asc(oracleReadings.createdAt));
+
   const commentRows = await db
     .select({ body: comments.body, createdAt: comments.createdAt })
     .from(comments)
@@ -275,6 +294,7 @@ export async function exportAccount(db: Db, userId: string) {
     })),
     personalCalendar: personal,
     notesAndReminders: noteRows,
+    oracle: { settings: oracle ?? null, readings },
     comments: commentRows,
   };
 }

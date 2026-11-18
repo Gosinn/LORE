@@ -86,6 +86,50 @@ export type MediaMimeType = (typeof MEDIA_MIME_TYPES)[number];
 export const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
+// The Oracle: possible futures drawn from the world around you.
+
+/** What a lore maker is into. Each one is backed by data the Oracle can actually see. */
+export const INTERESTS = [
+  'nature',
+  'water',
+  'sky',
+  'history',
+  'culture',
+  'photography',
+  'road_trips',
+  'active',
+  'cozy',
+  'social',
+] as const;
+export type Interest = (typeof INTERESTS)[number];
+
+export const INTEREST_LABELS: Record<Interest, { label: string; emoji: string }> = {
+  nature: { label: 'Wild nature', emoji: '🌋' },
+  water: { label: 'Hot water & coasts', emoji: '♨️' },
+  sky: { label: 'Sky: aurora, stars, sunrise', emoji: '🌌' },
+  history: { label: 'History & ruins', emoji: '🏛️' },
+  culture: { label: 'Museums & art', emoji: '🎨' },
+  photography: { label: 'Photography', emoji: '📸' },
+  road_trips: { label: 'Road trips', emoji: '🚐' },
+  active: { label: 'Hikes & climbs', emoji: '🥾' },
+  cozy: { label: 'Cozy & slow', emoji: '🕯️' },
+  social: { label: 'Crew time', emoji: '🔥' },
+};
+
+/** How a reading is dealt: from your interests, ignoring them, or a mix. */
+export const ORACLE_MODES = ['mixed', 'mine', 'wild'] as const;
+export type OracleMode = (typeof ORACLE_MODES)[number];
+
+export const ORACLE_MODE_LABELS: Record<OracleMode, { label: string; hint: string }> = {
+  mixed: { label: 'Mixed', hint: 'Two futures from your interests, one wildcard.' },
+  mine: { label: 'My path', hint: 'All three follow your interests.' },
+  wild: { label: 'Wild', hint: 'All three ignore your interests on purpose.' },
+};
+
+/** Readings per day. The stones don't do endless scrolling. */
+export const ORACLE_READINGS_PER_DAY = 3;
+
+// ---------------------------------------------------------------------------
 // Human-readable labels. Kept here so web and native clients share wording.
 
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {

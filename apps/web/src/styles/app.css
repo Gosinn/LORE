@@ -1533,6 +1533,243 @@ details.more-options[open] > summary::before {
   }
 }
 
+/* ----------------------------------------------------------------- ORACLE
+   A circle of standing stones under a night sky, whatever the theme: the one
+   place in LORE that's always dusk. */
+
+.center {
+  text-align: center;
+}
+.oracle-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+  padding: 22px 20px 24px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  text-align: center;
+  color: #f3ebde;
+  background:
+    radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 28% 8%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 47% 22%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 66% 12%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 83% 26%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 91% 7%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 6% 40%, #fff 50%, transparent 51%),
+    radial-gradient(120% 70% at 50% 100%, #4a2716 0%, transparent 60%),
+    linear-gradient(170deg, #0f1026 0%, #221a3d 55%, #3b2233 100%);
+}
+.oracle-hero h1 {
+  font-size: clamp(24px, 6vw, 32px);
+  color: #fff6e9;
+}
+.oracle-hero p {
+  max-width: 34em;
+  font-size: 14px;
+  color: #d9ccb8;
+}
+.stones {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+}
+.stone {
+  fill: #0b0a12;
+}
+.stones-ground {
+  fill: rgb(255 255 255 / 0.06);
+}
+.stones-glow {
+  opacity: 0.45;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.stones-ember {
+  fill: #ffd29a;
+}
+.stones.active .stones-glow {
+  animation: oracle-pulse 1.3s ease-in-out infinite;
+}
+@keyframes oracle-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stones.active .stones-glow {
+    animation: none;
+    opacity: 1;
+  }
+}
+.oracle-realm {
+  margin-bottom: 12px;
+}
+.oracle-realm-form h2 {
+  font-size: 22px;
+}
+.realm-result {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.range {
+  width: 100%;
+  accent-color: var(--ember);
+}
+.oracle-read {
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.future {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+.future-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.future-emoji {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  font-size: 28px;
+}
+.future-head h3 {
+  margin: 6px 0 4px;
+  font-size: 21px;
+}
+.future-kind.interest {
+  background: var(--fjord-soft);
+  color: var(--fjord);
+}
+.future-kind.wildcard {
+  background: var(--ember-soft);
+  color: var(--ember);
+}
+.future-kind.idea,
+.future-kind.memory {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+.future-story {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.future-place {
+  color: var(--ink-2);
+}
+.future-place .more {
+  font-weight: 700;
+  color: var(--fjord);
+}
+.future-signs .pill {
+  height: auto;
+  min-height: 24px;
+  padding: 3px 10px;
+  white-space: normal;
+}
+.future-crew {
+  align-self: flex-start;
+}
+.future-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.future-actions .btn-primary {
+  flex: 1 1 100%;
+}
+.future-actions .btn-secondary,
+.future-actions .btn-ghost {
+  flex: 1 1 0;
+}
+.future-done {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--fjord-soft);
+  color: var(--fjord);
+  font-weight: 650;
+}
+.future.chosen {
+  border-color: var(--fjord);
+}
+.future.dismissed {
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 14px;
+  opacity: 0.7;
+}
+.future.dismissed .future-emoji {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  filter: grayscale(1);
+}
+
+/* Home: the way in. */
+.oracle-teaser {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  color: #f3ebde;
+  background:
+    radial-gradient(1px 1px at 20% 25%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 15%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 88% 60%, #fff 50%, transparent 51%),
+    linear-gradient(160deg, #13132c, #2b1d3c 70%, #3d2430);
+  transition: transform 0.15s ease;
+}
+.oracle-teaser:active {
+  transform: scale(0.99);
+}
+.oracle-teaser .stones {
+  flex: none;
+  width: 104px;
+}
+.oracle-teaser .eyebrow {
+  color: #ffb36b;
+}
+.oracle-teaser strong {
+  display: block;
+  margin: 2px 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #fff6e9;
+}
+.oracle-teaser .small {
+  color: #d9ccb8;
+}
+
 /* ------------------------------------------------------------------ CRAZY
    Bright, solid colour everywhere. Every part of the page (sections, cards,
    chips, buttons, tabs, calendar days…) is a block of one vivid colour, and

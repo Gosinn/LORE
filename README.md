@@ -6,6 +6,11 @@
 keeping the story of what happened: calendars, crews, an Idea Vault, events, and a shared Lorebook where
 everyone adds their side of the story.
 
+**The Oracle** is a stone circle in your pocket: tell it where you are and what calls to you, and it
+reveals three possible futures (an aurora night, a hot soak while it snows, a ruin you've never visited, an
+idea from your vault on a free Saturday), read from real weather, sky and places around you. Choosing one
+turns it into a plan.
+
 - Product spec: [docs/MASTER_BRIEF.md](docs/MASTER_BRIEF.md)
 - How it's built: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Why it's built that way, and open questions: [docs/DECISIONS.md](docs/DECISIONS.md)

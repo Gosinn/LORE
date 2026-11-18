@@ -6,7 +6,9 @@ import type {
   EventCategory,
   EventStatus,
   IdeaStatus,
+  Interest,
   MembershipStatus,
+  OracleMode,
   NotificationType,
   ParticipantRole,
   RsvpStatus,
@@ -246,6 +248,71 @@ export interface NotesData {
   notes: Note[];
   /** The most recently finished, for a quick undo. */
   done: Note[];
+}
+
+// ---------------------------------------------------------------------------
+// The Oracle
+
+export interface OracleSettings {
+  home: { label: string; lat: number; lon: number } | null;
+  radiusKm: number;
+  interests: Interest[];
+  timeZone: string;
+}
+
+export interface GeocodeResult {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
+export interface FuturePlace {
+  name: string;
+  kind: string;
+  lat: number;
+  lon: number;
+  distanceKm: number;
+  /** Wikidata item, for "learn more" links. */
+  wikidataId: string | null;
+}
+
+export type FutureKind = 'interest' | 'wildcard' | 'idea' | 'memory';
+export type FutureStatus = 'open' | 'chosen' | 'saved' | 'dismissed';
+
+/** One possible future the stones reveal. */
+export interface Future {
+  index: number;
+  kind: FutureKind;
+  title: string;
+  story: string;
+  /** Why the stones show this: the conditions they saw. */
+  signs: string[];
+  emoji: string;
+  category: EventCategory;
+  startsAt: string;
+  endsAt: string | null;
+  timeZone: string;
+  place: FuturePlace | null;
+  crew: CrewRef | null;
+  ideaId: string | null;
+  chapterId: string | null;
+  status: FutureStatus;
+  eventId: string | null;
+  savedIdeaId: string | null;
+}
+
+export interface OracleReading {
+  id: string;
+  mode: OracleMode;
+  createdAt: string;
+  futures: Future[];
+  readingsLeftToday: number;
+}
+
+/** What /oracle returns: settings, and today's latest reading once set up. */
+export interface OracleState {
+  settings: OracleSettings;
+  reading: OracleReading | null;
 }
 
 /** Every Home section is a short, finite list. There is no feed. */

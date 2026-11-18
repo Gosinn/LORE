@@ -23,6 +23,7 @@ import { ideaRoutes } from './routes/ideas.ts';
 import { mediaRoutes } from './routes/media.ts';
 import { noteRoutes } from './routes/notes.ts';
 import { notificationRoutes } from './routes/notifications.ts';
+import { oracleRoutes } from './routes/oracle.ts';
 import { personalRoutes } from './routes/personal.ts';
 import { userRoutes } from './routes/users.ts';
 
@@ -130,6 +131,7 @@ export async function buildApp(ctx: AppContext) {
         mediaRoutes,
         commentRoutes,
         notificationRoutes,
+        oracleRoutes,
         homeRoutes,
       ]) {
         await routes(api, ctx);

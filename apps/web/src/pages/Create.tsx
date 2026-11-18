@@ -1,8 +1,15 @@
-import { BookOpen, CalendarPlus, Lightbulb, NotebookPen, Users } from 'lucide-react';
+import { BookOpen, CalendarPlus, Lightbulb, NotebookPen, Sparkles, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { TopBar } from '../components/ui.tsx';
 
 const OPTIONS = [
+  {
+    to: '/oracle',
+    icon: Sparkles,
+    title: 'Consult the Oracle',
+    text: 'Possible futures from the sky, the weather and the wild places around you.',
+    tone: ['#221a3d', '#ffb36b'],
+  },
   {
     to: '/events/new',
     icon: CalendarPlus,

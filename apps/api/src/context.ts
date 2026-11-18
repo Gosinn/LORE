@@ -3,11 +3,14 @@ import type { Config } from './config.ts';
 import type { Db } from './db/index.ts';
 import { unauthorized } from './lib/errors.ts';
 import type { MediaStorage } from './lib/storage.ts';
+import type { WorldData } from './lib/world.ts';
 
 export interface AppContext {
   db: Db;
   config: Config;
   storage: MediaStorage;
+  /** Places, weather and sky from open-data services, for the Oracle. */
+  world: WorldData;
   /** Which database is in use, reported by /api/health so a deploy can be checked from outside. */
   dbKind?: 'postgres' | 'pglite';
 }

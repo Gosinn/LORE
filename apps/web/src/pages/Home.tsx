@@ -2,10 +2,11 @@ import { Compass, Feather, Plus } from 'lucide-react';
 import { Link } from 'react-router';
 import { ChapterCard, CrewChip, EventCard, IdeaCard } from '../components/cards.tsx';
 import { NoteItem, QuickNote } from '../components/notes.tsx';
+import { StoneCircle } from '../components/oracle.tsx';
 import { Empty, Loading, PageError, Section, TopBar, Wordmark } from '../components/ui.tsx';
 import { api } from '../lib/api.ts';
 import { fmtLongDay, greeting } from '../lib/dates.ts';
-import { useAction, useHome, useMe } from '../lib/queries.ts';
+import { useAction, useHome, useMe, useOracle } from '../lib/queries.ts';
 
 export function HomePage() {
   const me = useMe();
@@ -33,6 +34,8 @@ export function HomePage() {
       <div className="section" style={{ marginTop: 16 }}>
         <QuickNote />
       </div>
+
+      <OracleTeaser />
 
       {h.reminders.length > 0 && (
         <Section title="Reminders" more={<Link to="/notes" className="more">All notes</Link>}>
@@ -186,5 +189,27 @@ export function HomePage() {
         <p className="serif">That’s everything. Go make some lore.</p>
       </footer>
     </>
+  );
+}
+
+/** The way into the Oracle: what the stones showed today, or an invitation to ask. */
+function OracleTeaser() {
+  const oracle = useOracle();
+  const state = oracle.data;
+  const shown = state?.reading?.futures.find((f) => f.status !== 'dismissed');
+  const [line, sub] = !state?.settings.home
+    ? ['A stone circle in your pocket.', 'Tell it where you are and it reveals possible futures.']
+    : shown
+      ? [`${shown.emoji} ${shown.title}`, shown.status === 'chosen' ? 'You chose this destiny.' : 'The stones showed this today. Will you choose it?']
+      : ['Possible futures are waiting.', 'Ask the stones what this week could hold.'];
+  return (
+    <Link to="/oracle" className="oracle-teaser">
+      <StoneCircle />
+      <span className="grow">
+        <span className="eyebrow">The Oracle</span>
+        <strong>{line}</strong>
+        <span className="small">{sub}</span>
+      </span>
+    </Link>
   );
 }

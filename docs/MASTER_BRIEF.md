@@ -1153,3 +1153,12 @@ It is not designed to replace real life with digital interaction. It is designed
 - **Integrations:** Connecting other apps to LORE goes through the owner's **Cardboard** app (https://github.com/Gosinn/Cardboard). Cardboard is still in development, so the Cardboard integration is scheduled for the **very end** of the roadmap.
 - **Platform:** Web app first, then a real (native) app as soon as possible. It must be actually deployable.
 - **Backend:** Own API + PostgreSQL (no Supabase).
+
+## Addendum — the expansion (2026-11-18)
+
+The owner's vision, in short: LORE grows from recording and planning into **exploring the world**. "A vast
+map of things to do. An app that sees what the user doesn't see." It creates real-life possible timelines,
+either independent of the lore maker's interests or based on them, "like an ancient magic stone henge in
+your pocket that reveals possible futures", and the lore maker must choose their own destiny.
+
+Built first as **The Oracle** (D26), then the **Lore Map**.

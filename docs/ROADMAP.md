@@ -60,6 +60,20 @@ exercised in the browser with demo data.
 | Push notifications (FCM) | ⬜ |
 | Offline cache of upcoming plans | ⬜ |
 
+## The expansion: exploring the world (owner priority, 2026-11-18)
+
+"An app that sees what the user doesn't see": LORE reveals possible futures in the real world around you.
+
+| Step | Status |
+|---|---|
+| **The Oracle**: realm (town + radius), interests, three possible futures a day from places, weather, sky, free time, crews, ideas and memories; Mixed / My path / Wild | ✅ 20 tests; tried in the browser with live open data (aurora night, hot soak, museum wildcard) |
+| Choose this destiny → real plan with place and coordinates · Save to vault · Not this path | ✅ tested; checked in the browser |
+| Oracle on Home, Create and the desktop rail | ✅ checked in the browser (desktop and phone width) |
+| Oracle on a real phone (arrives by live update, no new APK) | ⬜ owner's phone |
+| **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |
+| More signs: tides, opening hours, events happening nearby, sunset/golden hour | ⬜ |
+| Crew readings (futures for a whole crew, from everyone's free time) | ⬜ |
+
 ## Phase 2 — Spontaneity and identity
 
 Who's Down? (spontaneous, expiring invitations; *I'M DOWN / MAYBE / NOT TODAY*), Quote Archive across

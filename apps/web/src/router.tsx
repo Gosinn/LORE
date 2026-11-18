@@ -38,6 +38,7 @@ export const router = createBrowserRouter([
       { path: 'friends', ...page(() => import('./pages/Friends.tsx'), 'FriendsPage') },
       { path: 'notifications', ...page(() => import('./pages/Notifications.tsx'), 'NotificationsPage') },
       { path: 'notes', ...page(() => import('./pages/Notes.tsx'), 'NotesPage') },
+      { path: 'oracle', ...page(() => import('./pages/Oracle.tsx'), 'OraclePage') },
       { path: '*', ...page(() => import('./pages/NotFound.tsx'), 'NotFound') },
     ],
   },

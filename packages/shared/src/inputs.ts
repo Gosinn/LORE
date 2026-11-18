@@ -8,6 +8,8 @@ import {
   EVENT_STATUSES,
   IDEA_AUDIENCES,
   IDEA_STATUSES,
+  INTERESTS,
+  ORACLE_MODES,
 } from './vocabulary.ts';
 
 const id = z.uuid();
@@ -338,6 +340,33 @@ export const UpdateNoteInput = z.object({
   done: z.boolean().optional(),
 });
 export type UpdateNoteInput = z.infer<typeof UpdateNoteInput>;
+
+// ---------------------------------------------------------------------------
+// The Oracle
+
+export const OracleSettingsInput = z.object({
+  home: z
+    .object({
+      label: text(120),
+      lat: z.number().min(-90).max(90),
+      lon: z.number().min(-180).max(180),
+    })
+    .nullable()
+    .optional(),
+  radiusKm: z.number().int().min(10).max(300).optional(),
+  interests: z.array(z.enum(INTERESTS)).max(INTERESTS.length).optional(),
+  /** The reader's IANA time zone, e.g. "Atlantic/Reykjavik". */
+  timeZone: z.string().trim().min(1).max(64).optional(),
+});
+export type OracleSettingsInput = z.infer<typeof OracleSettingsInput>;
+
+export const GeocodeQuery = z.object({ q: z.string().trim().min(2).max(120) });
+
+export const NewReadingInput = z.object({ mode: z.enum(ORACLE_MODES).optional() });
+export type NewReadingInput = z.infer<typeof NewReadingInput>;
+
+export const ChooseFutureInput = z.object({ crewId: id.nullable().optional() });
+export type ChooseFutureInput = z.infer<typeof ChooseFutureInput>;
 
 // ---------------------------------------------------------------------------
 // Discussion

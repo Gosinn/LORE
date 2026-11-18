@@ -2,6 +2,7 @@ import { buildApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { openDatabase } from './db/index.ts';
 import { DatabaseStorage, LocalDiskStorage } from './lib/storage.ts';
+import { openDataWorld } from './lib/world.ts';
 
 const config = loadConfig();
 if (config.env === 'production' && !config.databaseUrl) {
@@ -13,7 +14,8 @@ await database.migrate();
 
 const storage =
   config.mediaStorage === 'database' ? new DatabaseStorage(database.db) : new LocalDiskStorage(config.mediaDir);
-const app = await buildApp({ db: database.db, config, storage, dbKind: database.kind });
+const world = openDataWorld(database.db);
+const app = await buildApp({ db: database.db, config, storage, world, dbKind: database.kind });
 
 const shutdown = async () => {
   await app.close();
