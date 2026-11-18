@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import type { Me } from '#shared';
+import { ReminderScroll } from '../components/oracle.tsx';
 import { Backronym, Field, Loading, Wordmark } from '../components/ui.tsx';
 import { api, ApiError, setNativeToken } from '../lib/api.ts';
 import { useMe } from '../lib/queries.ts';
@@ -115,6 +116,7 @@ export function Welcome() {
         <p className="tiny muted" style={{ textAlign: 'center' }}>
           Everything you add is private until you choose to share it.
         </p>
+        <ReminderScroll collapsible={false} />
       </div>
     </div>
   );

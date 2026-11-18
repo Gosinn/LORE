@@ -198,13 +198,15 @@ function OracleTeaser() {
   const state = oracle.data;
   const shown = state?.reading?.futures.find((f) => f.status !== 'dismissed');
   const [line, sub] = !state?.settings.home
-    ? ['A stone circle in your pocket.', 'Tell it where you are and it reveals possible futures.']
+    ? ['A stone circle in your pocket.', 'Every legend starts with someone who almost stayed home.']
     : shown
       ? [`${shown.emoji} ${shown.title}`, shown.status === 'chosen' ? 'You chose this destiny.' : 'The stones showed this today. Will you choose it?']
       : ['Possible futures are waiting.', 'Ask the stones what this week could hold.'];
   return (
     <Link to="/oracle" className="oracle-teaser">
-      <StoneCircle />
+      <span className="stone-window">
+        <StoneCircle />
+      </span>
       <span className="grow">
         <span className="eyebrow">The Oracle</span>
         <strong>{line}</strong>

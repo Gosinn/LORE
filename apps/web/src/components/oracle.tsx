@@ -1,4 +1,8 @@
-import { useId } from 'react';
+import '@fontsource/cinzel/600.css';
+import '@fontsource/cinzel/700.css';
+import '@fontsource/im-fell-english/400.css';
+import '@fontsource/im-fell-english/400-italic.css';
+import { useId, useState, type ReactNode } from 'react';
 
 const STONES = 11;
 
@@ -42,5 +46,122 @@ export function StoneCircle({ active = false, className = '' }: { active?: boole
         <path key={s.i} d={s.d} className="stone" />
       ))}
     </svg>
+  );
+}
+
+// Elder Futhark runes as strokes in a 10×16 box: drawn, not typed, so they show on
+// every phone (many have no runic font).
+const RUNES: Record<string, number[][]> = {
+  f: [[3, 0, 3, 16], [3, 4, 8, 1], [3, 8, 8, 5]],
+  u: [[2, 16, 2, 0, 8, 4, 8, 16]],
+  th: [[3, 0, 3, 16], [3, 4, 8, 8, 3, 12]],
+  a: [[3, 0, 3, 16], [3, 2, 8, 6], [3, 7, 8, 11]],
+  r: [[3, 16, 3, 0, 8, 4, 3, 8, 8, 16]],
+  k: [[8, 2, 3, 8, 8, 14]],
+  g: [[2, 2, 8, 14], [8, 2, 2, 14]],
+  h: [[2, 0, 2, 16], [8, 0, 8, 16], [2, 5, 8, 11]],
+  n: [[5, 0, 5, 16], [2, 5, 8, 10]],
+  i: [[5, 0, 5, 16]],
+  j: [[5, 1, 2, 5, 5, 9], [5, 7, 8, 11, 5, 15]],
+  p: [[2, 0, 2, 16], [2, 0, 8, 4], [2, 16, 8, 12]],
+  z: [[5, 16, 5, 0], [5, 6, 1, 1], [5, 6, 9, 1]],
+  s: [[7, 0, 2, 6, 8, 10, 3, 16]],
+  t: [[5, 0, 5, 16], [1, 5, 5, 0, 9, 5]],
+  b: [[2, 0, 2, 16], [2, 0, 8, 4, 2, 8, 8, 12, 2, 16]],
+  e: [[1, 16, 1, 0, 5, 6, 9, 0, 9, 16]],
+  m: [[1, 16, 1, 0, 9, 8], [9, 16, 9, 0, 1, 8]],
+  l: [[3, 0, 3, 16], [3, 0, 8, 5]],
+  ng: [[5, 2, 9, 8, 5, 14, 1, 8, 5, 2]],
+  d: [[1, 0, 1, 16, 9, 0, 9, 16, 1, 0]],
+  o: [[1, 16, 8, 6, 5, 1, 2, 6, 9, 16]],
+};
+/** "LORE" in the middle, old words of luck and journeys around it. */
+const RUNE_LINE = ['r', 'a', 'i', 'd', 'o', '·', 'f', 'e', 'h', 'u', '·', 'l', 'o', 'r', 'e', '·', 'j', 'e', 'r', 'a', '·', 's', 'o', 'w', 'i', 'l', 'o'];
+const glyph = (c: string) => RUNES[c] ?? (c === 'w' ? [[3, 0, 3, 16], [3, 0, 8, 4, 3, 8]] : null);
+
+/** A carved line of runes that glows like embers; brighter while the stones speak. */
+export function RuneRow({ active = false, className = '' }: { active?: boolean; className?: string }) {
+  const step = 15;
+  return (
+    <svg
+      viewBox={`0 0 ${RUNE_LINE.length * step} 18`}
+      className={`runes${active ? ' active' : ''} ${className}`}
+      aria-hidden
+      preserveAspectRatio="xMidYMid meet"
+    >
+      {RUNE_LINE.map((c, i) => {
+        const x = i * step + 2.5;
+        if (c === '·') return <circle key={i} cx={x + 5} cy={9} r={1.2} className="rune-dot" />;
+        return (glyph(c) ?? []).map((line, j) => (
+          <polyline
+            key={`${i}-${j}`}
+            points={line.map((v, k) => (k % 2 === 0 ? v + x : v + 1)).join(' ')}
+            className="rune"
+            style={{ animationDelay: `${(i % 9) * 0.12}s` }}
+          />
+        ));
+      })}
+    </svg>
+  );
+}
+
+/** A piece of parchment with rolled ends. */
+export function Scroll({ children, className = '', as: Tag = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'article' | 'section' }) {
+  return <Tag className={`scroll ${className}`}>{children}</Tag>;
+}
+
+const ROLLED_KEY = 'lore.reminder.rolled';
+
+/**
+ * The friendly reminder, for the lore makers and everyone who comes after.
+ * Written in LORE's own words (the owner's idea, retold without borrowing anyone's characters).
+ */
+export function ReminderScroll({ collapsible = true }: { collapsible?: boolean }) {
+  const [rolled, setRolled] = useState(() => {
+    try {
+      return collapsible && localStorage.getItem(ROLLED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () => {
+    const next = !rolled;
+    setRolled(next);
+    try {
+      localStorage.setItem(ROLLED_KEY, next ? '1' : '0');
+    } catch {
+      // Private mode: it just won't be remembered.
+    }
+  };
+
+  if (rolled) {
+    return (
+      <button className="scroll-rolled" onClick={toggle}>
+        <span aria-hidden>📜</span> A friendly reminder
+      </button>
+    );
+  }
+  return (
+    <Scroll as="section" className="reminder-scroll">
+      <p className="scroll-kicker">A friendly reminder</p>
+      <h2>The one who almost stayed home</h2>
+      <p>
+        Once there was someone who loved their armchair, their books and their garden. When a wanderer knocked at the
+        door and spoke of a grand adventure, they said <em>no</em>. Then <em>no</em> again.
+      </p>
+      <p>
+        The wanderer only smiled: the world isn’t kept on a shelf. It waits past the garden gate.
+      </p>
+      <p>
+        By morning the armchair was empty. They had left everything as it was and run down the road after the company,
+        and they turned out to be exactly the one the company needed.
+      </p>
+      <p className="scroll-moral">Every legend starts with someone who almost stayed home.</p>
+      {collapsible && (
+        <button className="scroll-roll-up" onClick={toggle}>
+          Roll it up
+        </button>
+      )}
+    </Scroll>
   );
 }

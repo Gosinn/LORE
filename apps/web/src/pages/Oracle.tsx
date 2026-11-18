@@ -13,7 +13,7 @@ import {
   type OracleReading,
   type OracleSettings,
 } from '#shared';
-import { StoneCircle } from '../components/oracle.tsx';
+import { ReminderScroll, RuneRow, StoneCircle } from '../components/oracle.tsx';
 import { ErrorNote, Field, Loading, PageError, Section, TopBar } from '../components/ui.tsx';
 import { api, isNative, qs } from '../lib/api.ts';
 import { localTimeZone } from '../lib/dates.ts';
@@ -52,14 +52,20 @@ export function OraclePage() {
         }
       />
 
-      <section className="oracle-hero">
-        <StoneCircle active={read.isPending} />
-        <h1>The stones see what you don’t.</h1>
+      <section className={`oracle-stone${read.isPending ? ' speaking' : ''}`}>
+        <RuneRow active={read.isPending} />
+        <div className="stone-window">
+          <StoneCircle active={read.isPending} />
+        </div>
+        <h1>The stones see what you don’t</h1>
         <p>
           Possible futures from the sky, the weather, the wild places around you and your free time. Which one becomes lore is
           up to you.
         </p>
+        <RuneRow active={read.isPending} className="runes-low" />
       </section>
+
+      <ReminderScroll />
 
       {!setUp ? (
         <RealmForm settings={settings} onDone={() => setEditing(false)} onCancel={settings.home ? () => setEditing(false) : undefined} />
@@ -95,7 +101,7 @@ export function OraclePage() {
           <ErrorNote error={read.error} />
 
           {reading && (
-            <Section title="Possible futures">
+            <Section title="What the stones reveal">
               <div className="stack-lg">
                 {reading.futures.map((f) => (
                   <FutureCard key={`${reading.id}-${f.index}`} readingId={reading.id} future={f} />
@@ -134,7 +140,7 @@ function FutureCard({ readingId, future: f }: { readingId: string; future: Futur
 
   if (f.status === 'dismissed') {
     return (
-      <article className="card future dismissed">
+      <article className="card future scroll dismissed">
         <span className="future-emoji">{f.emoji}</span>
         <span className="grow small muted">
           <s>{f.title}</s>. You let this one go.
@@ -144,7 +150,7 @@ function FutureCard({ readingId, future: f }: { readingId: string; future: Futur
   }
 
   return (
-    <article className={`card future ${f.status}`}>
+    <article className={`card future scroll ${f.status}`}>
       <div className="future-head">
         <span className="future-emoji" aria-hidden>
           {f.emoji}
