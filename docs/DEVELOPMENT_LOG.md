@@ -1,5 +1,14 @@
 # LORE — Development log
 
+## 2026-11-18 (night) — Getting back into an account
+
+- `npm run account:recover`: find an account by username, email or name and set a new password straight
+  in the database (hidden prompts; hashed with the live server's settings; signs out everywhere). For the
+  owner, and for answering forgot-password messages until LORE can send emails.
+- 3 tests (find exact/close matches, reset + sign-out + sign-in). Tried on a copy of the demo database
+  with piped input: new password verifies, old one doesn't. **Not yet tried** typing into a real
+  PowerShell window (hidden typing) or against the live database.
+
 ## 2026-11-18 (evening) — Ready for strangers: report, moderate, Terms, Privacy, Help (0.5.0)
 
 - Report (with optional block) on messages, chapter stories, chapters, plans, ideas and profiles;

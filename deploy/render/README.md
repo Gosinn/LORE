@@ -60,3 +60,18 @@ With the `onrender.com` address, Claude builds the signed Android app that talks
   copy, `pg_dump "<connection string>" -Fc -f lore.dump` from any machine with Postgres tools.
 - When LORE outgrows this (photos near 1 GB, or more speed), move to paid tiers or the Oracle setup in
   `deploy/oracle/` without changing code.
+
+## Locked out of an account?
+LORE can't send emails yet, so a forgotten password is reset from your PC, straight in the database.
+In PowerShell:
+
+```powershell
+cd "D:\LORE APP"; . .\tools\env.ps1; npm run account:recover
+```
+
+It asks for the database address (Render → your LORE service → **Environment** → `DATABASE_URL`, click
+the eye and copy; or Neon → **Connect**), then your username, email or part of your name, then a new
+password. The address and password stay hidden and aren't saved. The account is signed out everywhere;
+sign in again with the new password. Press Enter at the password prompt to get a made-up one (useful
+when someone writes to Help because they forgot theirs: send it to the email on their account only).
+Never put the live address in `.env`: the development server reads that file.

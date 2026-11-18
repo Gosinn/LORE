@@ -59,7 +59,7 @@ exercised in the browser with demo data.
 | iOS project (`apps/ios`), LORE icon and splash, live updates, `tools/ios.mjs prepare` | ✅ generated and synced on Windows; not yet built (needs Xcode) |
 | Cloud iPhone build → TestFlight (`.github/workflows/ios.yml`) | 🟡 written, not run: waits for the owner's Apple Developer account (deploy/ios/README.md) |
 | App Store rules: report + block, moderation screen (24 h), Terms agreed at sign-up, Privacy Policy, Help & contact page, App Privacy answers | ✅ 11 tests; report, moderation, public pages and sign-up checked in the browser |
-| Forgot password by email (needs an email service) | ⬜ |
+| Forgot password by email (needs an email service) | ⬜ until then: `npm run account:recover` (deploy/render/README.md) |
 | App Store listing, price, review | ⬜ owner's account |
 | Push notifications (FCM) | ⬜ |
 | Offline cache of upcoming plans | ⬜ |
