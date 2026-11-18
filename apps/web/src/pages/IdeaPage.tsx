@@ -65,7 +65,7 @@ function IdeaView({ idea }: { idea: IdeaDetail }) {
         </div>
       </div>
 
-      {idea.description && <p style={{ whiteSpace: 'pre-wrap', marginTop: 14 }}>{idea.description}</p>}
+      {idea.description && <p className="slab slab-pad" style={{ whiteSpace: 'pre-wrap', marginTop: 14 }}>{idea.description}</p>}
 
       {notes.length > 0 && (
         <div className="card stack section" style={{ marginTop: 18 }}>

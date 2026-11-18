@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { openDatabase, type Database } from '../src/db/index.ts';
 import { oracleReadings, worldCache } from '../src/db/schema.ts';
 import { generateFutures, type OracleInput } from '../src/lib/oracle.ts';
@@ -180,6 +180,12 @@ describe('the Oracle engine', () => {
   });
 
   it('goes as far as the realm reaches, and makes far places journeys, never a day out', () => {
+    // A fixed morning (the forecast helpers read the clock too): which three futures are dealt depends on the hour,
+    // and on some evenings tonight's skies outrank every journey in all 24 deals below.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-18T11:00:00Z') });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const now = new Date();
     // Everything mixed together: whatever is dealt, far places are always journeys.
     let shown = 0;

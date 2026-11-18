@@ -54,8 +54,9 @@ export default defineConfig({
         name: 'LORE',
         short_name: 'LORE',
         description: 'LORE: Life Of Regular Epics. No scrolling. Only rolling. Plan experiences together and keep the stories.',
-        theme_color: '#efe3c8',
-        background_color: '#efe3c8',
+        // The dark base every world sits on (the black star sky, the default world); D34.
+        theme_color: '#030409',
+        background_color: '#030409',
         display: 'standalone',
         start_url: '/',
         icons: [

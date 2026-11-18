@@ -5,7 +5,10 @@ import { deflateSync } from 'node:zlib';
 
 const EMBER = [212, 70, 29];
 const PAPER = [255, 248, 240];
+// eslint-disable-next-line no-unused-vars -- the splash before D34 (retired, kept)
 const PARCHMENT = [244, 238, 227];
+// The dark base every world sits on (#030409, the black star sky; D34): the splash matches the app's first paint.
+const NIGHT = [3, 4, 9];
 const INK = [42, 22, 12];
 
 function crc32(buf) {
@@ -59,7 +62,7 @@ const mix = (c1, c2, t) => c1.map((v, i) => Math.round(v + (c2[i] - v) * t));
  * @param shape  'rounded' | 'square' | 'circle': the background's outline
  * @param bg     background colour, or null for transparent (adaptive icon foreground)
  * @param scale  emblem size relative to the full-bleed icon
- * @param badge  draw an ember disc behind the emblem (for light backgrounds)
+ * @param badge  draw an ember disc behind the emblem (for the splash backgrounds)
  */
 function draw(width, height, { shape = 'rounded', radius = 0.22, bg = EMBER, scale = 1, badge = false, ss = 4 } = {}) {
   const out = Buffer.alloc(width * height * 4);
@@ -137,7 +140,7 @@ if (existsSync(res)) {
     write(new URL('ic_launcher_foreground.png', dir), 108 * k, 108 * k, { shape: 'square', bg: null, scale: 0.78 });
   }
   const splash = { mdpi: [320, 480], hdpi: [480, 800], xhdpi: [720, 1280], xxhdpi: [960, 1600], xxxhdpi: [1280, 1920] };
-  const splashOpts = { shape: 'square', bg: PARCHMENT, badge: true, scale: 0.3 };
+  const splashOpts = { shape: 'square', bg: NIGHT, badge: true, scale: 0.3 };
   for (const [d, [w, h]] of Object.entries(splash)) {
     write(new URL(`drawable-port-${d}/splash.png`, res), w, h, splashOpts);
     write(new URL(`drawable-land-${d}/splash.png`, res), h, w, splashOpts);
@@ -162,7 +165,7 @@ const assets = new URL('../apps/ios/App/App/Assets.xcassets/', import.meta.url);
 if (existsSync(assets)) {
   // One 1024 px icon; iOS rounds the corners itself. Opaque: no alpha channel allowed.
   write(new URL('AppIcon.appiconset/AppIcon-512@2x.png', assets), 1024, 1024, { shape: 'square', opaque: true });
-  const splash = png(2732, 2732, draw(2732, 2732, { shape: 'square', bg: PARCHMENT, badge: true, scale: 0.22, ss: 2 }), true);
+  const splash = png(2732, 2732, draw(2732, 2732, { shape: 'square', bg: NIGHT, badge: true, scale: 0.22, ss: 2 }), true);
   for (const name of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png']) {
     writeFileSync(new URL(`Splash.imageset/${name}`, assets), splash);
   }

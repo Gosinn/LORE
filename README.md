@@ -12,8 +12,12 @@ road of waypoints that open one at a time, whom to find, what to carry, and one 
 waypoint can become a plan, an idea in your vault or a reminder, and, once done, a chapter of your lore.
 The stone's mind is Claude (Anthropic); wishes are private to the one who cast them.
 
-The app wears one look, **the Treasure Map**: map paper, ink and wax, a leather map case for the tab bar and a
-brass compass for Create (the older looks are retired, not deleted; stone belongs to the Loracle alone). On Home,
+Every screen wears **one base, the Loracle's own**: carved stone buttons with ember letters, a copper Create,
+wells to type into, dark slabs for cards, Cinzel and IM Fell English, so stepping into the Loracle never jumps.
+Behind it is **your world**, picked in Profile: a black star sky (the default), a night map, midnight vellum, a
+scroll, a treasure map, a mountain range or the northern lights, and by day the green hills under an engraved
+sun; day follows your phone, the real sun where you stand, or stays put. The stone wall itself belongs to the
+Loracle alone, and the older looks (the Treasure Map too) are retired, not deleted. On Home,
 the door to the Loracle carries one small sign a day: something worth doing near where you stand, if you told
 the stones where that is (a new account is asked right after sign-up; location is recommended, never required).
 
@@ -127,8 +131,9 @@ The Android app (`apps/android`, Capacitor) is the same web app bundled inside a
 - **Live updates:** installed apps pick up every web change deployed to the server by themselves (they
   check on launch and switch at the next background). A new APK is only needed when native parts change
   (new Capacitor plugins, Android settings). Profile shows the running version and build. The location
-  permission for "Where do you stand?" and the Treasure Map's splash and notification colours are native
-  parts: they arrive only with a new APK (until then the page falls back to typing a town).
+  permission for "Where do you stand?" and the dark splash and ember notification colour (D34) are native
+  parts: they arrive only with a new APK (until then the page falls back to typing a town, and the splash
+  stays parchment).
 
 ## iPhone app
 

@@ -30,7 +30,7 @@ exercised in the browser with demo data.
 | 16 | Collaborative chapter contributions | ✅ | stories, quotes with speaker and context, photos; own-edit, organizer moderation |
 | 17 | Basic notifications | ✅ | in-app, collapsing, unread badge. No push or email yet. |
 | 18 | Privacy and permissions | ✅ | audiences + roles enforced in SQL on the server; 14 privacy tests |
-| 19 | Responsive interface | ✅ | phone tab bar, desktop side rail, one look, the Treasure Map (older looks retired, kept; D32), installable PWA |
+| 19 | Responsive interface | ✅ | phone tab bar, desktop side rail, one base (the Loracle's kit) over a world each Lorer picks (D34; the Treasure Map and the older looks retired, kept), installable PWA |
 
 **Phase 1 gaps to close before real users** (in order):
 
@@ -79,7 +79,7 @@ exercised in the browser with demo data.
 | Loracle: owner sets `ANTHROPIC_API_KEY` (Render), a Console spend limit, and runs the live eval (`node tools/loracle-eval.mjs --yes`, est. US$15–25, unverified) and reads the scrolls | ⬜ owner |
 | Loracle: crisis lines, emergency numbers, Icelandic care phrases and the Anthropic consent/privacy wording checked by a person | ⬜ before release |
 | Loracle phase B/C: Ask deeper, Ask again, a dawn lane (batches), crew quests | ⬜ later |
-| **The Treasure Map** (D32): one look across the app (map paper, leather chrome, brass compass Create); the older looks retired, kept; stone only inside the Loracle | 🟡 typecheck and build pass; stone audit clean. **Not verified:** nothing looked at in a browser or on a phone, including the before/after check that the Loracle is unchanged |
+| **The Treasure Map** (D32): one look across the app (map paper, leather chrome, brass compass Create); the older looks retired, kept; stone only inside the Loracle | Retired the same day (D34, see "The one base and the worlds"); kept in code |
 | **The daily sign on Home** (D32): one small future a day near where you stand, on the Loracle door; Choose it (a private plan) / Not this one; never counts as a reading, stays within 250 km; only moments still ahead; dealt again after a move or once all its moments passed, at most 3 deals a day | 🟡 API tested (`oracle.test.ts`, "the daily sign", incl. local midnight in Honolulu); the door not looked at in a browser |
 | **"Where do you stand?" at sign-up** (D32): location recommended (rounded to ~1 km), or a town by name, or Later; the town at a point from `GET /oracle/reverse` | 🟡 reverse endpoint and the "Near me" realm lookup tested with a fake world. **Not verified:** the page in a browser, Nominatim's live reverse answer, location permission on Android/iOS (needs a new native build) |
 | **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |
@@ -98,6 +98,23 @@ exercised in the browser with demo data.
 | Server words: static error messages, notification titles, the stone's signs (new ones) | ✅ tested |
 | `npm run copy:check` (live edits a code change would orphan) and **Copy for Claude** (bake published edits into the code) | ✅ unit-tested / tried offline and against a fake server; not yet run against the live server |
 | Deploy to Render and edit for real (the live server has none of this yet) | ⬜ next deploy |
+
+## The one base and the worlds (D34, owner request 2026-11-18)
+
+"there has to be a level of consistency in the whole thing. the base. which is the UI itself" and "let's give the
+users some variety".
+
+| Step | Status |
+|---|---|
+| **One base**: the Loracle's own kit on every screen (stone buttons, copper Create, wells, slabs, stamps, Cinzel and IM Fell), the tab bar and rail as in the temple, the live text editor too; the Treasure Map retired, kept | 🟡 typecheck, full tests and build pass; stone audit clean (wall, masonry and rune textures only in the Loracle); no Loracle file or temple CSS changed; no words changed (live text keys: 0 removed, 19 new). Contrast computed, not measured. **Not verified:** nothing looked at in a browser or on a phone, including the before/after check that the Loracle is unchanged, 320–375 px widths, the desktop rail and wide layouts |
+| **Seven night worlds** and Profile → Your world (radios with live thumbnails, one tap applies); black star sky by default; Welcome, "Where do you stand?" and signed-out starts on the default world with the compass rose; a dark plate under text on the four bright worlds at night | 🟡 choices, the first-paint script, the signed-in hint and the tabs' storage events unit-tested (a stand-in page, no real DOM). **Not verified:** in a browser; how long the SVG filters take to draw on a mid-range phone |
+| **Day mode**: the green hills under the engraved sun; When = Follow my phone / Follow the sun where I stand / Always night / Always day; stone cards by day, text on the sky in ink on a vellum plate | 🟡 sunrise and sunset tested against almanac times (Reykjavík, London, midnight sun, polar night). **Not verified:** in a browser; whether the Android app's WebView reports the phone's dark mode |
+| Native colours: splash (`#030409`, PNGs redrawn), the web view's own background (`#030409`), notification accent `#FFB36B`, PWA manifest | 🟡 in the repo; the native ones arrive with the next native build (`tools/android.mjs` syncs the config; iOS needs `npx cap sync ios`) |
+| Sync the world choice across devices (an account setting; needs a migration) | ⬜ later |
+| Light vellum cards by day as a choice in Your world (the CSS hook `data-cards="vellum"` is ready) | ⬜ owner to choose (DECISIONS Q10) |
+| A day twin for each night world (instead of the one green-hills day) | ⬜ later |
+| A wide cut of the art for desktop (the portrait art is cropped to its middle band) | ⬜ later |
+| Time the worlds' SVG drawing on a mid-range Android and an iPhone; if slow, draw the full-screen grain of the green hills, mountain range, northern lights and treasure map as a small CSS tile instead of a full-screen filter (the black star sky's filters are already bounded to the screen) | ⬜ needs a phone |
 
 ## Phase 2 — Spontaneity and identity
 

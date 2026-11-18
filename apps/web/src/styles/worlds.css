@@ -1,0 +1,231 @@
+/* ------------------------------------------------------------------ WORLDS
+   The world behind LORE (docs/DECISIONS.md D34, WORLDS spec 2.2, 3 and 5). One base everywhere (styles/lore.css,
+   the Loracle's own kit); the world is the variety, picked in Profile → Your world. main.tsx loads this file
+   after map.css and before lore.css (lore.css is last).
+
+   The contract (lib/theme.ts puts these on <html>; index.html's boot script does it before the first paint):
+     data-theme="lore"              the one look (any other value hides the backdrop: a retired look paints its own)
+     data-world="<id>"              the world on screen: black-star-sky (default), night-map, midnight-vellum,
+                                    scroll, treasure-map, mountain-range, northern-lights, or green-hills by day
+     data-daylight="night" | "day"  which half of the day it is (day always shows green-hills)
+   This file paints the worlds: --world-art (each world's art as background layers, on any [data-world]
+   element: <html> and the Profile thumbnails) and --world-bg for the thumbnails. lore.css owns the rest of the
+   world tokens on <html> (--world-bg, --world-top, --slab per world, --bg = --world-bg) and all text that sits
+   on the world, by night and by day (legibility shadow, ink and the vellum plate).
+
+   The backdrop is ONE element, <div class="world"> in index.html, outside React. Stone never appears here;
+   inside the Loracle the temple wall shows instead, and the temple itself is never styled here. */
+
+/* ------------------------------------------------------------- the worlds
+   The approved art (D:\LORE-devenv\previews\worlds): SVGs minified into assets/worlds, and the three exported
+   CSS layer lists as they were exported (noise tiles at their own size, the night map's grid at 56px). */
+
+[data-world='black-star-sky'] {
+  --world-bg: #030409;
+  --world-art: url('../assets/worlds/black-star-sky.svg') center / cover no-repeat;
+}
+[data-world='night-map'] {
+  --world-bg: #1d1813;
+  --world-art:
+    radial-gradient(130% 480px at 50% 0, #ff8c4614, transparent 60%),
+    radial-gradient(45% 28% at 0 16%, rgb(255 150 70 / .12), transparent),
+    radial-gradient(45% 28% at 100% 16%, rgb(255 150 70 / .12), transparent),
+    linear-gradient(rgb(217 180 92 / .055) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(90deg, rgb(217 180 92 / .055) 1px, transparent 1px) 0 0 / 56px 56px,
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'180'%20height%3D'180'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.85%200.85'%20numOctaves%3D'2'%20seed%3D'1'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.941%200%200%200%200%200.851%200%200%200%200%200.659%200.24%200%200%200%20-0.08'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'520'%20height%3D'520'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.011%200.011'%20numOctaves%3D'4'%20seed%3D'3'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.000%200%200%200%200%200.000%200%200%200%200%200.000%201.5%200%200%200%20-0.6'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"),
+    radial-gradient(ellipse at 50% 42%, transparent 55%, rgb(6 3 1 / .5) 100%);
+}
+[data-world='midnight-vellum'] {
+  --world-bg: #15131f;
+  --world-art:
+    radial-gradient(1px 1px at 12% 8%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 78% 14%, #fff6 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 22%, #fff5 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 40%, #fff5 50%, transparent 51%),
+    radial-gradient(1px 1px at 22% 48%, #fff4 50%, transparent 51%),
+    radial-gradient(120% 420px at 50% 0, rgb(120 70 140 / .18), transparent 70%),
+    radial-gradient(90% 300px at 50% 100%, rgb(255 120 60 / .08), transparent 70%),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'180'%20height%3D'180'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.85%200.85'%20numOctaves%3D'2'%20seed%3D'1'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.847%200%200%200%200%200.824%200%200%200%200%200.941%200.2%200%200%200%20-0.07'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'520'%20height%3D'520'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.011%200.011'%20numOctaves%3D'4'%20seed%3D'3'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.000%200%200%200%200%200.000%200%200%200%200%200.000%201.4%200%200%200%20-0.6'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E");
+}
+[data-world='scroll'] {
+  --world-bg: #4a3520;
+  --world-art:
+    linear-gradient(90deg, #0f0904 0, #3e2c18 2.2%, #8a6a44 4%, #4a3520 6.5%, rgb(30 20 10 / .55) 9%, transparent 14%, transparent 86%, rgb(30 20 10 / .55) 91%, #4a3520 93.5%, #8a6a44 96%, #3e2c18 97.8%, #0f0904 100%),
+    linear-gradient(180deg, #2a1708 0, #7a5024 6px, #c08a4e 9px, #7a5024 13px, #2a1708 16px, rgb(0 0 0 / .5) 17px, transparent 40px),
+    radial-gradient(ellipse 80% 60% at 50% 34%, rgb(255 190 110 / .16), transparent 70%),
+    radial-gradient(ellipse at 50% 42%, transparent 50%, rgb(6 3 1 / .55) 100%),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'180'%20height%3D'180'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.9%200.9'%20numOctaves%3D'2'%20seed%3D'1'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.965%200%200%200%200%200.886%200%200%200%200%200.722%200.34%200%200%200%20-0.11'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'420'%20height%3D'420'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.006%200.22'%20numOctaves%3D'3'%20seed%3D'5'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.953%200%200%200%200%200.851%200%200%200%200%200.651%200.9%200%200%200%20-0.5'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'520'%20height%3D'520'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.012%200.012'%20numOctaves%3D'4'%20seed%3D'6'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.102%200%200%200%200%200.059%200%200%200%200%200.020%201.7%200%200%200%20-0.6'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'520'%20height%3D'520'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.03%200.03'%20numOctaves%3D'4'%20seed%3D'12'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%200.941%200%200%200%200%200.784%200%200%200%200%200.565%201.3%200%200%200%20-0.62'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E");
+}
+[data-world='treasure-map'] {
+  --world-bg: #14201e;
+  --world-art: url('../assets/worlds/treasure-map.svg') center / cover no-repeat;
+}
+[data-world='mountain-range'] {
+  --world-bg: #0c1020;
+  --world-art: url('../assets/worlds/mountain-range.svg') center / cover no-repeat;
+}
+[data-world='northern-lights'] {
+  --world-bg: #050a14;
+  --world-art: url('../assets/worlds/northern-lights.svg') center / cover no-repeat;
+}
+/* By day: the green hills under the engraved sun (spec 5). */
+[data-world='green-hills'] {
+  --world-bg: #4f83ad;
+  --world-art: url('../assets/worlds/green-hills.svg') center / cover no-repeat;
+}
+
+/* ---------------------------------------------------------- the backdrop
+   Fixed, behind everything, never `background-attachment: fixed`. Sized to the large viewport so it never
+   resizes (and so never repaints) as a phone's toolbars come and go, on its own compositor layer so scrolling
+   never repaints it. Full bleed under the safe areas (viewport-fit=cover). Body keeps its own background
+   (--bg, the world's base): it becomes the canvas under this layer, and the temple wall in the Loracle. */
+
+.world {
+  display: none;
+}
+html[data-theme='lore'] .world {
+  display: block;
+  position: fixed;
+  inset: 0;
+  bottom: auto;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--world-art, none);
+  background-color: var(--world-bg, #030409);
+  contain: strict;
+  will-change: transform;
+}
+/* Inside the Loracle the temple wall shows (body's background, which this layer would otherwise cover). */
+body:has(.oracle-page) > .world {
+  visibility: hidden;
+}
+
+/* ------------------------------------------------------ Profile → Your world
+   A radio group of the night worlds (small live thumbnails of the art), then the day world with "When". The
+   picked world is the raised stone block with glow letters; one tap applies (lib/theme.ts). The panel is a
+   .slab, so lore.css gives it the stone and the night inks wherever it sits. */
+
+.your-world {
+  display: grid;
+  gap: 12px;
+  padding: 12px 12px 14px;
+}
+.world-set {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.world-legend {
+  margin: 0;
+  padding: 0;
+  font: 700 10.5px/1.3 var(--font-carved);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--carve-mute);
+}
+.world-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+.world-pick {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 5px 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 10px 11px 9px 10px;
+  color: var(--carve-2);
+  text-align: center;
+  cursor: pointer;
+}
+/* The radio itself: invisible but focusable, so arrow keys and screen readers work as in any radio group. It
+   covers its whole label, so touch exploration (VoiceOver, TalkBack) finds it under the finger and the
+   reader's focus box frames the option; the label still takes the tap. */
+.world-radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.world-thumb {
+  display: block;
+  aspect-ratio: 3 / 4;
+  border-radius: 7px;
+  background: var(--world-art, none);
+  background-color: var(--world-bg, #030409);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.55),
+    0 2px 6px -2px #000;
+}
+.world-name {
+  font: 700 10px/1.25 var(--font-carved);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: var(--engraved);
+  overflow-wrap: anywhere;
+}
+.world-pick:hover .world-name {
+  color: var(--carve);
+}
+.world-pick:has(> .world-radio:checked) {
+  border-color: var(--edge);
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+}
+.world-radio:checked ~ .world-name {
+  color: var(--glow-text);
+  text-shadow:
+    0 -1px 0 #000d,
+    0 0 8px rgb(255 120 60 / 0.7);
+}
+.world-radio:checked + .world-thumb {
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.55),
+    0 0 14px -2px rgb(255 140 70 / 0.6);
+}
+.world-radio:focus-visible + .world-thumb,
+.world-when:has(> .world-radio:focus-visible) {
+  outline: 2px solid var(--glow);
+  outline-offset: 3px;
+}
+/* The day world: one, shown beside "When". */
+.world-day {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.world-day .world-pick {
+  cursor: default;
+}
+.world-when {
+  position: relative;
+  cursor: pointer;
+}
+/* "Follow the sun where I stand" is wider than the column on a phone: these chips wrap their words instead of
+   running out of the slab. (.chip.world-when outranks app.css's and lore.css's nowrap .chip.) */
+.chip.world-when {
+  max-width: 100%;
+  padding-block: 7px;
+  line-height: 1.25;
+  text-align: start;
+  white-space: normal;
+}
+.world-hint {
+  margin: 0;
+}

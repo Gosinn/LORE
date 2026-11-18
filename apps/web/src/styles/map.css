@@ -1,5 +1,11 @@
 /* ------------------------------------------------------------ TREASURE MAP
-   LORE's one look (D32). LORE is a crew's map: paper with a faint graticule, iron-gall ink, vermilion
+   RETIRED (D34, 2026-11-18): LORE now wears one base, the Loracle's own kit (styles/lore.css), over a world
+   each Lorer picks (styles/worlds.css). `map` sits in RETIRED_THEMES (lib/theme.ts); a stored `map` wears the
+   new base. Kept, not deleted (the owner: retired looks stay in code). The guarded rules below match nothing
+   unless data-theme='map' comes back; the unguarded "new pieces" at the end (compass rose, trail, Welcome,
+   the Loracle door, the step into the temple) are still used and still load.
+
+   Was LORE's one look (D32). LORE is a crew's map: paper with a faint graticule, iron-gall ink, vermilion
    route-ink for anything you do, sea-ink (verdigris) for places and confirmed plans, brass for lore and
    memory, wax for what is sealed. The chrome is a leather map case with brass stitching and a brass
    compass for Create. At the edge of the map, through a tear in the paper: dusk and the standing stones

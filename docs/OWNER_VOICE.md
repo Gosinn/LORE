@@ -67,6 +67,17 @@ written, it should sound like this.
 > also , see the button difference in the screenshots? not really professional from the consumer's perspective..
 > there has to be a level of consistency in the whole thing. the base. which is the UI itself. shape..
 
+On the day (D34):
+
+> and now we need a day mode,, with a green lush hills LOTR type village with blue sky and SUN that has the same
+> look as in the gnostic texts..
+
+> make it a bit more mystical,, less childish..the day theme
+
+> even more gnostic , like proper gnostic art
+
+> touch up the houses and ground tho.. more gnosticism there
+
 ## His own words, live (2026-11-18)
 
 > I want the ability to change all text myself manually and then a button to commit in real time. instead of

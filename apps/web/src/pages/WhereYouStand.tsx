@@ -8,6 +8,7 @@ import { ErrorNote, Loading } from '../components/ui.tsx';
 import { api, ApiError, qs } from '../lib/api.ts';
 import { localTimeZone } from '../lib/dates.ts';
 import { useAction, useMe } from '../lib/queries.ts';
+import { useFrontDoorWorld } from '../lib/theme.ts';
 import '../styles/sign.css';
 
 /** Two decimals: about a kilometre north–south, less east–west. The exact point never leaves the device. */
@@ -66,6 +67,8 @@ export function WhereYouStand() {
   const [params] = useSearchParams();
   const next = nextPath(params.get('next'));
   const canLocate = typeof navigator !== 'undefined' && 'geolocation' in navigator;
+  // Like Welcome: the default world by night, with the compass rose.
+  useFrontDoorWorld();
 
   const [q, setQ] = useState('');
   const [results, setResults] = useState<GeocodeResult[] | null>(null);

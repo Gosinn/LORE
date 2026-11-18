@@ -2,6 +2,7 @@
   "appId": "com.gosinn.lore",
   "appName": "LORE",
   "webDir": "apps/web/dist",
+  "backgroundColor": "#030409",
   "android": {
     "path": "apps/android"
   },
@@ -14,12 +15,12 @@
   "plugins": {
     "SplashScreen": {
       "launchAutoHide": false,
-      "backgroundColor": "#efe3c8",
+      "backgroundColor": "#030409",
       "showSpinner": false
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_lore",
-      "iconColor": "#A3301A"
+      "iconColor": "#FFB36B"
     },
     "CapacitorUpdater": {
       "autoUpdate": "off",

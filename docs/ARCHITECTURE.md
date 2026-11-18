@@ -199,6 +199,47 @@ The owner rewords any screen from inside the app and publishes it; nobody needs 
 - `npm run copy:check` compares the keys at `HEAD` with the working tree and lists live edits a code change
   would orphan.
 
+### The look: one base, many worlds (D34)
+
+Every screen wears the Loracle's own kit (stone buttons, wells, slabs, stamps; Cinzel and IM Fell English) over
+a **world**, the page's background, picked per device. Nothing here touches the API or the database.
+
+- **What `<html>` carries**: `data-theme="lore"` (the one look; retired looks keep their CSS, D32/D34),
+  `data-world` (the world on screen: one of seven night worlds, or `green-hills` by day) and `data-daylight`
+  (`night` or `day`). `data-cards="vellum"` is a prepared, unused hook for light cards by day.
+- **Who sets it**: `index.html`'s boot script before the first paint (stored choice, the phone's light/dark,
+  the sun's cached answer; Welcome, and any start with no one signed in on the device, pinned to the default
+  world by night), then `lib/theme.ts` (`applyLook()`, a small store with `useLook()`), kept current by
+  `components/World.tsx`: the phone's switch, the app coming to the front, other tabs' choices (never their
+  sun cache, which every tab writes), and a timer at the next sunrise or sunset. "Follow the sun" reads the
+  Loracle's home point once from `GET /loracle` (rounded to 0.1° and kept in `lore.sun`); the sun's position is
+  NOAA's equations, on the device. The cache for the boot script (`lore.sunNow`) holds the answer and the next
+  14 turns (about a week; near the polar night, the last half for 48 h past the last turn), on whole minutes,
+  and is rewritten only when it changes. World.tsx reads who is signed in from the query cache (as the copy
+  gate does: `qc.clear()` doesn't tell a `useMe()` observer) and keeps the `lore.in` hint and the home point in
+  step with it. Choices live in `localStorage` (`lore.world`, `lore.daylight`, `lore.sun`, `lore.sunNow`,
+  `lore.in`), every access in try/catch.
+- **The stylesheets, in this order** (main.tsx): `app.css` (base tokens, components, the temple), `map.css`
+  (retired; its rules are guarded by `data-theme='map'` except the shared compass rose, trail, Welcome and
+  Home door), `worlds.css` (each world's art as `--world-art` on any `[data-world]` element, the backdrop,
+  Profile's picker), `lore.css` (the kit and the world tokens `--world-bg`, `--world-top`, `--slab`; text on
+  the world; day ink; last, so it wins without specificity).
+- **The guard**: every kit rule starts with `:where(html[data-theme='lore'] body:not(:has(.oracle-page)))`.
+  While the Loracle is open none of it applies, the backdrop is hidden and body's temple wall shows. Where
+  app.css outranks a zero-specificity rule (its plain `body` font, `.notification.unread`), lore.css uses the
+  guard without `:where()` or repeats the property on a matching compound selector.
+- **Text on the world**: the legibility shadow plus a 2px halo; by day ink on a vellum plate; at night on the
+  four bright worlds (northern lights, mountain range, treasure map, scroll) the same blocks sit on a dark
+  feathered plate (`--plate-night`).
+- **The backdrop** is one element, `<div class="world" aria-hidden="true">` in `index.html` outside React:
+  `position: fixed; z-index: -1; height: 100lvh; contain: strict; will-change: transform`, so scrolling and
+  the phone's toolbars never resize or repaint it. Body's `--bg` (the world's base colour) is the canvas under it.
+- **The browser bar** wears the world's top edge (`WORLD_BAR` in theme.ts = `--world-top` in lore.css; AppShell
+  reads `--world-top` on navigation, theme.ts on a world change); stone (`#24211e`) inside the Loracle.
+- **Tests** (`apps/web/vite/test/theme.test.ts`, outside `src` so its names aren't live-text words): the sun
+  against almanac times, the choices, the boot script run in a sandbox, and the stylesheets' world colours
+  against theme.ts.
+
 ## 3. Database schema
 
 Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` are generated from it
@@ -325,7 +366,7 @@ Five primary destinations (brief part II), as a bottom tab bar on phones and a s
 | Calendar | `/calendar`: month and agenda views; LORE and personal layers | new event on a day, personal entries |
 | Create | `/create`: plan something, save an idea, write a chapter, start a crew | forms |
 | Lorebook | `/lorebook`: timeline by year, crew and year filters, search | chapters |
-| Profile | `/profile`: picture, bio, friends, crews, my lore, settings | `/friends`, `/u/:username` |
+| Profile | `/profile`: picture, bio, friends, crews, my lore, settings (Your world: night world, day and night) | `/friends`, `/u/:username` |
 
 Outside the tabs: `/welcome` (sign in, create account) and `/welcome/where` ("Where do you stand?", the step a
 new account takes before Home: device location, recommended and rounded to about a kilometre, or a town by
@@ -379,15 +420,18 @@ LORE APP/
    ├─ public/              favicon and app icons
    └─ src/
       ├─ main.tsx, router.tsx
-      ├─ lib/              api.ts, queries.ts (data hooks), dates.ts, images.ts, theme.ts
+      ├─ lib/              api.ts, queries.ts (data hooks), dates.ts, images.ts, theme.ts (the look, worlds, day and night, the sun)
       │  └─ copy/          live text runtime: runtime.ts, sync.ts, cache.ts, gate.tsx (owner + switch), guard.tsx (crash guard)
-      ├─ components/       AppShell, ui, cards, pickers, CommentThread, compass (CompassRose)
+      ├─ components/       AppShell, World (keeps the world in step; renders nothing), ui, cards, pickers, CommentThread, compass (CompassRose)
       │  └─ copyEditor/    the owner's editor (own chunk): quill, outlines, edit sheet, publish bar, Edited texts, Copy for Claude
+      ├─ assets/worlds/    the world art (SVG, minified from the approved export)
       ├─ pages/            one file per screen (WhereYouStand: the location step after sign-up)
       └─ styles/
          ├─ app.css        base tokens, the retired looks (Paper, Campfire, Match device, Crazy; kept, D32),
          │                 the components and the Loracle's stone and scrolls
-         ├─ map.css        the Treasure Map, the only offered look (D32). Every rule is guarded off while
-         │                 the Loracle is open, so stone stays inside the Loracle
+         ├─ map.css        the Treasure Map (retired, D34; kept). Guarded rules match nothing; the compass
+         │                 rose, trail, Welcome and Home door pieces are still shared
+         ├─ worlds.css     the worlds' art, the one fixed backdrop, Profile → Your world (D34)
+         ├─ lore.css       the one base: the Loracle's kit on every screen, world tokens, day ink (D34; last)
          └─ sign.css       Home's daily sign on the Loracle door, and "Where do you stand?"
 ```

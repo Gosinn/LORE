@@ -1,17 +1,81 @@
 <!doctype html>
-<html lang="en" data-theme="map">
+<html lang="en" data-theme="lore" data-world="black-star-sky" data-daylight="night">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#efe3c8" />
+    <meta name="theme-color" content="#030409" />
+    <meta name="color-scheme" content="dark" />
     <!-- Filled in by the server when it packages this app as an Android live update. -->
     <meta name="lore-api-base" content="" />
     <meta name="description" content="LORE: Life Of Regular Epics. No scrolling. Only rolling. Plan experiences together and keep the stories." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>LORE</title>
+    <script>
+      // The world this device wears, before the first paint (no flash). src/lib/theme.ts does the same, and keeps
+      // it current from there; a test (vite/test/theme.test.ts) keeps this table and these keys equal to theme.ts.
+      (function () {
+        var BAR = {
+          'black-star-sky': '#030409',
+          'night-map': '#241b14',
+          'midnight-vellum': '#1f1a2c',
+          scroll: '#2a1708',
+          'treasure-map': '#14201e',
+          'mountain-range': '#060a18',
+          'northern-lights': '#03060e',
+          'green-hills': '#1a3a6e',
+        };
+        var world = 'black-star-sky';
+        var half = 'night';
+        var picked = null;
+        var when = null;
+        var sun = null;
+        var signedIn = null;
+        try {
+          picked = localStorage.getItem('lore.world');
+          when = localStorage.getItem('lore.daylight');
+          signedIn = localStorage.getItem('lore.in');
+          // The sun's answer when it was last worked out, and the next sunrises and sunsets from then.
+          sun = JSON.parse(localStorage.getItem('lore.sunNow') || 'null');
+        } catch (e) {
+          // No storage (or a broken value): the defaults.
+        }
+        if (picked && picked !== 'green-hills' && Object.prototype.hasOwnProperty.call(BAR, picked)) world = picked;
+        if (when !== 'sun' && when !== 'night' && when !== 'day') when = 'phone';
+        if (when === 'sun') {
+          var now = Date.now();
+          if (sun && sun.until > now && sun.turns && sun.turns.length !== undefined) {
+            var passed = 0;
+            for (var i = 0; i < sun.turns.length; i++) if (sun.turns[i] <= now) passed++;
+            var isDay = passed % 2 === 1 ? !sun.day : !!sun.day;
+            half = isDay ? 'day' : 'night';
+          } else when = 'phone';
+        }
+        if (when === 'day') half = 'day';
+        if (when === 'phone') {
+          try {
+            half = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
+          } catch (e) {
+            // No answer from the phone: night.
+          }
+        }
+        // Welcome and "Where do you stand?" wear the default world, by night; so does a start with no one signed in
+        // on this device (a new install, or after signing out: it is on its way to Welcome).
+        if (signedIn !== '1' || /^\/welcome(\/|$)/.test(location.pathname)) {
+          world = 'black-star-sky';
+          half = 'night';
+        }
+        if (half === 'day') world = 'green-hills';
+        var root = document.documentElement;
+        root.setAttribute('data-world', world);
+        root.setAttribute('data-daylight', half);
+        var bar = document.querySelector('meta[name="theme-color"]');
+        if (bar) bar.setAttribute('content', BAR[world]);
+      })();
+    </script>
   </head>
   <body>
+    <div class="world" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -81,7 +81,7 @@ function ChapterView({ c }: { c: ChapterDetail }) {
           )}
         </div>
         {c.summary && (
-          <p className="story" style={{ marginTop: 6 }}>
+          <p className="story slab slab-pad" style={{ marginTop: 6 }}>
             {c.summary}
           </p>
         )}
@@ -205,7 +205,7 @@ function ContributionView({ chapterId, x }: { chapterId: string; x: Contribution
 
   if (editing) {
     return (
-      <div className="stack">
+      <div className="stack slab slab-pad">
         {byline}
         <textarea className="textarea" value={body} onChange={(e) => setBody(e.target.value)} />
         <div className="row">
@@ -223,7 +223,7 @@ function ContributionView({ chapterId, x }: { chapterId: string; x: Contribution
 
   if (x.type === 'quote') {
     return (
-      <div className="stack" style={{ gap: 8 }}>
+      <div className="stack slab slab-pad" style={{ gap: 8 }}>
         <blockquote className="quote" style={{ margin: 0 }}>
           <p className="quote-text">{x.body}</p>
           {(speaker || x.context) && (
@@ -238,7 +238,7 @@ function ContributionView({ chapterId, x }: { chapterId: string; x: Contribution
     );
   }
   return (
-    <article className="stack" style={{ gap: 8 }}>
+    <article className="stack slab slab-pad" style={{ gap: 8 }}>
       {byline}
       {x.title && <h3 className="story-title">{x.title}</h3>}
       <p className="story">{x.body}</p>
@@ -353,7 +353,7 @@ function Composer({ chapter }: { chapter: ChapterDetail }) {
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 maxLength={20000}
-                style={{ minHeight: 150, fontFamily: 'var(--font-display)', fontSize: 17 }}
+                style={{ minHeight: 150, fontFamily: 'var(--font-story, var(--font-display))', fontSize: 17 }}
               />
             </>
           ) : (
@@ -364,7 +364,7 @@ function Composer({ chapter }: { chapter: ChapterDetail }) {
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 maxLength={1000}
-                style={{ minHeight: 80, fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18 }}
+                style={{ minHeight: 80, fontFamily: 'var(--font-story, var(--font-display))', fontStyle: 'italic', fontSize: 18 }}
               />
               <div className="two-col">
                 <Field label="Who said it" htmlFor="speaker">

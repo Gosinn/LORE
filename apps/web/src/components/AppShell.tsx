@@ -32,11 +32,13 @@ export function AppShell() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
-  // The browser bar matches the page: the look's own paper (--bg; map paper today), or stone in the temple.
+  // The browser bar matches the page: the top edge of the world (--world-top, D34; a retired look's own --bg),
+  // or stone in the temple. lib/theme.ts keeps it in step when the world changes on the same page.
   useEffect(() => {
     const temple = location.pathname === '/oracle' || location.pathname.startsWith('/oracle/');
-    const paper = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#efe3c8';
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', temple ? '#24211e' : paper);
+    const root = getComputedStyle(document.documentElement);
+    const top = root.getPropertyValue('--world-top').trim() || root.getPropertyValue('--bg').trim() || '#030409';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', temple ? '#24211e' : top);
   }, [location.pathname]);
 
   if (me.isLoading) return <Loading />;

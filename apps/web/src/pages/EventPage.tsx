@@ -115,7 +115,12 @@ function EventView({ event: e }: { event: EventDetail }) {
       {e.canRsvp && e.myRsvp && e.myRsvp !== 'declined' && <RemindMe event={e} />}
 
       {e.chapterId && (
-        <Link to={`/chapters/${e.chapterId}`} className="card card-link row section" style={{ marginTop: 18, background: 'var(--gold-soft)', borderColor: 'transparent' }}>
+        <Link
+          to={`/chapters/${e.chapterId}`}
+          className="card card-link row section"
+          // The retired looks' gold face; the stone kit sets --chapter-link-face to its slab (styles/lore.css).
+          style={{ marginTop: 18, background: 'var(--chapter-link-face, var(--gold-soft))', borderColor: 'var(--chapter-link-edge, transparent)' }}
+        >
           <BookOpen size={22} style={{ color: 'var(--gold)' }} />
           <span className="grow">
             <strong className="serif" style={{ fontSize: 18 }}>
@@ -184,7 +189,7 @@ function EventView({ event: e }: { event: EventDetail }) {
 
       {e.description && (
         <Section title="Notes">
-          <p style={{ whiteSpace: 'pre-wrap' }}>{e.description}</p>
+          <p className="slab slab-pad" style={{ whiteSpace: 'pre-wrap' }}>{e.description}</p>
         </Section>
       )}
 
@@ -199,7 +204,7 @@ function EventView({ event: e }: { event: EventDetail }) {
           )
         }
       >
-        <div className="stack">
+        <div className="stack slab slab-pad">
           {groups.map(({ rsvp, label, people }) =>
             people.length ? (
               <div key={rsvp} className="stack" style={{ gap: 6 }}>

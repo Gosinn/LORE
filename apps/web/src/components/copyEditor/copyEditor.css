@@ -844,3 +844,400 @@ body:has(> .overlay, > .loracle-overlay, > .lightbox) .lce-pen {
     transition: none !important;
   }
 }
+
+/* =================================================================== STONE (the lore base kit)
+   With the one base (html[data-theme='lore'], styles/lore.css) the editor wears the same kit as every
+   screen: slabs for its panels and bars, wells for typing, carved stone to press (ember letters to
+   publish), Cinzel and IM Fell. The map dress above stays in code (retired with the Treasure Map); only
+   the tokens, and the pieces that are not token-driven, change here. Over the Loracle it looks the same. */
+
+html[data-theme='lore'] .lce {
+  --lce-paper: #1f1c18;
+  --lce-paper-2: #1a1714;
+  --lce-paper-3: #2a2622;
+  --lce-ink: #e9e1d3;
+  --lce-ink-2: #cfc5b4;
+  --lce-muted: #b3aa9b;
+  --lce-line: rgb(233 205 150 / 0.12);
+  --lce-edge: #5a534b;
+  --lce-wax: #ffb36b;
+  --lce-wax-ink: #ffdeb8;
+  --lce-ember-soft: rgb(255 154 90 / 0.16);
+  --lce-brass: #6a5a44;
+  --lce-gold: #e9c46a;
+  --lce-gold-soft: #3a2f14;
+  --lce-sea: #8fd3c8;
+  --lce-danger: #ffbfb4;
+  --lce-danger-soft: #3a1612;
+  --lce-leather: #26231f;
+  --lce-voice: 'IM Fell English', 'Fraunces Variable', Georgia, serif;
+  --lce-graticule: linear-gradient(transparent, transparent);
+  --lce-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .88 0 0 0 0 .84 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --lce-block: var(--lce-grain), linear-gradient(#605a52, #3a3632);
+  --lce-block-hi: var(--lce-grain), linear-gradient(#6a645b, #433e39);
+  --lce-block-depth: inset 0 1px 0 #fff3, inset 0 -3px 0 #0005, 0 4px 0 #141210, 0 8px 14px -8px #000;
+  --lce-block-pressed: inset 0 1px 0 #fff3, inset 0 -1px 0 #0005, 0 1px 0 #141210, 0 3px 6px -4px #000;
+  --lce-main:
+    var(--lce-grain), radial-gradient(120% 90% at 50% 0, rgb(255 255 255 / 0.08), transparent 70%),
+    linear-gradient(#605a52, #3a3632);
+  --lce-main-hi:
+    var(--lce-grain), radial-gradient(120% 90% at 50% 0, rgb(255 255 255 / 0.12), transparent 70%),
+    linear-gradient(#6a645b, #433e39);
+  --lce-main-ink-shadow: 0 -1px 0 #000d, 0 0 8px rgb(255 120 60 / 0.5);
+  --lce-engraved: 0 -1px 0 #000d, 0 1px 0 #fff3;
+  --lce-well: inset 0 2px 5px #000b, inset 0 -1px 0 #ffffff12, 0 1px 0 #ffffff14;
+  --lce-slab: var(--lce-grain), linear-gradient(#211e1a, #181613);
+  color: var(--lce-ink);
+  font-family: var(--lce-voice);
+  font-size: 16px;
+  color-scheme: dark;
+}
+html[data-theme='lore'] .lce :focus-visible {
+  outline: 2px solid #ffb36b;
+  outline-offset: 3px;
+}
+
+/* Page outlines while Editing: ember on every page (ink would vanish on the worlds). */
+html[data-theme='lore'][data-copy-editing] [data-lore-copy] {
+  outline-color: #ffb36b;
+}
+html[data-theme='lore'][data-copy-editing] [data-lore-copy-state~='draft'] {
+  box-shadow: inset 0 0 0 100vmax rgb(255 154 90 / 0.18);
+}
+html[data-theme='lore'][data-copy-editing] [data-lore-copy-state~='live'] {
+  text-decoration-color: #e9c46a;
+}
+/* Outside the Loracle only: in the temple a broken text keeps the dotted glow it always had. */
+html[data-theme='lore'][data-copy-editing] body:not(:has(.oracle-page)) [data-lore-copy-state~='broken'] {
+  outline-color: #ffbfb4;
+}
+/* By day, text sitting on the bright sky (on its vellum plate) is ink: the outlines go back to ink too, or the
+   glow would vanish (about 1.2:1). Only on the world: on slabs and stone the glow stays. The selectors are
+   this long so they outrank lore.css's day plate, which would otherwise hide a draft's tint. */
+html[data-theme='lore'][data-daylight='day'][data-copy-editing] body:not(:has(.oracle-page)) :is(.main, .legal) [data-lore-copy]:not(:is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid), :is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid) *) {
+  outline-color: #a3301a;
+}
+html[data-theme='lore'][data-daylight='day'][data-copy-editing] body:not(:has(.oracle-page)) :is(.main, .legal) [data-lore-copy-state~='draft']:not(:is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid, .tabs, .seg, .chip, .btn, .icon-btn), :is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid, .tabs, .seg, .chip, .btn, .icon-btn) *) {
+  box-shadow: inset 0 0 0 100vmax rgb(163 48 26 / 0.14);
+}
+html[data-theme='lore'][data-daylight='day'][data-copy-editing] body:not(:has(.oracle-page)) :is(.main, .legal) [data-lore-copy-state~='live']:not(:is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid, .tabs, .seg, .chip, .btn, .icon-btn), :is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid, .tabs, .seg, .chip, .btn, .icon-btn) *) {
+  text-decoration-color: #76520e;
+}
+html[data-theme='lore'][data-daylight='day'][data-copy-editing] body:not(:has(.oracle-page)) :is(.main, .legal) [data-lore-copy-state~='broken']:not(:is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid), :is(.card, .list, .month-grid, .create-tile, .loracle-door, .banner, .notification, .personal-row, .comment-body, .crew-chip, .sheet, .slab, .legal-body, .main > .form-grid) *) {
+  outline-color: #8a1c3a;
+}
+
+/* The quill: a round carved pebble; lit copper while Editing. */
+html[data-theme='lore'] .lce-pen {
+  border: 1px solid #141210;
+  border-radius: 50%;
+  background:
+    var(--lce-grain),
+    radial-gradient(circle at 35% 30%, #7a746b, #45403b 60%, #2a2724);
+  color: #ffd2a1;
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    inset 0 -2px 0 #0005,
+    0 3px 0 #141210,
+    0 8px 16px -6px #000;
+}
+html[data-theme='lore'] .lce-pen:hover {
+  transform: translateY(-1px);
+}
+html[data-theme='lore'] .lce-pen[aria-pressed='true'] {
+  border-color: #2a1208;
+  background:
+    var(--lce-grain),
+    radial-gradient(circle at 35% 30%, #9a5428, #5a2c14 70%);
+  color: #ffe2c2;
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    inset 0 -3px 0 #0005,
+    0 4px 0 #2a1208,
+    0 0 20px -4px #ff6a3d;
+}
+
+/* The Editing pill, the bar of unpublished changes and the toast: slabs. */
+html[data-theme='lore'] :is(.lce-pill, .lce-bar, .lce-toast) {
+  border: 1px solid #0a0806;
+  background: var(--lce-slab);
+  box-shadow:
+    inset 0 1px 0 rgb(255 240 210 / 0.08),
+    0 12px 26px -12px #000;
+}
+html[data-theme='lore'] .lce-pill {
+  border-radius: 12px;
+}
+html[data-theme='lore'] .lce-toast {
+  border-radius: 10px;
+  box-shadow:
+    inset 3px 0 0 #ffb36b,
+    0 12px 26px -12px #000;
+  color: #e9e1d3;
+}
+html[data-theme='lore'] .lce-pill-btn {
+  border: 1px solid #141210;
+  border-radius: 10px 11px 9px 10px;
+  background: var(--lce-block);
+  box-shadow: var(--lce-block-depth);
+  color: #e9e1d3;
+  font: 700 12px/1.1 'Cinzel', Georgia, serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: var(--lce-engraved);
+}
+html[data-theme='lore'] .lce-pill-done {
+  background: var(--lce-main);
+  color: #ffdeb8;
+  text-shadow: var(--lce-main-ink-shadow);
+}
+
+/* Buttons: the kit. Publish (the wax seal) is the main stone with ember letters. */
+html[data-theme='lore'] .lce-btn {
+  border: 1px solid #141210;
+  border-radius: 10px 11px 9px 10px;
+  font: 700 12.5px/1.15 'Cinzel', Georgia, serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: var(--lce-engraved);
+  transition: transform 0.1s ease;
+}
+html[data-theme='lore'] .lce-btn-sm {
+  font-size: 11.5px;
+}
+html[data-theme='lore'] .lce-btn-wax {
+  background: var(--lce-main);
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    inset 0 -3px 0 #0005,
+    0 4px 0 #141210,
+    0 0 18px -6px rgb(255 106 61 / 0.55);
+  color: #ffdeb8;
+  text-shadow: var(--lce-main-ink-shadow);
+}
+html[data-theme='lore'] .lce-btn-wax:hover:not(:disabled) {
+  background: var(--lce-main-hi);
+}
+html[data-theme='lore'] :is(.lce-btn-quiet, .lce-btn-danger) {
+  background: var(--lce-block);
+  box-shadow: var(--lce-block-depth);
+}
+html[data-theme='lore'] .lce-btn-quiet {
+  color: #e9e1d3;
+}
+html[data-theme='lore'] .lce-btn-danger {
+  color: #ffbfb4;
+}
+html[data-theme='lore'] :is(.lce-btn-quiet, .lce-btn-danger):hover:not(:disabled) {
+  background: var(--lce-block-hi);
+}
+html[data-theme='lore'] :is(.lce-btn-wax, .lce-btn-quiet, .lce-btn-danger):active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: var(--lce-block-pressed);
+}
+/* Not ready: sunk and unlit, words still readable. */
+html[data-theme='lore'] :is(.lce-btn-wax, .lce-btn-quiet, .lce-btn-danger):disabled {
+  opacity: 1;
+  background: var(--lce-grain), linear-gradient(#46413b, #2c2926);
+  box-shadow:
+    inset 0 2px 6px #0009,
+    0 1px 0 #141210;
+  color: #cfc5b4;
+  text-shadow: 0 -1px 0 #000d;
+}
+html[data-theme='lore'] .lce-btn-ghost {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: #cfc5b4;
+}
+html[data-theme='lore'] .lce-btn-ghost:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.05);
+  color: #ffd2a1;
+  text-decoration: none;
+}
+html[data-theme='lore'] .lce-icon {
+  color: #e9e1d3;
+}
+html[data-theme='lore'] .lce-icon:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+html[data-theme='lore'] .lce-dot {
+  background: #ffb36b;
+  box-shadow: 0 0 0 2px #1f1c18;
+}
+html[data-theme='lore'] .lce-link {
+  color: #ffb36b;
+  font: 400 16px/1.2 var(--lce-voice);
+}
+html[data-theme='lore'] .lce-link:disabled {
+  color: #b3aa9b;
+}
+
+/* Choices: wells; the one chosen is the raised block with glow letters. */
+html[data-theme='lore'] .lce-chip {
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: 10px 11px 9px 10px;
+  background: #1b1916;
+  box-shadow: var(--lce-well);
+  color: #cfc5b4;
+}
+html[data-theme='lore'] .lce-chip:hover {
+  background: #1b1916;
+  color: #e9e1d3;
+}
+html[data-theme='lore'] .lce-tab {
+  border: 1px solid transparent;
+  border-radius: 10px 11px 9px 10px;
+  color: #cfc5b4;
+  font: 700 11.5px/1.1 'Cinzel', Georgia, serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+html[data-theme='lore'] .lce-tab[aria-selected='true'] {
+  border-color: #141210;
+  background: var(--lce-block);
+  box-shadow: var(--lce-block-depth);
+  color: #ffd2a1;
+  text-shadow: var(--lce-engraved);
+}
+html[data-theme='lore'] .lce-count {
+  border: 1px solid rgb(255 179 107 / 0.45);
+  border-radius: 4px;
+  background: rgb(255 154 90 / 0.12);
+  color: #ffd2a1;
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 700;
+}
+
+/* Panels and sheets: the solid slab over a dark veil. */
+html[data-theme='lore'] .lce-overlay {
+  background: rgb(4 3 2 / 0.62);
+}
+html[data-theme='lore'] .lce-overlay-clear {
+  background: transparent;
+}
+html[data-theme='lore'] .lce-panel {
+  border: 1px solid #0a0806;
+  border-radius: 14px;
+  background: var(--lce-slab);
+  box-shadow:
+    inset 0 1px 0 rgb(255 240 210 / 0.08),
+    0 24px 48px -20px #000;
+}
+html[data-theme='lore'] .lce-overlay-sheet .lce-panel {
+  border-radius: 16px 16px 0 0;
+}
+/* The grab handle: a short carved groove. */
+html[data-theme='lore'] .lce-overlay-sheet .lce-panel::before {
+  width: 44px;
+  height: 5px;
+  margin: 10px auto 0;
+  border-radius: 3px;
+  background: #0f0d0b;
+  box-shadow:
+    inset 0 1px 2px #000,
+    0 1px 0 rgb(255 255 255 / 0.08);
+}
+html[data-theme='lore'] :is(.lce-panel-head, .lce-tabs) {
+  border-bottom: 2px dotted rgb(255 179 107 / 0.35);
+}
+html[data-theme='lore'] .lce-panel-foot {
+  border-top: 1px solid rgb(233 205 150 / 0.12);
+}
+html[data-theme='lore'] .lce-panel-head h2 {
+  font: 700 18px/1.25 'Cinzel', Georgia, serif;
+  letter-spacing: 0.08em;
+  text-shadow: var(--lce-engraved);
+}
+html[data-theme='lore'] .lce-kicker {
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+/* Typing: wells with the ember ring. */
+html[data-theme='lore'] :is(.lce-textarea, .lce-search) {
+  border: 1px solid rgb(0 0 0 / 0.55);
+  background: #181614;
+  box-shadow: var(--lce-well);
+  color: #e9e1d3;
+}
+html[data-theme='lore'] .lce-textarea {
+  font: 17px/1.45 var(--lce-voice);
+}
+html[data-theme='lore'] .lce-bake {
+  font: 12.5px/1.4 ui-monospace, 'Cascadia Mono', Menlo, monospace;
+}
+html[data-theme='lore'] .lce-textarea:focus,
+html[data-theme='lore'] .lce-search:focus-within {
+  border-color: #ffb36b;
+  outline: none;
+  box-shadow:
+    0 0 0 2px #ffb36b,
+    inset 0 0 12px #ff784040,
+    inset 0 2px 5px #000b;
+}
+/* Words with a problem: the field says so too (pale red edge, and ring while typing), not only the line under it. */
+html[data-theme='lore'] .lce-textarea[aria-invalid='true'] {
+  border-color: #ffbfb4;
+}
+html[data-theme='lore'] .lce-textarea[aria-invalid='true']:focus {
+  border-color: #ffbfb4;
+  box-shadow:
+    0 0 0 2px #ffbfb4,
+    inset 0 0 12px #ff784040,
+    inset 0 2px 5px #000b;
+}
+html[data-theme='lore'] .lce-search {
+  color: #ffb36b;
+}
+html[data-theme='lore'] .lce-search input {
+  color: #e9e1d3;
+  font: 17px/1.3 var(--lce-voice);
+}
+html[data-theme='lore'] :is(.lce-textarea, .lce-search input)::placeholder {
+  color: #9d9486;
+  font-style: italic;
+  opacity: 1;
+}
+html[data-theme='lore'] .lce-tick input {
+  accent-color: #ffb36b;
+}
+
+/* Notes inside the panels: dark tints, never paper. */
+html[data-theme='lore'] .lce-original {
+  border-left-color: rgb(233 196 106 / 0.6);
+  background: rgb(0 0 0 / 0.2);
+}
+html[data-theme='lore'] .lce-ok {
+  background: #173e37;
+  color: #8fd3c8;
+}
+html[data-theme='lore'] .lce-banner {
+  border-color: rgb(233 205 150 / 0.14);
+  background: rgb(0 0 0 / 0.2);
+}
+html[data-theme='lore'] .lce-banner-legal {
+  border-color: rgb(233 196 106 / 0.45);
+  background: #3a2f14;
+  color: #e9e1d3;
+}
+html[data-theme='lore'] .lce-refused {
+  border-color: rgb(255 191 180 / 0.5);
+  background: #3a1612;
+}
+html[data-theme='lore'] :is(.lce-item, .lce-change) {
+  border-bottom: 1px solid rgb(233 205 150 / 0.09);
+}
+html[data-theme='lore'] .lce-legal {
+  border-bottom: 2px dotted rgb(255 179 107 / 0.35);
+}
+html[data-theme='lore'] .lce-before {
+  text-decoration-color: rgb(179 170 155 / 0.6);
+}
+html[data-theme='lore'] .lce-pick:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+html[data-theme='lore'] .lce-history {
+  border-left: 2px dotted rgb(255 179 107 / 0.35);
+}

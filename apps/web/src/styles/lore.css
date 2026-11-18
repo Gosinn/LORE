@@ -1,0 +1,1952 @@
+/* ------------------------------------------------------------------ LORE: THE BASE KIT
+   One base everywhere (Worlds spec, 2026-11-18): the Loracle's own UI kit on every screen, so stepping into
+   the Loracle never jumps. The variety is the world behind the page (each Lorer picks one); the kit on top
+   of it is the same in every world, by night and by day.
+
+   - What you press is carved stone: the main action has ember letters, Create is copper, the second
+     choice has carve letters, a quiet one is letters only, danger is stone with pale red letters.
+   - "You are here" (active rail item, active tab, selected chip, selected day) is the raised block with
+     glow letters. Choices you haven't made are wells.
+   - What you type into is a well: dark, sunk, an ember ring when it has the focus.
+   - Cards, lists, sheets and forms are slabs: grain, a dark tint per world, a near-black edge, a soft drop.
+   - Marks are stamps. Tick-boxes are wells with an ember tick.
+   - Lettering: Cinzel for what you press, labels, section heads, eyebrows and page titles; IM Fell English
+     for the names of things, body text, notes and quotes. The calendar's day numbers use Cinzel's lining
+     figures. Only the desktop rail keeps the UI sans: it is exactly the temple's rail (see the chrome).
+   - Text on the world itself (greeting, page titles, section heads, empty states) carries the preview's
+     legibility shadow plus a tight 2px halo; by day it turns to ink on a soft vellum plate.
+
+   Contract (D34): main.tsx imports this file LAST (app.css, map.css, worlds.css, then this); <html> carries
+   data-theme="lore", data-world="<world id>" and data-daylight="day" | "night" (any value but "day" is
+   night), all set by lib/theme.ts and, before the first paint, by index.html's boot script. The world itself
+   is painted by the one backdrop layer in styles/worlds.css; this file never paints a page background.
+   data-cards="vellum" (by day only) is the light card dress: kept ready, not offered yet.
+
+   The guard. Kit rules start with
+     :where(html[data-theme='lore'] body:not(:has(.oracle-page)))
+   so they never apply while the Loracle is open (the temple, its tab bar and rail, and its sheets keep
+   exactly their own CSS) and add no specificity: they win over app.css by coming later. The tokens on
+   :root are re-mapped inside .oracle-page by the temple itself. A few pieces map.css and sign.css style
+   without a guard (the Home door, the compass rose, the trail, Welcome) are taken over with a plain
+   html[data-theme='lore'] prefix, which outranks them in any order. Without :has() the guard matches
+   nothing and the app falls back to the tokens alone (dark, readable, unadorned).
+
+   Performance: no backdrop-filter or blur on scrolling content, no looping animation (the top bar's scrim
+   follows the scroll on the compositor where scroll timelines exist), every texture is the shared
+   --grain-stone data URI. Reduced motion: app.css's global rule stops every animation and transition. */
+
+/* ---------------------------------------------------------------- tokens */
+
+:root[data-theme='lore'] {
+  color-scheme: dark;
+
+  /* The app's semantic tokens, as the temple maps them (.oracle-page re-maps them again inside itself). */
+  --bg: var(--world-bg);
+  --surface: #1c1915;
+  --surface-2: #2a2622;
+  --ink: var(--carve);
+  --ink-2: var(--carve-2);
+  --muted: var(--carve-mute);
+  --line: rgb(233 205 150 / 0.09);
+  --line-strong: #5a534b;
+  --ember: var(--glow);
+  --ember-hover: var(--glow-text);
+  --ember-ink: #2a1408;
+  --ember-soft: rgb(255 154 90 / 0.16);
+  --fjord: #8fd3c8;
+  --fjord-soft: #173e37;
+  --gold: #e9c46a;
+  --gold-soft: #3a2f14;
+  --danger: #ffbfb4;
+  --danger-soft: #3a1612;
+
+  /* The world (styles/worlds.css paints it; these are its base colour, the colour along its top edge, and
+     the slab tint that suits it). Black star sky unless data-world says otherwise. --world-top is also the
+     browser bar's colour (lib/theme.ts WORLD_BAR, AppShell). */
+  --world-bg: #030409;
+  --world-top: #030409;
+  --slab: rgb(16 16 22 / 0.9);
+
+  /* Lettering */
+  --font-voice: 'IM Fell English', 'Fraunces Variable', Georgia, serif;
+  /* A chapter's story and quote fields (ChapterPage, inline): typed in the letters they are read in. The
+     retired looks don't set it and keep Fraunces. */
+  --font-story: var(--font-voice);
+
+  /* Stone (the Loracle's own: --grain-stone, --block-face(-hi), --block-depth, --block-pressed, --well,
+     --engraved, --pebble, --edge and the carve/glow inks live on :root in app.css). */
+  --r-block: 10px 11px 9px 10px;
+  --r-slab: 12px;
+  --main-face:
+    var(--grain-stone), radial-gradient(120% 90% at 50% 0, rgb(255 255 255 / 0.08), transparent 70%),
+    linear-gradient(#605a52, #3a3632);
+  --main-face-hi:
+    var(--grain-stone), radial-gradient(120% 90% at 50% 0, rgb(255 255 255 / 0.12), transparent 70%),
+    linear-gradient(#6a645b, #433e39);
+  --main-depth: inset 0 1px 0 #fff3, inset 0 -3px 0 #0005, 0 4px 0 var(--edge), 0 0 18px -6px rgb(255 106 61 / 0.55);
+  --main-pressed: inset 0 1px 0 #fff3, inset 0 -1px 0 #0005, 0 1px 0 var(--edge), 0 0 18px -6px rgb(255 106 61 / 0.55);
+  /* Ember letters, a touch paler than --glow-text so they keep 4.8:1 inside their own glow. */
+  --main-ink: #ffdeb8;
+  --main-ink-shadow: 0 -1px 0 #000d, 0 0 8px rgb(255 120 60 / 0.5);
+  --copper-face: var(--grain-stone), radial-gradient(circle at 35% 30%, #9a5428, #5a2c14 70%);
+  --copper-face-hi: var(--grain-stone), radial-gradient(circle at 35% 30%, #a65d2e, #643218 70%);
+  --copper-depth: inset 0 1px 0 #fff3, inset 0 -3px 0 #0005, 0 4px 0 #2a1208, 0 0 20px -4px #ff6a3d;
+  --copper-ink: #ffe2c2;
+  --sunk-face: var(--grain-stone), linear-gradient(#46413b, #2c2926);
+  --sunk-depth: inset 0 2px 6px #0009, inset 0 -1px 0 rgb(255 255 255 / 0.05), 0 1px 0 var(--edge), 0 2px 0 rgb(255 255 255 / 0.05);
+  --well-bg: #181614;
+  --well-edge: rgb(0 0 0 / 0.55);
+  --slab-face: var(--grain-stone), var(--slab);
+  --slab-edge: #0a0806;
+  --slab-depth: inset 0 1px 0 rgb(255 240 210 / 0.07), 0 10px 22px -12px #000;
+  --slab-solid: var(--grain-stone), linear-gradient(#211e1a, #181613);
+  --row-rule: rgb(233 205 150 / 0.09);
+  --trail: rgb(255 179 107 / 0.35);
+  --stamp-bg: linear-gradient(rgb(255 154 90 / 0.1), rgb(255 154 90 / 0.1)), rgb(16 12 9 / 0.6);
+
+  /* Text on the world: the preview's legibility shadow with a tight halo in front of it. */
+  --on-world: 0 0 2px rgb(0 0 0 / 0.9), 0 1px 3px #000, 0 0 14px rgb(0 0 0 / 0.6);
+  --focus-ring: var(--glow);
+
+  /* Day (green hills): ink on the bright sky, on a soft vellum plate. */
+  --day-ink: #14202c;
+  --day-ink-2: #2a3a4a;
+  --day-eyebrow: #1d3346;
+  --day-accent: #a3301a;
+  --plate: rgb(250 244 228 / 0.84);
+  --on-day: 0 1px 0 rgb(255 255 255 / 0.7), 0 0 12px rgb(255 255 255 / 0.55);
+  /* Night, on the four bright worlds: the same plate, dark (see "bright worlds by night"). */
+  --plate-night: rgb(6 7 12 / 0.7);
+
+  /* Avatar pigments (ui.tsx reads var(--avatar-N, <old colour>)); white initials stay 7:1 or more. Set
+     on body below, outside the temple, so the Loracle keeps its own avatar colours. */
+}
+
+/* The worlds (manifest.json): base colour, the colour along the top edge, slab tint. */
+:root[data-theme='lore'][data-world='night-map'] {
+  --world-bg: #1d1813;
+  --world-top: #241b14;
+  --slab: rgb(26 22 18 / 0.9);
+}
+:root[data-theme='lore'][data-world='midnight-vellum'] {
+  --world-bg: #15131f;
+  --world-top: #1f1a2c;
+  --slab: rgb(24 21 36 / 0.9);
+}
+:root[data-theme='lore'][data-world='scroll'] {
+  --world-bg: #4a3520;
+  --world-top: #2a1708;
+  --slab: rgb(26 22 18 / 0.9);
+}
+:root[data-theme='lore'][data-world='treasure-map'] {
+  --world-bg: #14201e;
+  --world-top: #14201e;
+  --slab: rgb(20 26 24 / 0.9);
+}
+:root[data-theme='lore'][data-world='mountain-range'] {
+  --world-bg: #0c1020;
+  --world-top: #060a18;
+  --slab: rgb(18 18 30 / 0.9);
+}
+:root[data-theme='lore'][data-world='northern-lights'] {
+  --world-bg: #050a14;
+  --world-top: #03060e;
+  --slab: rgb(12 18 30 / 0.9);
+}
+/* By day the slabs are the same dark stone, a little denser so muted text keeps 4.8:1 over the sun. */
+:root[data-theme='lore'][data-world='green-hills'],
+:root[data-theme='lore'][data-daylight='day'] {
+  --world-bg: #4f83ad;
+  --world-top: #1a3a6e;
+  --slab: rgb(26 22 18 / 0.94);
+}
+
+/* ------------------------------------------------------- body and scopes */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) {
+  --avatar-0: #8a2a16;
+  --avatar-1: #1e5858;
+  --avatar-2: #2f4a7a;
+  --avatar-3: #6a4a0c;
+  --avatar-4: #5a3a22;
+  --avatar-5: #4c5a26;
+  --avatar-6: #6a2e4f;
+  accent-color: var(--glow);
+}
+/* Body text in IM Fell everywhere outside the Loracle. Not inside :where(): app.css's plain `body` rule sets the
+   UI sans and would otherwise win. (The rail and the tab bar set their own sans: they are the temple's.) */
+html[data-theme='lore'] body:not(:has(.oracle-page)) {
+  font-family: var(--font-voice);
+}
+/* The rail is exactly the temple's, its Profile avatar included: the temple's own pigments (ui.tsx's fallback). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail {
+  --avatar-0: initial;
+  --avatar-1: initial;
+  --avatar-2: initial;
+  --avatar-3: initial;
+  --avatar-4: initial;
+  --avatar-5: initial;
+  --avatar-6: initial;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) ::selection {
+  background: rgb(255 106 61 / 0.35);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* On the world: the page column, Welcome and the public pages. Muted text is carve-2 here (not carve-mute):
+   it sits on the art, not on stone. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.main, .welcome, .legal),
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) #root > .loading {
+  --muted: var(--carve-2);
+  color: var(--carve);
+  text-shadow: var(--on-world);
+}
+
+/* Slabs: everything that is not a title, a section head or an empty state sits on one. Inside, the
+   night inks are back (also by day: the cards are stone). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page)))
+  :is(
+    .card,
+    .list,
+    .month-grid,
+    .create-tile,
+    .loracle-door,
+    .banner,
+    .notification,
+    .personal-row,
+    .comment-body,
+    .crew-chip,
+    .sheet,
+    .slab,
+    .legal-body,
+    :where(.main > .form-grid, .welcome-inner > .form-grid)
+  ) {
+  --ink: var(--carve);
+  --ink-2: var(--carve-2);
+  --muted: var(--carve-mute);
+  --ember: var(--glow);
+  --focus-ring: var(--glow);
+  color: var(--carve);
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page)))
+  :is(
+    .card,
+    .create-tile,
+    .banner,
+    .notification,
+    .personal-row,
+    .crew-chip,
+    .slab,
+    .legal-body,
+    :where(.main > .form-grid, .welcome-inner > .form-grid)
+  ) {
+  border: 1px solid var(--slab-edge);
+  border-radius: var(--r-slab);
+  background: var(--slab-face);
+  box-shadow: var(--slab-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .slab-pad {
+  padding: 14px 16px;
+}
+/* A card set into a slab (a group inside a form) is a recessed panel, not a second slab. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page)))
+  :is(.slab, .card, .sheet, .main > .form-grid, .welcome-inner > .form-grid)
+  .card {
+  border-color: rgb(0 0 0 / 0.45);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.2);
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.55),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.main > .form-grid, .welcome-inner > .form-grid) {
+  padding: 16px;
+}
+@media (max-width: 380px) {
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.main > .form-grid, .welcome-inner > .form-grid) {
+    padding: 14px 12px;
+  }
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .two-col {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* ------------------------------------------------------------ lettering */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(h1, h2, h3, h4, .serif) {
+  font-family: var(--font-voice);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .small {
+  font-size: 15px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .tiny {
+  font-size: 13px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .meta {
+  font-size: 14.5px;
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .eyebrow {
+  font: 700 12px/1.35 var(--font-carved);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--carve-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .hero h1 {
+  font: 400 clamp(30px, 7.4vw, 40px) / 1.1 var(--font-voice);
+  overflow-wrap: break-word;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .greeting {
+  font: 400 clamp(30px, 8.2vw, 38px) / 1.08 var(--font-voice);
+  color: var(--carve);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .greeting em {
+  color: var(--glow);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .hero .kicker {
+  gap: 8px 10px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.event-title, .idea-title, .chapter-title, .person-name, .story-title) {
+  font-family: var(--font-voice);
+  font-weight: 400;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .event-title {
+  font-size: 19px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .idea-title {
+  font-size: 20px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chapter-title {
+  font-size: 22px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .person-name {
+  font-size: 16.5px;
+}
+
+/* The wordmark on phones (Home's top bar) and Welcome: carved capitals, the O crossed so it reads Ø.
+   The rail's wordmark stays exactly the temple's (see the chrome). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .wordmark-name:not(.rail *) {
+  font: 700 23px/1 var(--font-carved);
+  letter-spacing: 0.14em;
+  color: var(--carve);
+  text-shadow:
+    0 1px 2px #000,
+    var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .wordmark-name:not(.rail *) .o {
+  position: relative;
+  color: var(--glow);
+  text-shadow: 0 0 10px rgb(255 120 60 / 0.6);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .wordmark-name:not(.rail *) .o::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 1.08em;
+  margin: -0.54em 0 0 -1px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(38deg);
+  pointer-events: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .wordmark-tag:not(.rail *) {
+  font: italic 400 15px/1.3 var(--font-voice);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--carve-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .backronym:not(.rail *) {
+  font: italic 400 16px/1.4 var(--font-voice);
+  color: var(--carve-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .backronym:not(.rail *) b {
+  font-family: var(--font-carved);
+  font-style: normal;
+  color: var(--glow);
+}
+
+/* ------------------------------------------------------------- the chrome
+   Top bar: the world shows through. A scrim in the world's own top colour lets the page scroll under the
+   title; where scroll timelines exist it only appears once the page has moved (so the treasure map's N
+   and the aurora stay clear at the top). */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .topbar {
+  isolation: isolate;
+  background: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0 -16px;
+  z-index: -1;
+  background: linear-gradient(
+    color-mix(in srgb, var(--world-top) 92%, transparent),
+    color-mix(in srgb, var(--world-top) 70%, transparent) 60%,
+    transparent
+  );
+  pointer-events: none;
+}
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .topbar::before {
+      animation: lore-scrim linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 72px;
+    }
+  }
+}
+@keyframes lore-scrim {
+  from {
+    opacity: 0;
+  }
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .topbar h1 {
+  font: 700 20px/1.25 var(--font-carved);
+  letter-spacing: 0.1em;
+  color: var(--carve);
+}
+/* Back, the bell and every other round icon button outside a list: the temple's carved pebbles. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .icon-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--edge);
+  color: var(--carve);
+  background: var(--grain-stone), var(--pebble);
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    inset 0 -2px 0 #0005,
+    0 3px 0 var(--edge),
+    0 6px 10px -6px #000;
+  text-shadow: none;
+  transition: transform 0.1s ease;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .icon-btn:hover {
+  color: var(--glow-text);
+  background: var(--grain-stone), var(--pebble);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .icon-btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    0 1px 0 var(--edge);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .topbar .back {
+  margin-left: 0;
+}
+/* Small row actions inside a list (pin, delete): letters-only icons, no pebble. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .list .icon-btn {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--carve-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .list .icon-btn:hover {
+  background: rgb(255 255 255 / 0.05);
+  color: var(--glow-text);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .badge-dot {
+  border: 2px solid var(--edge);
+  background: var(--glow);
+  color: var(--ember-ink);
+  font-family: var(--font-carved);
+  text-shadow: none;
+}
+
+/* Tab bar and rail: exactly the temple's stone footing and pillar (app.css, ORACLE, "The app's own
+   navigation, while the temple is open"), here for every other page. Same values, so nothing moves when
+   you step in or out. The rail keeps the UI sans the temple's rail has. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.tabbar, .rail) {
+  --surface: #2a2724;
+  --surface-2: #34302c;
+  --ink: var(--carve);
+  --ink-2: var(--carve-2);
+  --muted: var(--carve-mute);
+  --line: var(--edge);
+  --ember: var(--glow);
+  --ember-hover: var(--glow-text);
+  --ember-ink: #2a1408;
+  --ember-soft: rgb(255 154 90 / 0.16);
+  --focus-ring: var(--glow);
+  color: var(--carve);
+  color-scheme: dark;
+  font-family: var(--font-ui);
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .tabbar {
+  border-top: 1px solid var(--edge);
+  background:
+    var(--grain-stone),
+    linear-gradient(#2e2a27, #1c1a18);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 -12px 20px -12px #000;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .tab {
+  font: 700 10px/1.2 var(--font-carved);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: var(--engraved);
+}
+/* You are here: glow letters (the preview), and the temple's ember dot under them (not colour alone). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .tab.active {
+  color: var(--glow-text);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .tab-create {
+  border: 1px solid #2a1208;
+  color: var(--copper-ink);
+  background: var(--copper-face);
+  box-shadow: var(--copper-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail {
+  border-right: 1px solid var(--edge);
+  background:
+    var(--grain-stone),
+    linear-gradient(90deg, #262320, #1e1c1a);
+  box-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 0.05),
+    8px 0 20px -12px #000;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail-link:hover {
+  background: rgb(255 255 255 / 0.04);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail-link.active {
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--glow-text);
+  text-shadow: var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail .rail-create.btn {
+  min-height: 44px;
+  border: 1px solid #2a1208;
+  border-radius: 10px 11px 9px 10px;
+  background:
+    var(--grain-stone),
+    linear-gradient(#8a4a22, #5a2c14);
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    inset 0 -3px 0 #0005,
+    0 4px 0 #2a1208,
+    0 0 18px -6px #ff6a3d;
+  padding: 0 20px;
+  font: 650 15px/1.5 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--copper-ink);
+  text-shadow: 0 -1px 0 #0008;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail .rail-create.btn:hover:not(:disabled) {
+  background:
+    var(--grain-stone),
+    linear-gradient(#9a5428, #643218);
+}
+/* Pressed like the temple's (the base 1px, not the kit's 3px sink). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .rail .rail-create.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 1px 0 #fff3,
+    inset 0 -3px 0 #0005,
+    0 4px 0 #2a1208,
+    0 0 18px -6px #ff6a3d;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn {
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-block);
+  font: 700 13px/1.15 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: normal;
+  text-shadow: var(--engraved);
+  transition: transform 0.1s ease;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-sm {
+  min-height: 36px;
+  padding: 6px 13px;
+  font-size: 11.5px;
+}
+/* Main: carved stone, ember letters. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-primary {
+  background: var(--main-face);
+  box-shadow: var(--main-depth);
+  color: var(--main-ink);
+  text-shadow: var(--main-ink-shadow);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-primary:hover:not(:disabled) {
+  background: var(--main-face-hi);
+}
+/* Second: stone, carve letters (carve, not carve-2: 5.9:1 on the block instead of 4.4:1). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-secondary {
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--carve);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-secondary:hover:not(:disabled) {
+  background: var(--block-face-hi);
+}
+/* Danger: stone, pale red letters. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-danger {
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--danger);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-danger:hover:not(:disabled) {
+  background: var(--block-face-hi);
+}
+/* Create: copper (the tab bar's round +, the rail's Create, and any .btn-copper). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-copper {
+  border-color: #2a1208;
+  background: var(--copper-face);
+  box-shadow: var(--copper-depth);
+  color: var(--copper-ink);
+  text-shadow: 0 -1px 0 #0008;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-copper:hover:not(:disabled) {
+  background: var(--copper-face-hi);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.btn-primary, .btn-secondary, .btn-danger, .btn-copper):active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: var(--block-pressed);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-primary:active:not(:disabled) {
+  box-shadow: var(--main-pressed);
+}
+/* Quiet: letters only. On the world it keeps the world's halo; in a slab it is plain carve-2. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-ghost {
+  padding-inline: 10px;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-2);
+  text-shadow: inherit;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-ghost:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.05);
+  color: var(--glow-text);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-ghost:active:not(:disabled) {
+  transform: translateY(1px);
+}
+/* Not ready: the block sinks and goes unlit; its words stay readable (carve-2 on the sunk face, 6:1). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.btn-primary, .btn-secondary, .btn-danger, .btn-copper):disabled {
+  transform: translateY(3px);
+  background: var(--sunk-face);
+  box-shadow: var(--sunk-depth);
+  color: var(--carve-2);
+  text-shadow: 0 -1px 0 #000d;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .btn-ghost:disabled {
+  opacity: 0.6;
+}
+/* Links that act like the quiet button: "All notes", "Calendar", "Invite". */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .section-head .more {
+  font: 700 11px/1.3 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .section-head .more.btn {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.terms-check a, .legal-body a, .legal-links a, .note-row .meta a, .world-hint a) {
+  color: var(--ember);
+  font-weight: 400;
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .report-link {
+  font: 700 11px/1.3 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-shadow: inherit;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .report-link:hover {
+  color: var(--glow-text);
+  text-decoration: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .report-btn {
+  min-height: 28px;
+  padding: 0 6px;
+  opacity: 1;
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------------------- wells
+   Every input, select, textarea and search: the temple's own well (#181614, the --well inset, a dark rim,
+   IM Fell at 17px), an ember ring for the focus. */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.input, .textarea, .select) {
+  min-height: 46px;
+  border: 1px solid var(--well-edge);
+  border-radius: 8px;
+  background: var(--well-bg);
+  box-shadow: var(--well);
+  color: var(--carve);
+  font: 17px/1.3 var(--font-voice);
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .textarea {
+  line-height: 1.45;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.input, .textarea)::placeholder {
+  color: #9d9486;
+  opacity: 1;
+  font-style: italic;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.input, .textarea, .select):focus,
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) label.input:focus-within {
+  border-color: var(--glow);
+  box-shadow:
+    0 0 0 2px var(--glow),
+    inset 0 0 12px #ff784040,
+    inset 0 2px 5px #000b;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.input, .textarea, .select):focus-visible {
+  outline: none;
+}
+/* The Lorebook and Friends searches: a well around a bare input (the field shows the ring). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) label.input input {
+  color: var(--carve);
+  font: 17px/1.3 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) label.input input::placeholder {
+  color: #9d9486;
+  opacity: 1;
+  font-style: italic;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) label.input svg {
+  color: var(--glow);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) label.input input:focus-visible {
+  outline: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 38px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23ffb36b' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right 14px center / 12px 8px no-repeat,
+    var(--well-bg);
+  cursor: pointer;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .select option {
+  background: #24211e;
+  color: var(--carve);
+}
+/* Dates and times: 16px (iOS doesn't zoom into it) so a long date fits a half-width field. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .input:is([type='date'], [type='datetime-local'], [type='time']) {
+  font-size: 16px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .input[type='file'] {
+  padding: 8px 10px;
+  font-size: 15px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .input[type='file']::file-selector-button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-block);
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--carve);
+  font: 700 11.5px/1.2 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+/* Title fields: a bigger well, the name of the thing in IM Fell. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .input-title {
+  min-height: 54px;
+  padding: 10px 14px;
+  border: 1px solid var(--well-edge);
+  border-radius: 8px;
+  background: var(--well-bg);
+  font: 400 23px/1.2 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .input-title:focus {
+  border-color: var(--glow);
+  box-shadow:
+    0 0 0 2px var(--glow),
+    inset 0 0 12px #ff784040,
+    inset 0 2px 5px #000b;
+}
+
+/* Labels and hints. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.field > label, .label) {
+  font: 700 12px/1.3 var(--font-carved);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .field .hint {
+  font: italic 14px/1.4 var(--font-voice);
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .field .error {
+  font: italic 14.5px/1.4 var(--font-voice);
+  color: var(--danger);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .check {
+  font-size: 16px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) details.more-options > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  font: 700 12px/1.3 var(--font-carved);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) details.more-options > summary::before,
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) details.more-options[open] > summary::before {
+  color: var(--glow);
+}
+
+/* Tick-boxes: wells with an ember tick. The rim is carve-2 at 55% so the box keeps 3:1 against a slab. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1px solid rgb(207 197 180 / 0.55);
+  border-radius: 5px;
+  background: #15120f;
+  box-shadow: var(--well);
+  cursor: pointer;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:checked {
+  border-color: rgb(255 179 107 / 0.7);
+  background:
+    radial-gradient(circle at 50% 50%, rgb(255 154 90 / 0.25), transparent 70%),
+    #15120f;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:checked::before {
+  content: '';
+  width: 11px;
+  height: 6px;
+  margin-top: -3px;
+  border: solid var(--glow);
+  border-width: 0 0 2.5px 2.5px;
+  transform: rotate(-45deg);
+  filter: drop-shadow(0 0 3px rgb(255 106 61 / 0.8));
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.check input, .terms-check input, .note-row > input, .checklist-item input)[type='checkbox']:focus-visible {
+  outline: 2px solid var(--glow);
+  outline-offset: 2px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .terms-check input[type='checkbox'] {
+  margin-top: 1px;
+}
+
+/* ---------------------------------------- choices: chips, segments, tabs
+   A choice not made is a well; the one made is the raised block with glow letters (shape, not colour
+   alone). */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chip {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--well-edge);
+  border-radius: var(--r-block);
+  background: #1b1916;
+  box-shadow: var(--well);
+  color: var(--carve-2);
+  font: 700 11.5px/1.2 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chip:hover:not(:disabled) {
+  color: var(--carve);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.chip[aria-pressed='true'], .chip[aria-checked='true'], .chip.on) {
+  border-color: var(--edge);
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--glow-text);
+  text-shadow: var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chip:disabled {
+  opacity: 0.5;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chips {
+  padding-bottom: 8px;
+}
+/* Calendar's head (Month/Agenda beside the LORE and Mine chips): carved capitals are wider than the old
+   sans, so on a phone the chips drop under the switch instead of pushing the page sideways. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .spread:has(> .tabs) {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+/* RSVP (and Admin's two tabs): a well holding stone choices. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.seg, .tabs) {
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--well-edge);
+  border-radius: 12px;
+  background: var(--well-bg);
+  box-shadow: var(--well);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.seg, .tabs) button {
+  min-height: 40px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-block);
+  background: transparent;
+  color: var(--carve-2);
+  font: 700 12px/1.15 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.seg, .tabs) button:hover:not(:disabled) {
+  color: var(--carve);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.seg, .tabs) button:is([aria-pressed='true'], [aria-selected='true']) {
+  border-color: var(--edge);
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--glow-text);
+  text-shadow: var(--engraved);
+}
+/* "I'm in": the lit block, with the main action's ember. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .seg button.going[aria-pressed='true'] {
+  background: var(--main-face);
+  box-shadow: var(--main-depth);
+  color: var(--main-ink);
+  text-shadow: var(--main-ink-shadow);
+}
+
+/* ---------------------------------------------- marks: stamps, privacy */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .pill {
+  height: auto;
+  min-height: 22px;
+  padding: 3px 7px 2px;
+  border: 1px solid rgb(207 197 180 / 0.4);
+  border-radius: 4px;
+  background: var(--stamp-bg);
+  color: var(--carve-2);
+  font: 700 10.5px/1.2 var(--font-carved);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .pill-ember {
+  border-color: rgb(255 179 107 / 0.45);
+  color: var(--glow-text);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .pill-fjord {
+  border-color: rgb(143 211 200 / 0.45);
+  color: var(--fjord);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .pill-gold {
+  border-color: rgb(233 196 106 / 0.45);
+  color: var(--gold);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .pill-danger {
+  border-color: rgb(255 191 180 / 0.45);
+  color: var(--danger);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .privacy {
+  font: italic 400 14px/1.3 var(--font-voice);
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .privacy svg {
+  color: var(--ember);
+}
+
+/* Avatars: initials in Cinzel, a thin ring on the larger ones. (Not on the rail: the temple's own.) */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .avatar:not(.rail *) {
+  font-family: var(--font-carved);
+  font-weight: 700;
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.avatar-lg, .avatar-xl) {
+  box-shadow:
+    0 0 0 2px #1a1714,
+    0 0 0 3px #6a5a44,
+    0 8px 16px -8px #000;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .avatars .avatar {
+  border-color: #1a1714;
+}
+
+/* ---------------------------------------------------- sections, heroes */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .section-head .eyebrow {
+  white-space: normal;
+}
+/* A dotted trail instead of a hairline. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .section-head::after {
+  height: 0;
+  background: none;
+  border-bottom: 2px dotted var(--trail);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .hero .meta {
+  color: var(--carve-2);
+}
+
+/* --------------------------------------------------------------- slabs */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .card {
+  padding: 14px 16px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.card-link, .create-tile, .crew-chip, .notification) {
+  transition: transform 0.12s ease;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.card-link, .create-tile, .crew-chip, .notification):hover {
+  border-color: #000;
+  background:
+    linear-gradient(rgb(255 240 210 / 0.035), rgb(255 240 210 / 0.035)),
+    var(--slab-face);
+  box-shadow: var(--slab-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.card-link, .create-tile, .crew-chip, .notification):active {
+  transform: translateY(1px);
+}
+/* A finished event's "Read the chapter" card paints its retired gold face inline, through these two (its
+   gold book icon still marks it): a slab like the others, hover included. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .card-link {
+  --chapter-link-face: var(--slab-face);
+  --chapter-link-edge: var(--slab-edge);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .card-link:hover {
+  --chapter-link-face: linear-gradient(rgb(255 240 210 / 0.035), rgb(255 240 210 / 0.035)), var(--slab-face);
+  --chapter-link-edge: #000;
+}
+/* Ideas are uncharted: the same slab with a dashed edge. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .idea-card {
+  border: 1px dashed rgb(207 197 180 / 0.35);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .idea-card:hover {
+  border-color: rgb(207 197 180 / 0.55);
+}
+
+/* Lists (reminders, notes, people, the packing list): one slab, rows ruled like the preview. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .list {
+  padding: 2px 14px;
+  border: 1px solid var(--slab-edge);
+  border-radius: var(--r-slab);
+  background: var(--slab-face);
+  box-shadow: var(--slab-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.list-item, .checklist-item, .note-row) {
+  border-bottom: 1px solid var(--row-rule);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .checklist-item:last-child {
+  border-bottom: 0;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .note-body {
+  font: 400 16.5px/1.35 var(--font-voice);
+  color: var(--ink);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.note-row.done .note-body, .checklist-item.done .text) {
+  color: var(--muted);
+  text-decoration-color: rgb(179 170 155 / 0.7);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .note-row .meta {
+  margin-top: 2px;
+  font-size: 13.5px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .note-row .meta svg {
+  color: var(--ember);
+}
+
+/* Banners (an invitation, moderation, "it's on its way"): a slab with an ember edge. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .banner {
+  border-color: var(--slab-edge);
+  box-shadow:
+    inset 3px 0 0 var(--glow),
+    var(--slab-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .banner strong {
+  font-weight: 400;
+  color: var(--ember);
+}
+
+/* Sheets and dialogs: the same slab, solid (there is a dark veil behind it, not the world). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .overlay {
+  background: rgb(4 3 2 / 0.62);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .sheet {
+  border: 1px solid var(--slab-edge);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--slab-solid);
+  box-shadow:
+    inset 0 1px 0 rgb(255 240 210 / 0.08),
+    0 -16px 36px -18px #000;
+}
+/* The grab handle: a short carved groove. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .sheet::before {
+  content: '';
+  display: block;
+  width: 44px;
+  height: 5px;
+  margin: -8px auto 12px;
+  border-radius: 3px;
+  background: #0f0d0b;
+  box-shadow:
+    inset 0 1px 2px #000,
+    0 1px 0 rgb(255 255 255 / 0.08);
+}
+@media (min-width: 640px) {
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .sheet {
+    border-bottom: 1px solid var(--slab-edge);
+    border-radius: 14px;
+    box-shadow:
+      inset 0 1px 0 rgb(255 240 210 / 0.08),
+      0 24px 48px -20px #000;
+  }
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .sheet::before {
+    display: none;
+  }
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .sheet-head {
+  padding-bottom: 10px;
+  border-bottom: 2px dotted var(--trail);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .sheet-head h2 {
+  font: 700 18px/1.25 var(--font-carved);
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  text-shadow: var(--engraved);
+}
+
+/* ------------------------------------------------------------- states */
+
+/* Empty: on the world, a faintly darker patch with a dashed carved edge; the words keep the halo. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .empty {
+  border: 1.5px dashed rgb(233 225 211 / 0.3);
+  border-radius: var(--r-slab);
+  background: rgb(8 7 6 / 0.3);
+  color: var(--ink-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .empty .serif {
+  font: 400 20px/1.3 var(--font-voice);
+  color: var(--ink);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .the-end .serif {
+  font: italic 400 19px/1.35 var(--font-voice);
+  color: var(--ink-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .the-end::before {
+  width: 72px;
+  height: 0;
+  background: none;
+  border-bottom: 2px dotted var(--trail);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .the-end .compass-rose {
+  width: 44px;
+  height: 44px;
+  color: var(--carve-2);
+  filter: drop-shadow(0 1px 3px #000);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .the-end .compass-rose .cr-star {
+  fill: #1c1915;
+}
+
+/* Errors: a scorched patch sunk into the stone (the temple's, without its crack). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .form-error {
+  padding: 10px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 8px 9px 7px 8px;
+  background:
+    var(--grain-stone),
+    linear-gradient(#3a1e18, #2a1411);
+  box-shadow:
+    var(--well),
+    0 0 18px -8px #ff3b1f;
+  color: #ffc9b8;
+  font: italic 15.5px/1.4 var(--font-voice);
+  text-shadow: 0 -1px 0 #000a;
+}
+
+/* Loading: an ember turning in a stone ring (still for reduced motion). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgb(233 225 211 / 0.18);
+  border-top-color: var(--glow);
+  box-shadow: 0 0 12px -2px rgb(255 106 61 / 0.6);
+}
+/* The app shell's own loading (before a page exists) also sits on the world. */
+html[data-theme='lore'] #root > .loading {
+  min-height: 60vh;
+}
+
+/* A toast (the kit's; the live text editor uses its own copy in copyEditor.css). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom));
+  z-index: 60;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 10px 16px;
+  border: 1px solid var(--slab-edge);
+  border-radius: 10px;
+  background: var(--slab-solid);
+  box-shadow:
+    inset 3px 0 0 var(--glow),
+    0 12px 26px -12px #000;
+  color: var(--carve);
+  font: 400 16px/1.35 var(--font-voice);
+  transform: translateX(-50%);
+}
+@media (min-width: 900px) {
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .toast {
+    bottom: 28px;
+  }
+}
+
+/* ---------------------------------------------------------------- Home */
+
+/* The note to self: a well and the stone +, straight on the world (the preview). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .quick-note .input {
+  background: rgb(20 17 14 / 0.9);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .quick-note .btn-primary {
+  min-width: 46px;
+  font-size: 20px;
+}
+
+/* The Loracle door: a slab; through its window, dusk and the stones (no stone texture, no wall). Taken over
+   from map.css's unguarded rules, so these carry a plain prefix. */
+html[data-theme='lore'] .loracle-door {
+  grid-template-columns: minmax(0, 1fr) 96px;
+  min-height: 150px;
+  margin-top: 18px;
+  border: 1px solid var(--slab-edge);
+  border-radius: var(--r-slab);
+  background: var(--slab-face);
+  color: var(--ink);
+  box-shadow: var(--slab-depth);
+  text-shadow: none;
+}
+html[data-theme='lore'] .loracle-door:focus-visible {
+  outline: 2px solid var(--glow);
+}
+html[data-theme='lore'] .door-text {
+  gap: 4px;
+  padding: 13px 10px 13px 15px;
+}
+html[data-theme='lore'] .loracle-door .eyebrow {
+  font: 700 11px/1.3 var(--font-carved);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+html[data-theme='lore'] .door-line {
+  font: 400 20px/1.15 var(--font-voice);
+  color: var(--ink);
+}
+html[data-theme='lore'] .door-meta {
+  font: 400 14px/1.35 var(--font-voice);
+  color: var(--muted);
+}
+html[data-theme='lore'] .door-sub {
+  font: italic 400 15px/1.3 var(--font-voice);
+  color: var(--ink-2);
+}
+/* "Not this one" is the second stone (the preview's door), not a bare link. */
+html[data-theme='lore'] .door-actions .btn-ghost {
+  padding: 6px 13px;
+  border-color: var(--edge);
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--carve);
+  text-shadow: var(--engraved);
+}
+html[data-theme='lore'] .door-actions .btn-ghost:hover:not(:disabled) {
+  background: var(--block-face-hi);
+  color: var(--carve);
+}
+html[data-theme='lore'] .door-actions .btn-ghost:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: var(--block-pressed);
+}
+html[data-theme='lore'] .door-actions .btn-ghost:disabled {
+  opacity: 1;
+  background: var(--sunk-face);
+  box-shadow: var(--sunk-depth);
+  color: var(--carve-2);
+}
+html[data-theme='lore'] .door-enter {
+  margin-top: 10px;
+  font: 700 11.5px/1.3 var(--font-carved);
+  letter-spacing: 0.12em;
+  color: var(--ember);
+}
+html[data-theme='lore'] .door-enter::after {
+  height: 0;
+  background: none;
+  border-bottom: 2px dotted var(--trail);
+}
+html[data-theme='lore'] .door-sky {
+  border-left: 1px solid var(--edge);
+  background: var(--dusk-sky);
+}
+/* No torn paper edge on stone. */
+html[data-theme='lore'] .door-sky::before {
+  content: none;
+}
+@media (min-width: 640px) {
+  html[data-theme='lore'] .loracle-door {
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+}
+
+/* --------------------------------------------- event rows: a carved date */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .date-tile {
+  height: 58px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-block);
+  background: var(--block-face);
+  box-shadow:
+    inset 0 1px 0 #fff2,
+    inset 0 -2px 0 #0005,
+    0 2px 0 var(--edge);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .date-tile .m {
+  font: 700 10.5px/1 var(--font-carved);
+  letter-spacing: 0.14em;
+  color: var(--glow-text);
+  text-shadow: var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .date-tile .d {
+  font: 700 22px/1 var(--font-carved);
+  color: var(--carve);
+  text-shadow: var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .event-row > svg {
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .meta svg {
+  flex: none;
+  color: var(--ember);
+  opacity: 0.85;
+}
+
+/* --------------------------------------------- crews, ideas, people */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .crew-chip {
+  padding: 8px 14px 8px 8px;
+  font: 400 16.5px/1.2 var(--font-voice);
+}
+/* The crew's emoji sits in a small well. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .crew-emoji {
+  border: 1px solid var(--well-edge);
+  background: var(--well-bg);
+  box-shadow: var(--well);
+  text-shadow: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .crew-emoji-lg {
+  border-radius: 18px;
+  box-shadow:
+    var(--well),
+    0 0 0 1px rgb(255 255 255 / 0.05);
+}
+
+/* ------------------------------------- Create: six slabs, each a way in */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .create-tile {
+  padding: 16px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .create-tile .icon {
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 0 1px var(--edge),
+    0 1px 0 1px rgb(255 255 255 / 0.06);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .create-tile h3 {
+  font: 400 21px/1.15 var(--font-voice);
+  color: var(--ink);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .create-tile p {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------ calendar */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .month-head h2 {
+  font: 700 20px/1.25 var(--font-carved);
+  letter-spacing: 0.08em;
+  color: var(--carve);
+}
+/* The grid sits on one slab; the numbers are Cinzel's lining figures (IM Fell's old-style ones dance). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .month-grid {
+  gap: 3px;
+  padding: 8px 6px;
+  border: 1px solid var(--slab-edge);
+  border-radius: var(--r-slab);
+  background: var(--slab-face);
+  box-shadow: var(--slab-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .month-grid .dow {
+  font: 700 10.5px/1 var(--font-carved);
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--ink);
+  font: 600 15px/1.2 var(--font-carved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day.out {
+  color: var(--muted);
+}
+/* Today: an ember ring round the number. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day.today .num {
+  position: relative;
+  color: var(--ember);
+  font-weight: 700;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day.today .num::before {
+  content: '';
+  position: absolute;
+  inset: -3px -7px -1px;
+  border: 1.5px solid var(--ember);
+  border-radius: 50%;
+  box-shadow: 0 0 8px -2px rgb(255 106 61 / 0.7);
+  pointer-events: none;
+}
+/* The selected day: you are here (the raised block, glow letters). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day.selected {
+  border-color: var(--edge);
+  background: var(--block-face);
+  box-shadow: var(--block-depth);
+  color: var(--glow-text);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day.selected .num {
+  color: var(--glow-text);
+  text-shadow: var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .day .dots {
+  gap: 4px;
+}
+/* Plans: ember diamonds. Personal: verdigris rounds (shape, not colour alone). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.day .dots i, .legend i) {
+  border-radius: 1px;
+  background: var(--ember);
+  transform: rotate(45deg);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.day .dots i.personal, .legend i.personal) {
+  border-radius: 50%;
+  background: var(--fjord);
+  transform: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legend {
+  font-size: 14px;
+  color: var(--muted);
+}
+/* A personal entry: a slab row with a verdigris edge; the time in Cinzel. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .personal-row {
+  border: 1px solid var(--slab-edge);
+  box-shadow:
+    inset 3px 0 0 var(--fjord),
+    var(--slab-depth);
+  font: 400 16.5px/1.3 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .personal-row strong {
+  font-weight: 400;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .personal-row .time {
+  font: 700 13px/1.2 var(--font-carved);
+  letter-spacing: 0.04em;
+  color: var(--fjord);
+}
+
+/* ------------------------------------- Lorebook, chapters, story, quotes */
+
+/* The trail behind you: ember dots, an ember diamond at each year, a pebble at each chapter. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .timeline::before {
+  width: 2px;
+  border-left: 0;
+  background: radial-gradient(circle, var(--glow) 1.1px, transparent 1.5px) 50% 0 / 2px 7px repeat-y;
+  opacity: 0.6;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .timeline-year {
+  font: 700 28px/1.2 var(--font-carved);
+  letter-spacing: 0.06em;
+  color: var(--carve);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .timeline-year::before {
+  left: -25px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 2px;
+  background: var(--glow);
+  box-shadow: 0 0 10px -1px rgb(255 106 61 / 0.8);
+  transform: rotate(45deg);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .timeline-item::before {
+  border: 1px solid var(--edge);
+  background: var(--grain-stone), var(--pebble);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chapter-card {
+  padding: 0;
+  overflow: hidden;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .cover-placeholder {
+  background:
+    radial-gradient(circle at 20% 30%, rgb(233 196 106 / 0.14), transparent 55%),
+    radial-gradient(circle at 80% 70%, rgb(143 211 200 / 0.12), transparent 55%),
+    #15130f;
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chapter-date {
+  font: 700 11.5px/1.3 var(--font-carved);
+  letter-spacing: 0.1em;
+  color: var(--gold);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chapter-hero img {
+  border: 1px solid var(--edge);
+  box-shadow: 0 12px 26px -14px #000;
+}
+@media (min-width: 900px) {
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .chapter-hero {
+    border-radius: var(--r-slab);
+  }
+}
+/* Long reading: IM Fell at a comfortable size and measure. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .story {
+  max-width: 65ch;
+  font: 400 18.5px/1.6 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .story-title {
+  font-size: 21px;
+}
+/* Quotes: a gold rule and a gold quote mark, no fill. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .quote {
+  padding: 4px 0 4px 44px;
+  border-left: 3px solid rgb(233 196 106 / 0.6);
+  border-radius: 0;
+  background: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .quote::before {
+  left: 10px;
+  top: -6px;
+  font: 400 58px/1 var(--font-voice);
+  color: var(--gold);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .quote-text {
+  font: italic 400 21px/1.35 var(--font-voice);
+  color: var(--ink);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .quote-by {
+  font: 400 15px/1.35 var(--font-voice);
+  color: var(--ink-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .contribution-by {
+  font-size: 14px;
+  color: var(--muted);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .contribution-by strong {
+  font-weight: 400;
+}
+/* Photos: set into a thin dark frame. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .photo {
+  border-radius: 6px;
+  background: #15130f;
+  box-shadow:
+    0 0 0 1px var(--edge),
+    0 8px 16px -10px #000;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .photo figcaption {
+  font: 400 14px/1.3 var(--font-voice);
+  text-shadow: 0 1px 2px #000;
+}
+
+/* Comments: small slabs passed round. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .comment-body {
+  padding: 10px 14px;
+  border: 1px solid var(--slab-edge);
+  border-radius: 4px 12px 12px 12px;
+  background: var(--slab-face);
+  box-shadow: var(--slab-depth);
+  font: 400 16.5px/1.4 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .comment strong {
+  font-weight: 400;
+}
+
+/* ------------------------------------------------ notes, notifications */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .notification {
+  padding: 12px 14px;
+}
+/* Unread: an ember edge plus a brighter title (not colour alone), on the same slab (app.css's
+   `.notification.unread` wash outranks the slab rule, so the face is set again here). */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .notification.unread {
+  background: var(--slab-face);
+  box-shadow:
+    inset 3px 0 0 var(--glow),
+    var(--slab-depth);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .notification.unread:hover {
+  background:
+    linear-gradient(rgb(255 240 210 / 0.035), rgb(255 240 210 / 0.035)),
+    var(--slab-face);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .notification.unread .grow > :first-child {
+  color: var(--ember);
+}
+
+/* --------------------------------------------- Admin, Support, Legal */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .mod-snapshot {
+  border: 1px solid var(--well-edge);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  background: var(--well-bg);
+  box-shadow: var(--well);
+  font: 400 15px/1.45 var(--font-voice);
+}
+/* The public pages (Terms, Privacy, Help): the world behind, the words on one slab. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal {
+  background: none;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal-body {
+  padding: 18px 18px 22px;
+  line-height: 1.55;
+}
+@media (min-width: 640px) {
+  :where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal-body {
+    padding: 26px 30px 30px;
+  }
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal-body h1 {
+  font: 700 clamp(24px, 6vw, 32px) / 1.2 var(--font-carved);
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-shadow: var(--engraved);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal-body h2 {
+  font: 700 16px/1.3 var(--font-carved);
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.legal-body p, .legal-body li) {
+  font-size: 17px;
+  color: var(--ink-2);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal-body strong {
+  color: var(--ink);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .legal-links {
+  border-top: 2px dotted var(--trail);
+}
+
+/* ------------------------------------------------------------- Welcome
+   The page's own background goes (the world shows through); the compass rose stays, faint, in carve. */
+
+html[data-theme='lore'] .welcome {
+  background: none;
+}
+html[data-theme='lore'] .welcome-rose {
+  color: var(--carve);
+  opacity: 0.14;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .welcome h1 {
+  font: 400 clamp(36px, 10vw, 48px) / 1.06 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .welcome h1 em {
+  color: var(--glow);
+}
+
+/* -------------------------------------------------- bright worlds by night
+   The aurora, the mountain snow and moon, the treasure map's gold rose and the scroll's rolled edges are too
+   bright for the halo alone (AA on their brightest part, spec 3). On those four worlds the blocks the day
+   puts on a vellum plate sit on a dark plate instead (feathered, no hard box); the darker worlds keep the
+   bare halo of the preview. */
+
+:where(html[data-theme='lore']:is([data-world='northern-lights'], [data-world='mountain-range'], [data-world='treasure-map'], [data-world='scroll']):not([data-daylight='day']) body:not(:has(.oracle-page)))
+  :is(
+    .topbar h1:not(:empty),
+    .hero,
+    .section-head,
+    .empty,
+    .the-end,
+    .month-head h2,
+    .legend,
+    .timeline-year,
+    .main > p,
+    .section > p,
+    .section > .stack > p,
+    .main > .section.row,
+    .main > .section.row-wrap,
+    .main > .section.stack > .row,
+    .comment > .stack > .tiny,
+    .legal-head > a,
+    .welcome-inner > p,
+    .welcome-inner > h1,
+    .welcome-inner > .stack
+  ) {
+  border-radius: 12px;
+  background: var(--plate-night);
+  box-shadow: 0 0 14px 6px var(--plate-night);
+}
+:where(html[data-theme='lore']:is([data-world='northern-lights'], [data-world='mountain-range'], [data-world='treasure-map'], [data-world='scroll']):not([data-daylight='day']) body:not(:has(.oracle-page))) .topbar h1:not(:empty) {
+  flex: 0 1 auto;
+  margin-right: auto;
+  padding: 2px 10px;
+}
+:where(html[data-theme='lore']:is([data-world='northern-lights'], [data-world='mountain-range'], [data-world='treasure-map'], [data-world='scroll']):not([data-daylight='day']) body:not(:has(.oracle-page))) .hero {
+  padding: 10px 12px;
+}
+:where(html[data-theme='lore']:is([data-world='northern-lights'], [data-world='mountain-range'], [data-world='treasure-map'], [data-world='scroll']):not([data-daylight='day']) body:not(:has(.oracle-page))) .section-head {
+  padding: 4px 10px;
+}
+/* The black star sky's Milky Way: the ember "more" links take the paler glow there (4.9:1, not 4.46:1). */
+:where(html[data-theme='lore'][data-world='black-star-sky']:not([data-daylight='day']) body:not(:has(.oracle-page))) .section-head .more {
+  color: var(--glow-text);
+}
+
+/* ------------------------------------------------------------------- DAY
+   Green hills under the engraved sun. The stone kit is unchanged (the cards are the same dark slabs); text
+   that sits on the bright sky turns to ink, with a soft white glow and, for whole blocks, a vellum plate. */
+
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) :is(.main, .welcome, .legal),
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) #root > .loading {
+  --ink: var(--day-ink);
+  --ink-2: var(--day-ink-2);
+  --muted: var(--day-ink-2);
+  --ember: var(--day-accent);
+  --focus-ring: var(--day-ink);
+  --trail: rgb(163 48 26 / 0.45);
+  color: var(--day-ink);
+  text-shadow: var(--on-day);
+}
+/* The same blocks the night gives a halo get a plate by day (feathered edges, no hard box). */
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page)))
+  :is(
+    .topbar h1:not(:empty),
+    .hero,
+    .section-head,
+    .empty,
+    .the-end,
+    .month-head h2,
+    .legend,
+    .timeline-year,
+    .main > p,
+    .section > p,
+    .section > .stack > p,
+    .main > .section.row,
+    .main > .section.row-wrap,
+    .main > .section.stack > .row,
+    .comment > .stack > .tiny,
+    .legal-head > a,
+    .welcome-inner > p,
+    .welcome-inner > h1,
+    .welcome-inner > .stack
+  ) {
+  border-radius: 12px;
+  background: var(--plate);
+  box-shadow: 0 0 14px 6px var(--plate);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .topbar h1:not(:empty) {
+  flex: 0 1 auto;
+  margin-right: auto;
+  padding: 2px 10px;
+  color: var(--day-ink);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .hero {
+  padding: 10px 12px;
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .section-head {
+  padding: 4px 10px;
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) :is(.eyebrow, .hero .meta, .greeting, .month-head h2, .timeline-year) {
+  color: var(--day-ink);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .hero .eyebrow {
+  color: var(--day-eyebrow);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) :is(.greeting em, .welcome h1 em, .backronym b) {
+  color: var(--day-accent);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .wordmark-name:not(.rail *) {
+  color: var(--day-ink);
+  text-shadow: var(--on-day);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .wordmark-name:not(.rail *) .o {
+  color: #b23c24;
+  text-shadow: none;
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) :is(.wordmark-tag, .backronym:not(.rail *)) {
+  color: var(--day-ink-2);
+}
+/* Quiet buttons and links that sit on the sky get their own small plate. */
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page)))
+  :is(.btn-ghost, .report-link):not(:is(.card, .list, .sheet, .slab, .banner, .legal-body, .loracle-door, .main > .form-grid, .welcome-inner > .form-grid) *) {
+  background: var(--plate);
+  box-shadow: 0 0 10px 3px var(--plate);
+  color: var(--day-ink);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .empty {
+  border-color: rgb(20 32 44 / 0.35);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .the-end .compass-rose {
+  color: var(--day-ink-2);
+  filter: none;
+}
+/* The note to self by day: a vellum well (the preview), the stone + unchanged. */
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .quick-note .input {
+  border-color: rgb(90 60 30 / 0.35);
+  background: rgb(250 246 236 / 0.92);
+  box-shadow:
+    inset 0 2px 4px rgb(60 40 20 / 0.25),
+    0 1px 0 #fff8;
+  color: var(--day-ink);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .quick-note .input::placeholder {
+  color: #6a5a44;
+}
+/* Its focus: the accent ring (the rule above would otherwise replace the ember one with nothing). */
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .quick-note .input:focus {
+  border-color: var(--day-accent);
+  box-shadow:
+    0 0 0 2px var(--day-accent),
+    inset 0 2px 4px rgb(60 40 20 / 0.25);
+}
+/* Focus by day. The top bar sits on the deep blue top of the sky: the glow ring there, not ink. */
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .topbar {
+  --focus-ring: var(--glow);
+}
+/* A whole slab you press draws its ring outside itself, on the bright sky: ink on a band of vellum. */
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) :is(.card-link, .create-tile, .crew-chip, .notification, a.banner):focus-visible,
+html[data-theme='lore'][data-daylight='day'] .loracle-door:focus-visible {
+  outline: 2px solid var(--day-ink);
+  box-shadow:
+    0 0 0 6px var(--plate),
+    var(--slab-depth);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .notification.unread:focus-visible {
+  box-shadow:
+    inset 3px 0 0 var(--glow),
+    0 0 0 6px var(--plate),
+    var(--slab-depth);
+}
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .quick-note > .chips > .tiny,
+:where(html[data-theme='lore'][data-daylight='day'] body:not(:has(.oracle-page))) .quick-note > p {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--plate);
+}
+html[data-theme='lore'][data-daylight='day'] .welcome-rose {
+  color: var(--day-ink);
+  opacity: 0.12;
+}
+
+/* ------------------------------------------------- vellum cards (not offered yet)
+   The owner may pick light vellum slabs by day instead of stone (preview .phone.day.vellum). Ready for
+   html[data-daylight='day'][data-cards='vellum']; the stone buttons, wells and chips stay as they are. */
+
+:where(html[data-theme='lore'][data-daylight='day'][data-cards='vellum'] body:not(:has(.oracle-page)))
+  :is(
+    .card,
+    .list,
+    .month-grid,
+    .create-tile,
+    .loracle-door,
+    .banner,
+    .notification,
+    .personal-row,
+    .comment-body,
+    .crew-chip,
+    .slab,
+    .legal-body,
+    :where(.main > .form-grid, .welcome-inner > .form-grid)
+  ) {
+  --ink: #2a1d10;
+  --ink-2: #4a3620;
+  --muted: #6a5230;
+  --ember: #a3301a;
+  --gold: #76520e;
+  --fjord: #1e5858;
+  --row-rule: rgb(90 60 30 / 0.15);
+  --trail: rgb(163 48 26 / 0.35);
+  --focus-ring: #a3301a;
+  border-color: #b9a27a;
+  background: var(--grain-stone), rgb(250 244 228 / 0.93);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 10px 22px -12px rgb(40 30 10 / 0.55);
+  color: #2a1d10;
+}
+:where(html[data-theme='lore'][data-daylight='day'][data-cards='vellum'] body:not(:has(.oracle-page))) :is(.card-link, .card-link:hover) {
+  --chapter-link-face: var(--grain-stone), rgb(250 244 228 / 0.93);
+  --chapter-link-edge: #b9a27a;
+}
+:where(html[data-theme='lore'][data-daylight='day'][data-cards='vellum'] body:not(:has(.oracle-page))) .notification.unread {
+  background: var(--grain-stone), rgb(250 244 228 / 0.93);
+}
+:where(html[data-theme='lore'][data-daylight='day'][data-cards='vellum'] body:not(:has(.oracle-page))) :is(.card, .list, .slab, .loracle-door) .pill {
+  border-color: rgb(163 48 26 / 0.5);
+  background: rgb(163 48 26 / 0.08);
+  color: #8a2a14;
+}
+:where(html[data-theme='lore'][data-daylight='day'][data-cards='vellum'] body:not(:has(.oracle-page)))
+  :is(.note-row > input, .checklist-item input)[type='checkbox'] {
+  background: #efe4cc;
+  box-shadow:
+    inset 0 2px 3px rgb(60 40 20 / 0.3),
+    0 1px 0 #fff;
+}
+
+/* ------------------------------------------------- the Loracle stays as it was
+   The kit above never applies while the Loracle is open (the guard). Two things it can't guard, kept as
+   the Loracle had them under every earlier look: */
+
+/* The page's own colour scheme stays light at the root (the temple sets dark inside itself), so the
+   desktop scrollbar and anything outside the temple look exactly as before. */
+html[data-theme='lore']:has(.oracle-page) {
+  color-scheme: light;
+}
+/* The Loracle's reminder scroll on Welcome is the Loracle's own parchment: it doesn't take the world's
+   legibility halo that its page (.welcome) hands down. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .scroll {
+  text-shadow: none;
+}

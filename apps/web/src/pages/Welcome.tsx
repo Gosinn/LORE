@@ -7,9 +7,12 @@ import { ReminderScroll } from '../components/oracle.tsx';
 import { Backronym, Field, Loading, Wordmark } from '../components/ui.tsx';
 import { api, ApiError, qs, setNativeToken } from '../lib/api.ts';
 import { useMe } from '../lib/queries.ts';
+import { useFrontDoorWorld } from '../lib/theme.ts';
 
 export function Welcome() {
   const me = useMe();
+  // The front door: the default world by night, with the compass rose (styles/worlds.css).
+  useFrontDoorWorld();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ login: '', username: '', displayName: '', email: '', password: '' });
   const [acceptTerms, setAcceptTerms] = useState(false);

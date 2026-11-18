@@ -1,5 +1,123 @@
 # LORE — Development log
 
+## 2026-11-18 (late) — One base, the Loracle's kit, over worlds by night and by day (D34)
+
+The owner, on the bright Treasure Map: "when I click Loracle ,my head is sent back like "whoah"", "the buttons
+look different", "there has to be a level of consistency in the whole thing. the base", then "let's give the
+users some variety" and a day mode ("green lush hills ... and SUN that has the same look as in the gnostic
+texts"). He picked from three rounds of candidates (`D:\LORE-devenv\previews\index.html`, outside the repo):
+black star sky as the default, stone cards by day too, and the four "When" choices. Built in two parallel
+tracks (the kit; the worlds and day and night), then joined and checked together.
+
+**What changed**
+
+- `styles/lore.css` (new, loaded last): the Loracle's kit on every screen outside it (buttons, wells, chips,
+  stamps, slabs, sheets, toasts, empty/loading/error states, the tab bar and rail as in the temple, Admin, Legal,
+  Welcome, "Where do you stand?"), the world tokens (`--world-bg`, `--world-top`, `--slab`), text on the world
+  (shadow plus a 2px halo), day ink on a vellum plate, and the vellum-card hook (not offered). Every rule is
+  guarded off while the Loracle is open. Long texts and people lists on Event, Idea, Crew and Chapter pages
+  sit on a slab (class names only). The live text editor (`copyEditor.css`) wears the kit too.
+- `styles/worlds.css` (new) and `assets/worlds/*.svg` (five SVGs, minified: off-screen stars dropped,
+  coordinates to 0.1): each world's art, the one fixed backdrop (`<div class="world">` in index.html), Profile
+  → Your world. The night map, midnight vellum and scroll use the exported layer lists as they were meant (the
+  night map's 56px grid shows; the noise tiles at their own size), so they differ slightly from the preview.
+- `lib/theme.ts`: one look `lore` (`map` retired), seven night worlds, the green hills by day, the four "When"
+  choices, the sun's turns on the device; `components/World.tsx` keeps it current; `index.html`'s boot script
+  applies it before the first paint. Welcome and "Where do you stand?" stay on the black star sky by night.
+- The browser bar follows the world's top edge (AppShell reads `--world-top`); manifest `#030409`; Capacitor
+  splash `#030409` and notification colour `#FFB36B`; the Android and iOS splash PNGs redrawn on the dark base
+  (`tools/make-icons.mjs`; the app icons came out byte-identical).
+- Retired, kept: `map.css` (guarded rules match nothing now), the old Appearance chips in Profile (shown only if
+  a look comes back). The Campfire dark-mode block no longer outranks the new tokens (`app.css`).
+- The Loracle: no Loracle file and no temple CSS touched (`git diff` clean for `pages/Oracle.tsx`,
+  `components/oracle.tsx`, `components/loracle.tsx` and app.css's ORACLE sections). Two things pinned to how
+  they were: the page's root colour scheme while the Loracle is open (the desktop scrollbar stays light) and
+  the glow outline on a broken text there in the owner's edit mode.
+
+**Checked**
+
+- `npm run typecheck` passes; `vite build` passes (all five world SVGs in the service-worker precache).
+- `npm test`: web 186/186 (`theme.test.ts`: sun times against the almanac for Reykjavík and London, midnight
+  sun and polar night, the choices, the boot script in a sandbox, the stylesheets' world colours against
+  theme.ts); API 275/276. The one failure, `oracle.test.ts` "goes as far as the realm reaches", is about the
+  wall clock, not this work: no API file changed, and it passes with the clock moved six hours back.
+- Live text: the web keys before (515f3f4) and after: 0 removed, 19 added (the new words in Profile → Your world
+  and the world and "When" names). No visible words changed; capitals come from CSS.
+- Stone audit: the wall, masonry, rune, crack and moss textures are used only in app.css's ORACLE section (and
+  its retired, unused Home teaser). No map-look paper, wax, leather or bookmark styles match while
+  `data-theme="lore"`.
+- Contrast computed with the WCAG formula (textured backgrounds at the grain's mean opacity), not measured:
+  text on slabs 7.1–12.6:1; main letters 5.26:1 inside their glow; text on the world with the halo 5.75–14.2:1
+  at the letter's edge; the one miss is 1px outside the letter over the mountain range's moon (2.46:1), which
+  sits under the bell on phones.
+
+**Not verified** (nothing of this has been looked at in a browser or on a phone): the before/after check that
+the Loracle is unchanged, every screen at 320–375 px, the desktop rail and wide layouts (the portrait art is
+cropped to its middle band there), how long the SVG filters take to draw on a mid-range phone, whether the
+Android WebView reports the phone's dark mode, and the native splash (needs a new native build).
+
+**Open for the owner** (DECISIONS Q10): Cinzel on the rail (one Loracle rule), the Loracle's scrollbar, a faint
+rim on wells for 3:1, the front door by day, vellum cards by day, a day twin per world.
+
+### Review fixes (same night)
+
+A review of the joined work found these; each was checked against the code first.
+
+- **Body text was still the UI sans** outside the Loracle: lore.css's IM Fell rule sat inside `:where()` and
+  app.css's plain `body` rule beat it. Now a real-specificity rule (the rail and tab bar keep their own sans).
+- **Unread notifications** lost their slab (app.css's `.notification.unread` wash outranked it): the slab face
+  is set again, the ember edge kept, the hover tint too.
+- **Phones, 320–390 px**: Calendar's Month/Agenda switch and its two chips no longer push the page sideways
+  (they wrap); Your world's "When" chips wrap their words instead of being cut off inside the chip row.
+- **Bright worlds by night**: on the northern lights, mountain range, treasure map and scroll the halo alone fell
+  short of AA (raw contrast down to about 1.1:1 on the aurora, the snow and the moon), so the blocks the day puts
+  on a vellum plate sit on a dark feathered plate there; the black star sky's "more" links take the paler glow.
+- **Focus by day**: the top bar's ring is the glow (ink was 1.5:1 on the deep blue); a whole slab you press
+  (cards, the Loracle door, notifications) draws an ink ring on a vellum band; the note to self shows a ring
+  again (a day rule had removed it). Profile's "Say where you stand" is a visible link.
+- **Leftovers of another dress**: a chapter's story and quote fields type in IM Fell, as they are read (a
+  lore-only token, so retired looks keep Fraunces); a finished event's "Read the chapter" card is a slab (its
+  gold face stays for the retired looks, through two variables). The desktop rail's avatar keeps the temple's
+  own colours and lettering, so nothing on the rail changes stepping into the Loracle.
+- **Two tabs following the sun** answered each other's storage events forever (every tab rewrote the sun cache
+  with turns that shifted with the millisecond). Now no tab reacts to that cache, turns are on whole minutes,
+  and the cache is written only when it changes. It holds a week of turns (was three days), and near the polar
+  night the last half for 48 h past the last turn.
+- **Signing out** left the old Lorer's home point on the device: World.tsx read `useMe()`, which `qc.clear()`
+  never tells. It now reads the query cache, as the copy gate does.
+- **Signed-out starts** (every new install opens on `/`) painted the day world on a light phone while waiting for
+  `/auth/me`, then jumped to Welcome's night sky. A `lore.in` hint (kept by World.tsx, read by the boot script)
+  pins any start with no one signed in to the front door's world.
+- **The live text editor by day**: outlines, the live underline and a draft's tint on text over the bright sky are
+  ink again (a draft's tint was hidden by the day plate); its text field shows a pale red edge again when the
+  words have a problem.
+- **The black star sky's two SVG filters** are bounded to the screen (about 45% and 66% fewer pixels to draw;
+  nothing visible changes). The grain layers of the other worlds are left as approved until timed on a phone
+  (ROADMAP).
+- Not changed: the wells' faint rim (still the owner's call, Q10: the Loracle's own wells have the same rim).
+- `apps/api/test/oracle.test.ts` "goes as far as the realm reaches": pinned to a fixed morning (fake `Date`), test
+  only. Which three futures are dealt depends on the hour; at 17:16 UTC on 18 November tonight's skies outranked every
+  journey in all 24 deals. The engine is unchanged.
+
+Checked: typecheck passes; `npm test` passes, API 276/276 and web 192/192 (`theme.test.ts` adds the week of
+turns on whole minutes, the cache not rewritten, the polar edge, the signed-in hint, the storage events with a
+stand-in page, and the boot script's front door for signed-out starts); `vite build` passes (main CSS 190.13 kB,
+34.97 kB gzip; editor CSS 25.51 kB, 5.81 kB gzip). Live text: `copy:check` 0 keys gone, the same 19 new, issues
+unchanged at 11. **Not verified:** none of it in a browser or on a phone (contrast is computed, not measured).
+
+### Checked against the spec, section by section (same night)
+
+- **Sizes the spec asks for** (against the build at 515f3f4, `lt-critic-build.log`): main CSS 131.65 → 190.13 kB
+  (26.27 → 34.97 kB gzip, +8.7 kB gzip); the live text editor's CSS 14.47 → 25.51 kB (3.83 → 5.81 kB gzip, its
+  own chunk, owner only). The world art, each fetched once and precached (77 entries): black star sky 43.2 kB
+  (8.0 kB gzip), green hills 53.7 kB (8.9), mountain range 29.9 kB (7.7), northern lights 13.1 kB (2.8), treasure
+  map 12.6 kB (2.0); night map, midnight vellum and scroll are CSS layers inside the main CSS.
+- **The native web view's own background** is the dark base too (`backgroundColor: "#030409"` in
+  `capacitor.config.json`), so nothing light shows before the first paint; with the next native build.
+- **Q10** gains the Welcome reminder scroll (the Loracle's own parchment, left as it is).
+- Typecheck, `npm test` (API 276/276, web 192/192) and `vite build` pass again (`w-critic-*.log`); `copy:check`
+  0 keys gone, 19 new. **Not verified:** still nothing in a browser or on a phone.
+
 ## 2026-11-18 (night) — Live text: the owner changes LORE's words in the app and publishes them (D33)
 
 The owner: "I want the ability to change all text myself manually and then a button to commit in real time.

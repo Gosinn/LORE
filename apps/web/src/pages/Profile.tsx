@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Camera, ChevronRight, Dices, Download, Feather, KeyRound, LogOut, ShieldCheck, Users } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { LORACLE_LINES, type Me, type MediaRef } from '#shared';
 import { ChapterCard, CrewChip } from '../components/cards.tsx';
@@ -9,7 +9,22 @@ import { api, setNativeToken } from '../lib/api.ts';
 import { canEditCopy, setCopyEditorOn, useCopyEditorOn } from '../lib/copy/gate.tsx';
 import { prepareImage } from '../lib/images.ts';
 import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useLoracle, useMe } from '../lib/queries.ts';
-import { THEMES, THEME_LABELS, chooseTheme, loadTheme, rollColors, type ThemeChoice } from '../lib/theme.ts';
+import {
+  DAY_WORLD,
+  DAYLIGHTS,
+  DAYLIGHT_LABELS,
+  NIGHT_WORLDS,
+  THEMES,
+  THEME_LABELS,
+  WORLD_LABELS,
+  chooseDaylight,
+  chooseTheme,
+  chooseWorld,
+  loadTheme,
+  rollColors,
+  useLook,
+  type ThemeChoice,
+} from '../lib/theme.ts';
 
 export function MyProfile() {
   const me = useMe().data!;
@@ -121,31 +136,37 @@ export function MyProfile() {
 
       <Section title="Settings">
         <div className="stack">
-          <span className="label">Appearance</span>
-          <div className="chips wrap">
-            {THEMES.map((t) => (
-              <button
-                key={t}
-                className="chip"
-                aria-pressed={theme === t}
-                onClick={() => {
-                  setTheme(t);
-                  chooseTheme(t);
-                }}
-              >
-                {THEME_LABELS[t]}
-              </button>
-            ))}
-            {theme === 'crazy' && (
-              <button className="chip" onClick={rollColors} aria-label="Roll new colors">
-                <Dices size={15} /> Roll
-              </button>
-            )}
-          </div>
-          {THEMES.length < 2 && (
-            <p className="tiny muted">One map for every lore maker. The older looks are rolled up in the archive for now.</p>
+          <YourWorld />
+          {/* The looks picker: only when a retired look is brought back (lib/theme.ts THEMES). */}
+          {THEMES.length > 1 && (
+            <>
+              <span className="label">Appearance</span>
+              <div className="chips wrap">
+                {THEMES.map((t) => (
+                  <button
+                    key={t}
+                    className="chip"
+                    aria-pressed={theme === t}
+                    onClick={() => {
+                      setTheme(t);
+                      chooseTheme(t);
+                    }}
+                  >
+                    {THEME_LABELS[t]}
+                  </button>
+                ))}
+                {theme === 'crazy' && (
+                  <button className="chip" onClick={rollColors} aria-label="Roll new colors">
+                    <Dices size={15} /> Roll
+                  </button>
+                )}
+              </div>
+              {THEMES.length < 2 && (
+                <p className="tiny muted">One map for every lore maker. The older looks are rolled up in the archive for now.</p>
+              )}
+              {theme === 'crazy' && <p className="tiny muted">Every part gets its own bright color, new every time. Or roll them yourself.</p>}
+            </>
           )}
-          {theme === 'crazy' && <p className="tiny muted">Every part gets its own bright color, new every time. Or roll them yourself.</p>}
           <p className="small muted" style={{ marginTop: 8 }}>
             Everything you create starts private. You choose who sees each event, idea and chapter.
           </p>
@@ -205,6 +226,70 @@ export function MyProfile() {
       {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
       {changingPassword && <ChangePasswordSheet onClose={() => setChangingPassword(false)} />}
     </>
+  );
+}
+
+/**
+ * Your world (WORLDS spec 2.2, 5): the night world (one of seven, small live thumbnails of the art), the day world,
+ * and when it's day. One tap applies; the choice stays on this device (lib/theme.ts). Native radios, so arrow
+ * keys and screen readers work as for any radio group. Styles: styles/worlds.css.
+ */
+function YourWorld() {
+  const look = useLook();
+  const id = useId();
+  return (
+    <div className="slab your-world">
+      <span className="label">Your world</span>
+      <fieldset className="world-set">
+        <legend className="world-legend">By night</legend>
+        <div className="world-grid">
+          {NIGHT_WORLDS.map((w) => (
+            <label key={w} className="world-pick">
+              <input
+                type="radio"
+                className="world-radio"
+                name={`${id}-night`}
+                value={w}
+                checked={look.world === w}
+                onChange={() => chooseWorld(w)}
+              />
+              <span className="world-thumb" data-world={w} aria-hidden />
+              <span className="world-name">{WORLD_LABELS[w]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <p className="world-legend">By day</p>
+      <div className="world-day">
+        <div className="world-pick">
+          <span className="world-thumb" data-world={DAY_WORLD} aria-hidden />
+          <span className="world-name">{WORLD_LABELS[DAY_WORLD]}</span>
+        </div>
+        <fieldset className="world-set">
+          <legend className="world-legend">When</legend>
+          <div className="chips wrap">
+            {DAYLIGHTS.map((d) => (
+              <label key={d} className={`chip world-when${look.daylight === d ? ' on' : ''}`}>
+                <input
+                  type="radio"
+                  className="world-radio"
+                  name={`${id}-when`}
+                  value={d}
+                  checked={look.daylight === d}
+                  onChange={() => chooseDaylight(d)}
+                />
+                <span className="world-when-name">{DAYLIGHT_LABELS[d]}</span>
+              </label>
+            ))}
+          </div>
+          {look.daylight === 'sun' && !look.sunKnown && (
+            <p className="tiny muted world-hint">
+              Until you say where you stand, your phone decides. <Link to="/welcome/where?next=/profile">Say where you stand</Link>
+            </p>
+          )}
+        </fieldset>
+      </div>
+    </div>
   );
 }
 

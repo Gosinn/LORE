@@ -46,7 +46,7 @@ function CrewView({ crew }: { crew: CrewDetail }) {
           </span>
         </div>
       </div>
-      {crew.description && <p style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>{crew.description}</p>}
+      {crew.description && <p className="slab slab-pad" style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>{crew.description}</p>}
 
       {crew.myStatus === 'invited' && (
         <div className="banner section" style={{ marginTop: 18 }}>
@@ -72,7 +72,7 @@ function CrewView({ crew }: { crew: CrewDetail }) {
           )
         }
       >
-        <div className="stack">
+        <div className="stack slab slab-pad">
           {crew.members.map((m) => (
             <MemberRow key={m.user.id} crew={crew} m={m} />
           ))}

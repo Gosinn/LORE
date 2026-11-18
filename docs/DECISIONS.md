@@ -5,6 +5,67 @@ Newest first within each list.
 
 ## Taken
 
+**D34 · One base everywhere, the Loracle's own kit; the variety is the world behind it, by night and by
+day.** Replaces D32's look; D32's retire rule stands. The owner (2026-11-18, docs/OWNER_VOICE.md "The look"):
+"the new base theme doesnt roll with the Loracle vibe at all. when I click Loracle ,my head is sent back like
+"whoah"", "the buttons look different, and the text changes", "there has to be a level of consistency in the
+whole thing. the base. which is the UI itself. shape..", and "let's give the users some variety". He reviewed
+three rounds of candidates; the approved page is `D:\LORE-devenv\previews\index.html` (outside the repo).
+- **The base is the Loracle's kit, on every screen** (`apps/web/src/styles/lore.css`, loaded last). What you
+  press is carved stone: the main action with ember letters, Create in copper (the round `+`), the second
+  choice with carve letters, quiet ones as letters only, danger with pale red letters. "You are here" (rail,
+  tab, chip, the selected day) is the raised block with glow letters, never a bookmark or a red edge. What
+  you type into is a well; cards, lists, sheets and forms are slabs; marks are stamps; tick-boxes are wells.
+  Cinzel for what you press, labels, heads and titles; IM Fell English for names, body and quotes (the
+  calendar's numbers use Cinzel's lining figures). The tab bar and rail copy the temple's own values, so
+  stepping into the Loracle doesn't move a thing. Every kit rule starts with
+  `:where(html[data-theme='lore'] body:not(:has(.oracle-page)))`: it never applies while the Loracle is open
+  and adds no specificity. The stone *wall* (masonry, torches, header stone, rune bands, cracks, moss) stays
+  in the Loracle only; stone *buttons* are the shared kit. For AA a few values differ from the preview: main
+  letters `#ffdeb8` in a 0.5 glow (preview `#ffd2a1`, 0.7), danger `#ffbfb4`, second buttons in the lightest
+  carve, and text on the world gets a tight 2px halo in front of the preview's shadow. The rail keeps the
+  temple rail's own sans (Q10).
+- **Worlds: seven by night, one by day.** Each Lorer picks in Profile → Your world (native radios, live
+  thumbnails, one tap applies). Black star sky (default for everyone who hasn't picked), Night map, Midnight
+  vellum, Scroll, Treasure map (a real one: islands, rhumb lines, the X), Mountain range, Northern lights; by
+  day the green hills under the engraved gnostic sun. The art is the approved export as is: SVGs minified into
+  `apps/web/src/assets/worlds/` (precached by the PWA and part of the live-update bundle), the three
+  layer-list worlds in `styles/worlds.css`. The choice is kept on the device (`lore.world`, `lore.daylight`),
+  not on the account: no database change (a migration would have collided with live text's numbering;
+  ROADMAP has "sync across devices").
+- **When it's day**: Follow my phone (light/dark, the default), Follow the sun where I stand (sunrise and
+  sunset worked out on the device from the Loracle's home point rounded to 0.1°; nothing asked of a server;
+  without a home point the phone decides; midnight sun and polar night handled), Always night, Always day.
+  Card dress by day is the owner's pick: the same dark stone slabs as at night. Light vellum slabs are ready
+  (`data-cards="vellum"` in lore.css) but not offered. Text that sits on the bright sky turns to ink on a soft
+  vellum plate.
+- **How it's wired.** `<html data-theme="lore" data-world="<id>" data-daylight="night|day">`, set by
+  `lib/theme.ts` and, before the first paint, by a small script in `index.html` (a test keeps its table and
+  keys equal to theme.ts, and the stylesheets' world colours equal to theme.ts). The backdrop is one element,
+  `<div class="world">` in index.html outside React: fixed, `z-index: -1`, `100lvh`, on its own layer, never
+  `background-attachment: fixed`, hidden inside the Loracle so the temple wall shows. `components/World.tsx`
+  (renders nothing) follows the phone's switch, the app coming to the front and the sun's turns. The browser
+  bar wears the world's top edge (`--world-top`), the manifest, the native splash and the native web view's
+  own background (Capacitor `backgroundColor`) the dark base `#030409`, the reminder notifications the glow `#FFB36B` (native: with the next native build, which syncs the config).
+- **The front door**: Welcome and "Where do you stand?" always wear the black star sky by night, with the
+  compass rose the owner likes (spec: "keep the compass rose, on the default world"). So does any start before
+  someone is signed in on the device (a `lore.in` hint kept by World.tsx): a new install opens on `/` and waits
+  for `/auth/me` before landing on Welcome, and must not flash the day world first. Cost: the first start after
+  this change shows the night sky to an already signed-in Lorer until `/auth/me` answers, once.
+- **The Treasure Map is retired, not deleted** (D32's rule): `map` joins `RETIRED_THEMES`, a stored `map` wears
+  the new base, `map.css` still loads but its guarded rules match nothing; its shared pieces (compass rose,
+  trail, Welcome, the Home door) stay and lore.css builds on them. The live text editor wears the kit too.
+- **The Loracle is unchanged**: no Loracle file and no temple CSS was edited. Two things the guard can't
+  reach are pinned by hand: the page's root colour scheme stays light while the Loracle is open (the desktop
+  scrollbar), and in the owner's edit mode a broken text keeps its glow outline there.
+- Contrast was computed with the WCAG formula (textured backgrounds at the grain's mean), not measured on
+  screenshots. On the brightest spots of four worlds (scroll, treasure map, mountain snow and moon, aurora)
+  the halo alone fell short of AA (down to about 1.1:1 raw), so at night on those four the blocks the day puts
+  on a vellum plate sit on a dark feathered plate (`rgb(6 7 12 / .7)`; worst cases about 5:1). The darker
+  worlds keep the preview's bare halo; on the black star sky the "more" links take the paler glow (4.9:1).
+  The black star sky's two SVG filters are bounded to the screen (fewer pixels to draw, nothing visible
+  changes). **Nothing of this has been looked at in a browser or on a phone yet.**
+
 **D33 · Live text: the owner rewords LORE in the app and publishes it.** The owner (2026-11-18): "I want the
 ability to change all text myself manually and then a button to commit in real time. instead of writing to you
 every time.." How, and why:
@@ -57,7 +118,8 @@ every time.." How, and why:
 - If the React Compiler is ever adopted, its memoized JSX would not see copy changes: feed `__copyTick()` into
   it, as the transform already does for `useMemo` deps.
 
-**D32 · One look, the Treasure Map; the older looks are retired, not deleted.** The owner (2026-11-18):
+**D32 · One look, the Treasure Map; the older looks are retired, not deleted.** *(The look is replaced by D34
+the same day and the Treasure Map is retired too; the retire rule below still holds.)* The owner (2026-11-18):
 "retire all the older themes. dont delete them, just retire them ... i might change my mind in the future but
 probably not", "make the new theme more present throughout the app", "but keep the stone look for the
 Loracle only". So LORE wears one look, `map` ("Treasure Map", `styles/map.css`): map paper with a faint
@@ -333,8 +395,8 @@ person "follow" a thread.
 (~€10/year) would look better than `*.duckdns.org` and is needed for Play Store links.
 
 **Q6 · Brand.** The current identity (Fraunces + Instrument Sans, paper/ink/ember palette, compass-needle
-emblem) is a proposal. Replace or keep. (Since D32 the app wears the Treasure Map: the same fonts plus Cinzel and
-IM Fell English, a map-paper palette, and a compass needle through the O of LORE.)
+emblem) is a proposal. Replace or keep. (Since D34 the app wears the Loracle's stone kit over a world each Lorer
+picks: Cinzel and IM Fell English, carve and glow inks, and a compass needle through the O of LORE.)
 
 **Q7 · Lore Score.** Brief part XII lists the open questions (numeric? public? comparable?). Needs answers
 before Phase 2 scoring work starts.
@@ -352,3 +414,26 @@ Also the look's name ("Treasure Map") and whether the old stone door should come
 exception (its markup is in commit 671c2bc; its CSS is kept). And the desktop rail's Loracle icon: it is
 still lucide's Sparkles (the generic AI glyph that Create's Loracle tile refuses; Create uses Flame). The
 rail also shows inside the Loracle, which must look exactly as it did, so it was left for the owner to call.
+(Since D34 the Treasure Map look is retired, so its words and its name only matter if it comes back; the rail
+icon question stands.)
+
+**Q10 · Loose ends of the one base (D34).** Each is small; none was decided without the owner.
+- **The rail's lettering.** The preview shows Cinzel on the desktop rail; the rail keeps the temple rail's own
+  UI sans and Fraunces wordmark, because the Loracle's rule can't change under "the Loracle stays exactly as
+  it is". Switching both sides is one rule in the temple's CSS plus its mirror in lore.css.
+- **The Loracle's scrollbar** (desktop): kept light, as under every earlier look. A dark one would suit the
+  temple better; dropping one rule in lore.css ("the Loracle stays as it was") does it.
+- **Input rims.** Wells stand out from slabs only by their sunk shadow (rim about 1.1:1), exactly as in the
+  Loracle; WCAG's 3:1 for control boundaries may want a faint light rim (on every well, or the Loracle's too).
+- **The front door by day.** Welcome and "Where do you stand?" (and a start with no one signed in) always show
+  the black star sky by night; they could follow day and night like every other page.
+- **A dark plate at night on the four bright worlds** (added for AA after review): the owner may prefer the
+  bare halo of the preview there and accept lower contrast, or a darker cut of those worlds' art instead.
+- **Vellum cards by day.** Ready behind `data-cards="vellum"`, not offered (the owner picked stone).
+- **A day twin per world** (a lighter version of each night world) instead of the one green-hills day.
+- **Wide screens.** The portrait art is cropped to its middle band on a wide desktop (`center / cover`), so the
+  sun and the mountain peak may not show; a wide cut of the art would fix it.
+- **The reminder scroll on Welcome** is the Loracle's own parchment scroll (`ReminderScroll` from
+  `components/oracle.tsx`, the same one the temple shows), so it stays light parchment over the black star sky.
+  It is the Loracle's kit, not the retired map paper; a dark dress for it on Welcome only would be one CSS rule
+  (unverified in a browser either way).
