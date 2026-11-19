@@ -6,7 +6,7 @@
 //
 // Shown fields: title, calling, truth, waypoint name, clue, trial, earns, mystery, step text,
 // provision text, this week, rule. Fault codes (never text) go to the log; the fault lines (which
-// may quote the draft) go only into the repair turn.
+// may quote the draft) go only into the repair turn (and, for safety faults, the fresh compose's).
 import type { LoracleTag } from '#shared';
 import { foldName, markOf, samePlace, type Ledger, type SeenUrls } from './ledger.ts';
 import {
@@ -23,7 +23,7 @@ import {
   countryName,
 } from './prompts.ts';
 import type { DeeperDraftT, LineDraftT, QuestDraftT, StepDraftT, WaypointDraftT } from './schema.ts';
-import type { EarlierRoad, Weighing } from './types.ts';
+import type { EarlierRoad, LedgerNote, Weighing } from './types.ts';
 
 export interface Fault {
   /** "H3", "X1", … */
@@ -87,16 +87,23 @@ export function findPhrase(text: string, list: readonly string[], exempt: readon
   return null;
 }
 
+/** Lowercased words, punctuation as single spaces. */
+const wordsOf = (s: string) => norm(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/** Does `text` name `phrase` whole, on word boundaries? Never a part of it alone. */
+export function mentionsWhole(text: string, phrase: string | null | undefined): boolean {
+  if (!phrase) return false;
+  const n = wordsOf(phrase);
+  return !!n && ` ${wordsOf(text)} `.includes(` ${n} `);
+}
+
 /** Does `text` mention `name`? Whole name, or (for a two-word name) its last word of 4+ letters. */
 export function mentions(text: string, name: string | null | undefined): boolean {
   if (!name) return false;
-  const t = ` ${norm(text).replace(/[^\p{L}\p{N}]+/gu, ' ')} `;
-  const n = norm(name).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  if (!n) return false;
-  if (t.includes(` ${n} `)) return true;
-  const parts = n.split(' ');
+  if (mentionsWhole(text, name)) return true;
+  const parts = wordsOf(name).split(' ');
   const last = parts.at(-1)!;
-  return parts.length >= 2 && last.length >= 4 && t.includes(` ${last} `);
+  return parts.length >= 2 && last.length >= 4 && ` ${wordsOf(text)} `.includes(` ${last} `);
 }
 
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}]/gu;
@@ -119,9 +126,14 @@ const COUNTRY_ALIASES: Record<string, string> = {
   holland: 'netherlands',
   turkiye: 'turkey',
 };
+// foldName turns "th" into "t" (and so on), so the table is folded the same way before use.
+const COUNTRY_ALIAS_KEYS: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNTRY_ALIASES).map(([k, v]) => [foldName(k), foldName(v)]),
+);
+/** "Myanmar (Burma)", "Burma" and "Myanmar" fold to one key. */
 const countryKey = (s: string) => {
-  const f = foldName(s);
-  return COUNTRY_ALIASES[f] ?? f;
+  const f = foldName(s.replace(/\([^)]*\)/g, ' '));
+  return COUNTRY_ALIAS_KEYS[f] ?? f;
 };
 
 export function sameCountry(country: string, homeIso: string): boolean {
@@ -129,6 +141,32 @@ export function sameCountry(country: string, homeIso: string): boolean {
   if (c.toUpperCase() === homeIso.toUpperCase()) return true;
   return countryKey(c) === countryKey(countryName(homeIso));
 }
+
+let countryKeys: Set<string> | null = null;
+/** Is `s` the name of a country (in English, or a common alias)? */
+export function isCountryName(s: string | null | undefined): boolean {
+  if (!s?.trim()) return false;
+  if (!countryKeys) {
+    const keys = new Set([...Object.keys(COUNTRY_ALIAS_KEYS), ...Object.values(COUNTRY_ALIAS_KEYS)]);
+    const notCountries = new Set(['EU', 'EZ', 'UN', 'QO', 'ZZ']);
+    for (let a = 65; a <= 90; a++)
+      for (let b = 65; b <= 90; b++) {
+        const code = String.fromCharCode(a, b);
+        const name = countryName(code);
+        if (name !== code && !notCountries.has(code)) keys.add(countryKey(name));
+      }
+    countryKeys = keys;
+  }
+  return countryKeys.has(countryKey(s));
+}
+
+/** Two country names that are both known and plainly differ. */
+const otherCountry = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && isCountryName(a) && isCountryName(b) && countryKey(a) !== countryKey(b);
+
+/** Two names of one country ("Burma", "Myanmar (Burma)", "Myanmar"). */
+const sameCountryName = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && isCountryName(a) && isCountryName(b) && countryKey(a) === countryKey(b);
 
 // ---------------------------------------------------------------------------
 // Numbers (S5)
@@ -178,7 +216,6 @@ const COMBAT = /\b(fight\w*|bouts?|spar\w*|knock\w*|lethwei|muay thai|boxing|box
 const OPEN_OCEAN = /\b(open ocean|ocean crossing|offshore|transatlantic|transpacific|cross(ing)? the (atlantic|pacific|indian ocean)|solo sail\w*)\b/i;
 const YOUTH_SAFE = /\b(youth|junior|juniors|under-?18|cadet|licensed)\b/i;
 const SOLO = /\b(alone|solo|by yourself|on your own)\b/i;
-const PESTER = /\b(again and again|every (day|week|month)|each (day|week|month)|keep (writing|calling|asking|emailing)|camp (beside|outside|near|by)|wait outside|sleep outside)\b/i;
 const ALL_TRAVEL = /\b(against all (but essential )?travel|avoid all (but essential )?travel|do not travel|level 4)\b/i;
 const FIRST_WHEN = /\b(tonight|today|tomorrow|this (week|weekend)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
 
@@ -670,20 +707,21 @@ export function checkDraft(input: QuestDraftT, ctx: CheckContext): CheckResult {
     if (!draft.rule) safeF('X2', 'rule', 'A dangerous road needs its one survival rule.');
   }
 
-  // X3: no waypoint inside a region the home government advises against.
-  const zones = ledger.notes
-    .filter((n) => (n.kind === 'advice' || n.kind === 'safety') && ALL_TRAVEL.test(n.text))
-    .map((n) => {
-      const parts = (n.place ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-      const region = n.name && !parts.some((p) => samePlace(p, n.name!)) ? n.name : (parts[0] ?? n.name);
-      const country = parts.at(-1) ?? null;
-      return { region, country };
-    })
-    .filter((z): z is { region: string; country: string | null } => !!z.region && (!z.country || !samePlace(z.region, z.country)));
+  // X3: no waypoint inside a region the home government advises against. A whole country under such
+  // advice holds only the map's one gate and the waypoints after it (THE MAP, "Gates").
+  const zones = adviceZones(ledger);
+  const gateAt = map.findIndex((w) => w.kind === 'gate');
   map.forEach((w, i) => {
     const text = `${w.where.place}, ${w.where.town ?? ''}, ${w.where.geoQuery}`;
-    const zone = zones.find((z) => mentions(text, z.region));
-    if (zone) safeF('X3', `waypoint ${i + 1} where`, `${wp(i, w)} lies in ${zone.region}, where the home government advises against all travel.`);
+    const zone = zones.find((z) =>
+      z.whole
+        ? (gateAt < 0 || i < gateAt) &&
+          (isCountryName(w.where.country) ? sameCountryName(w.where.country, z.region) : inZone(`${text}, ${w.where.country}`, z.region))
+        : !otherCountry(z.country, w.where.country) && z.names.some((n) => inZone(text, n)),
+    );
+    if (zone?.whole)
+      safeF('X3', `waypoint ${i + 1} where`, `${wp(i, w)} lies in ${zone.region}, where the home government advises against all travel: only the map's one gate, and the waypoints after it, may stand there.`);
+    else if (zone) safeF('X3', `waypoint ${i + 1} where`, `${wp(i, w)} lies in ${zone.region}, where the home government advises against all travel.`);
   });
 
   // X4: youth.
@@ -703,19 +741,22 @@ export function checkDraft(input: QuestDraftT, ctx: CheckContext): CheckResult {
 
   // X5: inward wishes never reach for the other person.
   if (tags.has('inward')) {
-    const targets = otherPeople(ctx.wishText, ledgerNames);
+    const where = map.map((w) => `${w.where.place}, ${w.where.town ?? ''}, ${w.where.country}, ${w.where.geoQuery}`);
+    const targets = otherPeople(ctx.wishText, ledgerNames, where, ledger.notes.map((n) => n.text));
     map.forEach((w, i) => {
       for (const text of [w.trial, ...w.road.map((s) => s.text)]) {
-        const hit = targets.find((t) => mentions(text, t) || norm(text).includes(norm(t)));
+        const hit = targets.find((t) => reachesFor(text, t));
         if (hit) safeF('X5', `waypoint ${i + 1}`, `${wp(i, w)} reaches for the person the wish is about. The road is the Lorer's alone.`);
       }
     });
   }
 
   // X6: never pester a person or camp beside them.
+  const people = peopleOf(personNotes);
   map.forEach((w, i) => {
+    const own = ownPerson(w.person, notes, people);
     for (const [field, text] of [['trial', w.trial], ...w.road.map((s, j) => [`step ${j + 1}`, s.text] as const)] as const) {
-      if (PESTER.test(text) && (personNotes.some((n) => mentions(text, n.name)) || (w.person?.name && mentions(text, w.person.name)) || /\b(him|her|them)\b/i.test(text)))
+      if (pesters(text, own ? [...people, own] : people, own))
         safeF('X6', `waypoint ${i + 1} ${field}`, `${wp(i, w)}: ask a person once, through a public channel; never again and again, never camp beside them.`);
     }
   });
@@ -728,20 +769,275 @@ function hintPerson(personNotes: { id: string; name: string | null }[]): string 
   return p ? ` ${p.id} names ${p.name}.` : '';
 }
 
+// ---------------------------------------------------------------------------
+// X3: the zones the home government advises against
+
+const ADMIN_SUFFIX = /\s+(?:state|region|province|division|district|governorate|oblast|prefecture|county|department|territory)s?$/;
+const DIRECTIONS = new Set(
+  'the far upper lower central north south east west northern southern eastern western northeast northwest southeast southwest northeastern northwestern southeastern southwestern'.split(' '),
+);
+const onlyDirections = (s: string) => s.split(' ').every((w) => DIRECTIONS.has(w));
+
+export interface AdviceZone {
+  /** The region as the note names it ("Kayin State"), or the whole country ("North Korea"). */
+  region: string;
+  /** Whole phrases that place a waypoint inside it ("kayin state", "kayin"). */
+  names: string[];
+  /** Its country, when the note gives one that is a country. */
+  country: string | null;
+  /** The whole country is under the advice: only the gate and the waypoints after it may stand there. */
+  whole: boolean;
+}
+
+/** Does `text` name the zone `name` whole? "&" reads as "and". */
+const inZone = (text: string, name: string) => mentionsWhole(text.replace(/&/g, ' and '), name.replace(/&/g, ' and '));
+
 /**
- * The other person an inward wish is about: proper names in the wish (not the Lorer's "I", not a
- * ledger name) and the pronoun the wish aims at ("make her love me" → "her love").
+ * Is the advice in `text` about the whole of `country`? "Against all travel to North Korea" and a bare
+ * "Level 4: do not travel" are; "against all travel to Pattani and Yala" and "to Thailand's south" are not.
  */
-export function otherPeople(wish: string, ledgerNames: readonly string[]): string[] {
-  const out = new Set<string>();
-  const words = wish.replace(/[’']/g, "'").split(/\s+/);
-  words.forEach((w, i) => {
-    const clean = w.replace(/[^\p{L}'-]/gu, '');
-    if (i > 0 && /^\p{Lu}\p{Ll}{2,}$/u.test(clean) && clean !== 'I' && !ledgerNames.some((n) => mentions(n, clean))) out.add(clean);
-  });
-  for (const m of wish.matchAll(/\b(make|get|win|have|let) (him|her|them) (\w+)/gi)) out.add(`${m[2]} ${m[3]}`);
-  for (const m of wish.matchAll(/\bmy (ex|crush|boyfriend|girlfriend|husband|wife|partner|boss)\b/gi)) out.add(`my ${m[1]}`);
-  return [...out];
+function aboutWholeCountry(text: string, country: string): boolean {
+  const t = norm(text);
+  const last = [...t.matchAll(new RegExp(ALL_TRAVEL.source, 'gi'))].at(-1);
+  if (!last) return false;
+  const rest = t.slice((last.index ?? 0) + last[0].length).split(/[.;(]/)[0]!;
+  // No object named: the advice is the country's own.
+  if (!/^\s*(?:to|in|for|:)/.test(rest)) return true;
+  const words = wordsOf(rest)
+    .replace(/^(?:to|in|for)\s+/, '')
+    .replace(/^(?:the\s+)?(?:whole|entire|rest)\s+of\s+/, '')
+    .replace(/^all\s+(?:of\s+)?/, '')
+    .split(' ');
+  if (/^(?:the\s+)?(?:whole\s+|entire\s+)?country$/.test(words.slice(0, 3).join(' ')) || words[0] === 'there') return true;
+  for (let k = Math.min(6, words.length); k >= 1; k--) {
+    const phrase = words.slice(0, k).join(' ');
+    if (isCountryName(phrase) && countryKey(phrase) === countryKey(country)) return words[k] !== 's';
+  }
+  return false;
+}
+
+/**
+ * The zones under avoid-all-travel advice: regions inside a country (no waypoint there at all), and
+ * whole countries (a waypoint there must be the map's one gate, or come after it). A country-level note
+ * whose advice names only parts of the country ("all but essential travel to Pattani, Yala") is
+ * neither: its regions have their own notes.
+ */
+export function adviceZones(ledger: Ledger): AdviceZone[] {
+  const out: AdviceZone[] = [];
+  for (const n of ledger.notes) {
+    if ((n.kind !== 'advice' && n.kind !== 'safety') || !ALL_TRAVEL.test(n.text)) continue;
+    const parts = (n.place ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const region = n.name && !isCountryName(n.name) && !parts.some((p) => samePlace(p, n.name!)) ? n.name : (parts[0] ?? n.name);
+    if (!region) continue;
+    if (isCountryName(region)) {
+      if (aboutWholeCountry(n.text, region)) out.push({ region, names: [region], country: region, whole: true });
+      continue;
+    }
+    const last = parts.length >= 2 ? parts.at(-1)! : parts[0] && isCountryName(parts[0]) ? parts[0] : null;
+    if (last && samePlace(region, last)) continue;
+    // "Kayin State" also holds a waypoint at "Hpa-an, Kayin, Myanmar"; "Jammu and Kashmir" one at
+    // "Srinagar, Kashmir"; "Southern Province" names no place by "Southern".
+    const names = [region];
+    const whole = wordsOf(region.replace(/&/g, ' and '));
+    for (const part of [whole, ...whole.split(/\s+and\s+/)]) {
+      const stem = part.replace(ADMIN_SUFFIX, '');
+      for (const s of [part, stem])
+        if (s !== whole && s.replace(/\s/g, '').length >= 4 && !onlyDirections(s) && !isCountryName(s) && !names.includes(s)) names.push(s);
+    }
+    out.push({ region, names, country: last && isCountryName(last) ? last : null, whole: false });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// X5: the other person an inward wish is about
+
+/** Capitalised words that are never the other person: pronouns, small words, days, holidays. */
+const NOT_A_PERSON = new Set(
+  (
+    'you your yours yourself he him his she her hers they them their theirs we our ours it its me my mine myself ' +
+    'the this that these those there here and but nor for yet because if when while though although since until ' +
+    'after before then once where why how what who whom which with without from into onto about all every each ' +
+    'some any not never always please maybe someday one only just even still also now today tonight tomorrow ' +
+    'yesterday new year years day days night ' +
+    'monday tuesday wednesday thursday friday saturday sunday ' +
+    'christmas xmas easter eid ramadan hanukkah chanukah diwali holi thanksgiving halloween passover lent ' +
+    'pentecost advent valentine valentines midsummer yule solstice equinox hogmanay nowruz'
+  ).split(' '),
+);
+/** Months are people too ("June", "May", "April"), except where they are dates ("in June", "June 3"). */
+const MONTHS = new Set('january february march april may june july august september october november december'.split(' '));
+const DATE_BEFORE = /(?:\b(?:in|on|by|since|until|till|from|through|of|this|next|last|every|each|early|late|mid|before|after|the|around|during)\s+|\bmid-|\d\s+)$/i;
+const isDate = (before: string, after: string) => DATE_BEFORE.test(before) || /^\s*\d/.test(after);
+/** Does the word after `before` open a sentence? "Mr. Smith" does not. */
+const opensSentence = (before: string) => {
+  const b = before.trimEnd();
+  return !b || (/[.!?]["'”)\]]*$/.test(b) && !/(?:^|\s)(?:mr|mrs|ms|mx|dr|st|prof|sr|jr)\.$/i.test(b));
+};
+
+/** Strip accents and unify apostrophes; keep the case. */
+const foldCase = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
+    .replace(/[’‘`]/g, "'");
+
+export interface Target {
+  /** A name ("Sunna") or a phrase ("her love", "my ex"). */
+  name: string;
+  /** The name only opened a sentence of the wish, so the road reaches for it only mid-sentence. */
+  weak: boolean;
+}
+
+/**
+ * The other person an inward wish is about: proper names in the wish (not a small word, day, holiday
+ * or dated month, not a ledger name, not a word of any waypoint's place, town or country) and the
+ * pronoun the wish aims at ("make her love me" → "her love"). A word that only opens a sentence
+ * ("Sunna left me.") is a weak name: read only mid-sentence on the road, and never a country or a word
+ * of the ledger's notes (`known`).
+ */
+export function otherPeople(
+  wish: string,
+  ledgerNames: readonly string[],
+  places: readonly string[] = [],
+  known: readonly string[] = [],
+): Target[] {
+  const out = new Map<string, boolean>();
+  const s = foldCase(wish);
+  const cleanOf = (w: string) => w.replace(/[^\p{L}'-]/gu, '').replace(/'s$/i, '');
+  for (const m of s.matchAll(/\S+/g)) {
+    const clean = cleanOf(m[0]);
+    if (!/^\p{Lu}\p{Ll}{2,}$/u.test(clean)) continue;
+    const before = s.slice(0, m.index);
+    const lower = clean.toLowerCase();
+    if (MONTHS.has(lower) ? isDate(before, s.slice((m.index ?? 0) + m[0].length)) : NOT_A_PERSON.has(lower)) continue;
+    // "Christmas Eve", "New Year's Eve": a day, not Eve.
+    if (clean === 'Eve' && NOT_A_PERSON.has(cleanOf(before.trimEnd().split(/\s+/).at(-1) ?? '').toLowerCase())) continue;
+    // A country is only exempt as a place on the road: "Jordan" may be the person.
+    if (ledgerNames.some((n) => mentions(n, clean)) || places.some((p) => mentionsWhole(p, clean))) continue;
+    const weak = opensSentence(before);
+    if (weak && (isCountryName(clean) || known.some((k) => mentionsWhole(k, clean)))) continue;
+    out.set(clean, (out.get(clean) ?? true) && weak);
+  }
+  for (const m of wish.matchAll(/\b(make|get|win|have|let) (him|her|them) (\w+)/gi)) out.set(`${m[2]!.toLowerCase()} ${m[3]!.toLowerCase()}`, false);
+  for (const m of wish.matchAll(/\bmy (ex|crush|boyfriend|girlfriend|husband|wife|partner|boss)\b/gi)) out.set(`my ${m[1]!.toLowerCase()}`, false);
+  return [...out].map(([name, weak]) => ({ name, weak }));
+}
+
+/**
+ * Does `text` reach for `target`? A name only as a whole, capitalised word (a weak one only
+ * mid-sentence, a month only where it is no date); a phrase ("her love") whole.
+ */
+export function reachesFor(text: string, target: Target): boolean {
+  if (!/^\p{Lu}/u.test(target.name)) return mentionsWhole(text, target.name);
+  const s = foldCase(text);
+  const month = MONTHS.has(target.name.toLowerCase());
+  for (const m of s.matchAll(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(foldCase(target.name))}(?![\\p{L}\\p{N}])`, 'gu'))) {
+    const before = s.slice(0, m.index);
+    if (target.weak && opensSentence(before)) continue;
+    if (month && isDate(before, s.slice((m.index ?? 0) + m[0].length))) continue;
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// X6: never pester a person or camp beside them
+
+export interface Person {
+  name: string;
+  /** Teaches, trains, guides, crews or hosts for a living, per their ledger note. */
+  pro: boolean;
+}
+
+const PRO = /\b(?:teach\w*|train(?:s|er|ers|ing)?|coach\w*|instruct\w*|tutor\w*|mentor\w*|guid(?:e|es|ing)|crew\w*|skipper\w*|captain\w*|host(?:s|ing)?|sensei|kru)\b/gi;
+/** A trade in the past is no trade: "retired coach", "former trainer", "no longer teaches". */
+const PAST_TRADE = /\b(?:retired|former(?:ly)?|ex|once|no\s+longer|used\s+to)\b[\s-]+(?:\S+\s+){0,2}$/i;
+/** Does a person note say they teach, train, guide, crew or host for a living now? */
+const isPro = (noteText: string) => [...noteText.matchAll(PRO)].some((m) => !PAST_TRADE.test(noteText.slice(0, m.index)));
+
+/** A verb opens the clause, or follows a comma or a joining word ("and ask him"); never "never ask". */
+const LEAD = String.raw`(?:^|,\s*|\b(?:and|then|to|you|please|also|still|just|or)\s+)`;
+const ASK = String.raw`(?:ask|beg|plead\s+with|pester|write\s+to|write|call|phone|ring|e-?mail|message|text|dm|send(?:\s+\S+){0,3}?\s+(?:a\s+|another\s+)?(?:messages?|letters?|e-?mails?|texts?|notes?|dms?|requests?|word))`;
+const PRESENCE = String.raw`(?:visit|wait\s+for|wait\s+on|go\s+to|go\s+back\s+to|come\s+to|come\s+back\s+to|return\s+to|show\s+up\s+at|turn\s+up\s+at|drop\s+by|stop\s+by|knock\s+on|knock\s+at|follow)`;
+const REPEAT = String.raw`(?:again\s+and\s+again|over\s+and\s+over|time\s+after\s+time|day\s+after\s+day|week\s+after\s+week|(?:every|each)\s+(?:single\s+|other\s+)?(?:\S+\s+)??(?:day|night|morning|evening|week|weekend|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?|(?:once|twice|three\s+times|\d+\s+times)\s+(?:a|per|each|every)\s+(?:day|night|week|month)|(?:daily|nightly|weekly|monthly)(?=\s*(?:$|,)|\s+(?:until|till|for|and|or|if|so)\b))`;
+/** Up to eight words between the verb and the repetition, none that starts a new deed or denies it ("ask Ari to …", "ask once, never …"). */
+const GAP = String.raw`(?:\s+(?!(?:and|then|but|or|nor|while|before|after|until|so|to|once|never|not|no)\b)\S+){0,8}?`;
+/** A verb's object: up to six words, ending before a new deed ("the ring and watch him" is "the ring"). */
+const OBJECT = String.raw`(?:\s+(?!(?:and|then|but|or|nor|while|before|after|until|till|so|to|when|if|for|once|never|not|no)\b)\S+){0,6}`;
+/** The verb then the repetition (the words between are its object, group 1), or the repetition then the verb (group 2). */
+const repeated = (verb: string) => new RegExp(`${LEAD}${verb}\\b(${GAP})\\s+${REPEAT}\\b|${LEAD}${REPEAT},?\\s+(?:you\\s+)?${verb}\\b(${OBJECT})`);
+const ASK_AGAIN = repeated(ASK);
+const PRESENCE_AGAIN = repeated(PRESENCE);
+const KEEP_ASKING = /\bkeep\s+(?:on\s+)?(?:asking|begging|writing|calling|phoning|ringing|e-?mailing|messaging|texting)\b/;
+const KEEP_COMING = /\bkeep\s+(?:on\s+)?(?:visiting|coming\s+back|going\s+back|showing\s+up|turning\s+up|waiting)\b/;
+/** "Camp beside him", "sleep outside her door", "wait at his gate": the object is caught and read after. */
+const CAMP = new RegExp(
+  `${LEAD}(?:camp|wait|sleep|sit|stand|stay|linger|loiter)\\s+(?:beside|outside|near|by|at|on|next\\s+to|in\\s+front\\s+of|across\\s+from|opposite|at\\s+the\\s+door\\s+of)\\s+(\\S+${OBJECT})`,
+);
+/** A person's private ground: never a door for the Lorer, whatever the person's trade. */
+const HOME = /\b(?:home|homes|house|flat|apartment|doorstep|front\s+door|bedroom|window|family|parents)\b/;
+const FOLLOW_HOME = /\bfollow\b((?:\s+\S+){0,4}?)\s+(?:back\s+)?home\b/;
+const PRONOUN = /\b(?:him|her|he|she)\b/;
+const THEM = /\b(?:them|they)\b/;
+const OBJECT_PRONOUN = /\b(?:him|her|them|his|their)\b/;
+
+/** One Person per name; a professional when any of their notes says so. */
+const peopleOf = (personNotes: readonly LedgerNote[]): Person[] => {
+  const out = new Map<string, Person>();
+  for (const n of personNotes) {
+    const p = out.get(foldName(n.name!)) ?? { name: n.name!, pro: false };
+    p.pro ||= isPro(n.text);
+    out.set(foldName(n.name!), p);
+  }
+  return [...out.values()];
+};
+
+/** The waypoint's (or deeper answer's) own person, judged by their ledger notes. */
+function ownPerson(p: { name: string | null; noteId: string | null } | null | undefined, notes: Map<string, LedgerNote>, people: readonly Person[]): Person | null {
+  if (!p?.name) return null;
+  const note = p.noteId ? notes.get(p.noteId) : undefined;
+  const pro =
+    (note?.kind === 'person' && isPro(note.text)) || people.some((x) => x.pro && (mentions(x.name, p.name) || mentions(p.name!, x.name)));
+  return { name: p.name, pro };
+}
+
+/**
+ * Does `text` pester a person? Asking (writing, calling, begging) again and again pesters anyone.
+ * Coming back again and again (visiting, waiting for, camping beside) pesters anyone who does not
+ * teach, train, guide, crew or host for a living: for them, "do not leave until" is the trade. Their
+ * home is never the trade: coming back to it, camping at it or following them to it pesters anyone.
+ */
+export function pesters(text: string, people: readonly Person[], own: Person | null): boolean {
+  const named = people.filter((p) => mentions(text, p.name));
+  const t = norm(text);
+  const pronoun = PRONOUN.test(t);
+  const unpaid = (who: Person[]) => who.length === 0 || who.some((p) => !p.pro);
+  /** Whom an object ("him", "Lone Chaw's farm", "the stadium") points at; null when no person. A pronoun
+   * means the person the line names, else the waypoint's own person. */
+  const whom = (obj: string): Person[] | null => {
+    const there = people.filter((p) => mentions(obj, p.name));
+    if (there.length > 0) return there;
+    return OBJECT_PRONOUN.test(obj) ? (named.length > 0 ? named : own ? [own] : []) : null;
+  };
+  /** Coming to `obj` again and again, or camping at it: pestering unless a professional's own trade. */
+  const intrudes = (obj: string) => {
+    const who = whom(obj);
+    return !!who && (HOME.test(obj) || unpaid(who));
+  };
+  for (const raw of t.split(/[.;:!?]+|,?\s+(?:then|but)\s+/)) {
+    const c = raw.trim();
+    if (!c) continue;
+    if ((ASK_AGAIN.test(c) || KEEP_ASKING.test(c)) && (named.length > 0 || pronoun || THEM.test(c))) return true;
+    const again = PRESENCE_AGAIN.exec(c);
+    if (again && intrudes(again[1] ?? again[2] ?? '')) return true;
+    if (KEEP_COMING.test(c) && (named.length > 0 || pronoun) && (HOME.test(c) || unpaid(named.length > 0 ? named : own ? [own] : []))) return true;
+    const followed = FOLLOW_HOME.exec(c);
+    if (followed && (whom(followed[1]!) || THEM.test(followed[1]!))) return true;
+    const camp = CAMP.exec(c)?.[1];
+    if (camp && intrudes(camp)) return true;
+  }
+  return false;
 }
 
 /** The marks this draft's lines rest on, for tests and the eval (the mind computes marks in draw.ts). */
@@ -937,20 +1233,19 @@ export function checkDeeper(input: DeeperDraftT, ctx: DeeperCheckContext): Deepe
   }
   // X5: an inward wish never reaches for the other person.
   if (tags.has('inward')) {
-    const targets = otherPeople(ctx.wishText, ledgerNames);
+    const targets = otherPeople(ctx.wishText, ledgerNames, [ctx.waypointCountry], ledger.notes.map((n) => n.text));
     for (const text of [draft.answer ?? '', draft.words ?? '', ...draft.steps.map((s) => s.text)]) {
-      if (targets.some((t) => mentions(text, t) || norm(text).includes(norm(t)))) {
+      if (targets.some((t) => reachesFor(text, t))) {
         safeF('X5', 'answer', 'The answer reaches for the person the wish is about. The road is the Lorer’s alone.');
         break;
       }
     }
   }
   // X6: never pester a person or camp beside them.
+  const people = peopleOf(personNotes);
+  const own = ownPerson(k, notes, people);
   draft.steps.forEach((s, j) => {
-    if (
-      PESTER.test(s.text) &&
-      (personNotes.some((n) => mentions(s.text, n.name)) || (keeperName && mentions(s.text, keeperName)) || /\b(him|her|them)\b/i.test(s.text))
-    )
+    if (pesters(s.text, own ? [...people, own] : people, own))
       safeF('X6', `step ${j + 1}`, 'Ask a person once, through a public channel; never again and again, never camp beside them.');
   });
 

@@ -156,8 +156,44 @@ const SCOUT_BUDGET: Record<ScoutRole, { search: number; fetch: number }> = {
   DEEPER: { search: 3, fetch: 1 },
 };
 
-export function scoutParams(cfg: RequestConfig, role: ScoutRole, turn: string, ctx: MindContext): Params {
+/**
+ * Where the web search is told the Lorer stands. 'full': town, country and time zone; 'no-country': the
+ * country left out; 'none': no location at all. The search provider refuses some countries outright
+ * ("the API rejects an unsupported code with a 400 error", web search tool docs), and the request
+ * then fails before anything is searched. See `placeRefused`.
+ */
+export type ScoutPlace = 'full' | 'no-country' | 'none';
+
+/** Countries the search provider refused in this process: later requests (and dawn batches) leave them out. */
+const refusedCountries = new Set<string>();
+
+/**
+ * When a scout request was refused for its search location (a 400 naming user_location), the place to
+ * try instead: the country left out first (and remembered), then no location; null when the error is
+ * anything else or nothing is left to drop.
+ */
+export function placeRefused(err: unknown, place: ScoutPlace, country: string): ScoutPlace | null {
+  if (!(err instanceof APIError) || err.status !== 400) return null;
+  const body = (err as { error?: { error?: { message?: unknown } } }).error?.error;
+  const message = typeof body?.message === 'string' ? body.message : err.message;
+  if (!/user_location/i.test(message)) return null;
+  // (A scout sent alongside may have been refused for the same country a moment earlier.)
+  if (place === 'full' && /country/i.test(message)) {
+    refusedCountries.add(country);
+    return 'no-country';
+  }
+  return place === 'none' ? null : 'none';
+}
+
+/** For tests: forget the refused countries. */
+export function forgetRefusedCountries(): void {
+  refusedCountries.clear();
+}
+
+export function scoutParams(cfg: RequestConfig, role: ScoutRole, turn: string, ctx: MindContext, place: ScoutPlace = 'full'): Params {
   const budget = SCOUT_BUDGET[role];
+  const country = place === 'full' && /^[A-Z]{2}$/.test(ctx.realm.country) && !refusedCountries.has(ctx.realm.country) ? ctx.realm.country : null;
+  const city = townOf(ctx.realm.label);
   return {
     ...LIVE,
     betas: [...LIVE.betas],
@@ -173,12 +209,16 @@ export function scoutParams(cfg: RequestConfig, role: ScoutRole, turn: string, c
         type: 'web_search_20260209',
         name: 'web_search',
         max_uses: budget.search,
-        user_location: {
-          type: 'approximate',
-          city: townOf(ctx.realm.label),
-          ...(/^[A-Z]{2}$/.test(ctx.realm.country) ? { country: ctx.realm.country } : {}),
-          timezone: ctx.timeZone,
-        },
+        ...(place === 'none'
+          ? {}
+          : {
+              user_location: {
+                type: 'approximate' as const,
+                ...(city ? { city } : {}),
+                ...(country ? { country } : {}),
+                timezone: ctx.timeZone,
+              },
+            }),
         blocked_domains: [...MIRROR_DOMAINS],
       },
       {

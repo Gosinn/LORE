@@ -24,12 +24,13 @@ import {
   composeParams,
   deeperParams,
   failureOf,
+  placeRefused,
   readStructured,
   runScout,
   scoutParams,
   weighParams,
 } from './client.ts';
-import type { Block, MindClient, Reply } from './client.ts';
+import type { Block, CallOptions, MindClient, Reply, ScoutPlace, ScoutRun } from './client.ts';
 import { checkDeeper, checkDraft, faultCodes } from './checks.ts';
 import { spendOf } from './cost.ts';
 import { toDeeper, toRoad } from './draw.ts';
@@ -94,6 +95,12 @@ export const MIN_NOTES = 3;
 
 /** A compose or repair asked for the larger output room needs at least this long before the job's end. */
 export const RERUN_NEEDS_MS = 120_000;
+
+/**
+ * A repair (it writes the whole quest again) needs at least this long before the job's end. With less
+ * left, a draft with no safety faults is sealed as it is (rough), rather than cut off and lost.
+ */
+export const REPAIR_NEEDS_MS = 180_000;
 
 /** A logger like Fastify's (pino). Only ids, stages, timings, tokens and cost are ever passed. */
 export interface MindLog {
@@ -251,6 +258,11 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
         signal.throwIfAborted();
         const scouted = await scoutRoad(c, wish, ctx, onSign, signal, spend);
         if (scouted.kind === 'silent') return { kind: 'silent', spend };
+        try {
+          opts.onLedger?.(ledgerRecord(scouted.ledger, scouted.dossiers, scouted.seen));
+        } catch {
+          // Keeping the ledger for a later attempt is a saving, never a reason to fail this one.
+        }
         return await composeRoad(c, wish, ctx, scouted, { task: 'quest', earlier: [] }, onSign, signal, spend, opts.deadline);
       } catch (err) {
         throw fail(err, spend, signal);
@@ -294,7 +306,7 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
         // ---- The DEEPER scout: one waypoint, a few searches, effort low.
         const onBlock = signer(onSign);
         const turn = deeperScoutTurn(ask.wish, ctx, ask.wish.weighing, ask.focus);
-        const run = await runScout(c, scoutParams(cfg, 'DEEPER', turn, ctx), onBlock, { signal }, (reply, ms, cut) => {
+        const run = await scoutRun(c, 'DEEPER', turn, ctx, onBlock, { signal }, (reply, ms, cut) => {
           const stop = reply.message.stop_reason;
           const outcome: SpendOutcome = cut ? 'error' : stop === 'refusal' ? 'refusal' : stop === 'max_tokens' ? 'max_tokens' : 'ok';
           account(spend, 'deeper-scout', outcome, reply, ms);
@@ -372,6 +384,38 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
 
   type Scouted = { kind: 'ledger'; ledger: Ledger; seen: SeenUrls; dossiers: string[] };
 
+  /**
+   * One scout. When the search provider refuses where the Lorer stands (a 400 naming user_location,
+   * before anything was searched or paid), the scout goes again without the country, then without any
+   * location: the road is found from the wish and the realm in the turn either way.
+   */
+  async function scoutRun(
+    c: MindClient,
+    role: ScoutRole,
+    turn: string,
+    ctx: MindContext,
+    onBlock: (b: Block) => void,
+    options: CallOptions,
+    onReply: (reply: Reply, ms: number, cut?: boolean) => void,
+  ): Promise<ScoutRun> {
+    let place: ScoutPlace = 'full';
+    let paid = false;
+    const counted = (reply: Reply, ms: number, cut?: boolean) => {
+      paid = true;
+      onReply(reply, ms, cut);
+    };
+    for (;;) {
+      try {
+        return await runScout(c, scoutParams(cfg, role, turn, ctx, place), onBlock, options, counted);
+      } catch (err) {
+        const next: ScoutPlace | null = paid ? null : placeRefused(err, place, ctx.realm.country);
+        if (!next) throw err;
+        log.warn({ loracle: 'scout', role, place: next, ...apiReason(err) }, 'loracle search location refused; searching without it');
+        place = next;
+      }
+    }
+  }
+
   /** The scouts, in parallel (ROAD ‖ KEEPERS), then the ledger. Signs as real searches and fetches happen. */
   async function scoutRoad(
     c: MindClient,
@@ -386,7 +430,7 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
     const roles: ScoutRole[] = ['ROAD', 'KEEPERS'];
     const runs = await Promise.allSettled(
       roles.map((role) =>
-        runScout(c, scoutParams(cfg, role, scoutTurn(wish, ctx, wish.weighing, role), ctx), onBlock, { signal }, (reply, ms, cut) => {
+        scoutRun(c, role, scoutTurn(wish, ctx, wish.weighing, role), ctx, onBlock, { signal }, (reply, ms, cut) => {
           const stop = reply.message.stop_reason;
           const outcome: SpendOutcome = cut ? 'error' : stop === 'refusal' ? 'refusal' : stop === 'max_tokens' ? 'max_tokens' : 'ok';
           account(spend, role === 'ROAD' ? 'road' : 'keepers', outcome, reply, ms);
@@ -461,6 +505,19 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
       // The larger rerun would outlast the job: stop here rather than pay for a cut-off reply.
       if (req.maxTokens > COMPOSE_TOKENS[0] && deadline !== undefined && deadline - Date.now() < RERUN_NEEDS_MS) {
         throw new MindError('timeout', { spend });
+      }
+      // Too little time for a repair: a draft that is safe, only rough, is sealed as it stands.
+      if (
+        req.stage === 'repair' &&
+        deadline !== undefined &&
+        deadline - Date.now() < REPAIR_NEEDS_MS &&
+        flow.checked &&
+        flow.checked.safety.length === 0
+      ) {
+        log.info({ loracle: 'repair', skipped: true, hard: flow.checked.hard.length }, 'loracle repair skipped: too little time; sealed rough');
+        flow.faults.push('late');
+        flow.step = 'done';
+        break;
       }
       if (req.sign) onSign({ kind: req.sign });
       const t0 = Date.now();

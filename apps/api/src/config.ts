@@ -192,7 +192,10 @@ export function loracleConfig(opts: {
   const config = {
     mode,
     model: 'claude-opus-5-5',
-    effort: { weigh: 'low', scout: 'medium', compose: 'high', repair: 'medium' },
+    // Compose at medium: on Opus 5.5 medium exceeds the previous Opus at high on knowledge work, and high
+    // buys nothing measurable over medium on research (bundled Claude API skill, model-migration.md and
+    // cost-optimization.md). At high, a full quest's thinking plus output ran past the job's budget.
+    effort: { weigh: 'low', scout: 'medium', compose: 'medium', repair: 'medium' },
     monthlyUsd: opts.monthlyUsd ?? 150,
     castsPer24h: 10,
     weighsPer24h: 40,
@@ -201,7 +204,9 @@ export function loracleConfig(opts: {
     deeperNow: opts.deeperNow ?? 10,
     dailyBudgetUsd: opts.dailyBudgetUsd ?? 10,
     maxConcurrent: 3,
-    jobTimeoutMs: 360_000,
+    // Two web-searching scouts, a compose and usually a repair, one after another: 6 minutes was too few
+    // for a real road. 12 stays inside Render free's 15 minutes of idle before it sleeps.
+    jobTimeoutMs: 720_000,
     anonSalt: opts.anonSalt,
   } as LoracleConfig;
   if (opts.apiKey) Object.defineProperty(config, 'apiKey', { value: opts.apiKey, enumerable: false });

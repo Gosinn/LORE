@@ -1,6 +1,7 @@
 // The Loracle's code-side mind: ledger, checks, marks, draw and seals. No network, no database.
 import { describe, expect, it } from 'vitest';
-import { checkDeeper, checkDraft, findPhrase, type CheckContext, type DeeperCheckContext } from '../src/lib/loracle/checks.ts';
+import { checkDeeper, checkDraft, faultLines, findPhrase, type CheckContext, type DeeperCheckContext } from '../src/lib/loracle/checks.ts';
+import { drawFeed, drawFlow, drawRequest } from '../src/lib/loracle/flow.ts';
 import { drawPins, shapeWaypoint, toRoad, waypointState, weekDay, type FullWaypoint } from '../src/lib/loracle/draw.ts';
 import { SeenUrls, buildLedger, canonicalUrl, foldName, markOf, parseDossier, samePlace, type Ledger } from '../src/lib/loracle/ledger.ts';
 import { BANNED, HEDGES } from '../src/lib/loracle/prompts.ts';
@@ -76,6 +77,31 @@ function seenUrls(): SeenUrls {
 
 function ledgerFixture(): Ledger {
   return buildLedger([ROAD, KEEPERS], seenUrls(), TODAY);
+}
+
+// Advice lines in the shapes the scouts write them: regions with their country, a direction and a
+// country, a whole country with no place, and a country line that names only some of its provinces.
+const ADVICE = `ROLE: ROAD
+R11 | advice | Sagaing Region | Sagaing Region, Myanmar | - | FCDO advises against all travel to Sagaing Region | VERIFIED | https://www.gov.uk/foreign-travel-advice/myanmar | 2026-11-01
+R12 | advice | Shan State | Shan State, Myanmar | - | FCDO advises against all travel to Shan State | VERIFIED | https://www.gov.uk/foreign-travel-advice/myanmar | 2026-11-01
+R13 | advice | Southern Thailand | Thailand | - | FCDO advises against all but essential travel to Southern Thailand | VERIFIED | https://www.gov.uk/foreign-travel-advice/thailand | 2026-11-01
+R14 | advice | North Korea | - | - | FCDO advises against all travel to North Korea | VERIFIED | https://www.gov.uk/foreign-travel-advice/north-korea | 2026-11-01
+R16 | advice | Thailand | Thailand | - | FCDO advises against all but essential travel to Pattani, Yala and Narathiwat | VERIFIED | https://www.gov.uk/foreign-travel-advice/thailand | 2026-11-01`;
+/** The whole of Myanmar under such advice. */
+const ADVICE_MYANMAR = `ROLE: ROAD
+R15 | advice | Myanmar | - | - | FCDO advises against all but essential travel to Myanmar | VERIFIED | https://www.gov.uk/foreign-travel-advice/myanmar | 2026-11-01`;
+
+function adviceLedger(...more: string[]): Ledger {
+  const seen = seenUrls();
+  seen.collect({
+    type: 'web_search_tool_result',
+    tool_use_id: 'srv_4',
+    content: [
+      { type: 'web_search_result', url: 'https://www.gov.uk/foreign-travel-advice/thailand', title: 'Thailand travel advice', page_age: '1 Nov 2026', encrypted_content: 'x' },
+      { type: 'web_search_result', url: 'https://www.gov.uk/foreign-travel-advice/north-korea', title: 'North Korea travel advice', page_age: '1 Nov 2026', encrypted_content: 'x' },
+    ],
+  });
+  return buildLedger([ROAD, KEEPERS, ADVICE, ...more], seen, TODAY);
 }
 
 const idOf = (ledger: Ledger, name: string) => {
@@ -545,6 +571,157 @@ describe('the safety checks', () => {
     draft.map[2]!.road[1]!.text = 'Ask Ko Zaw Lin every week until he says yes.';
     const r = checkDraft(draft, context(ledger));
     expect(codes(r.safety)).toContain('X6');
+  });
+
+  it('reads a zone by its whole name in its own country, and leaves a whole country to the gate (X3)', () => {
+    let ledger = adviceLedger();
+    const quiet = (edit: (d: QuestDraftT) => void) => {
+      const draft = draftFixture(ledger);
+      edit(draft);
+      return codes(checkDraft(draft, context(ledger)).safety);
+    };
+    // "Sagaing Region" is not "Yangon Region"; "Shan State" is not "Kayin State" or "Mandalay Region".
+    expect(
+      quiet((d) => {
+        d.map[1]!.where.geoQuery = 'Thut Ti Lethwei Gym, Yangon, Yangon Region, Myanmar';
+        d.map[3]!.where = { place: 'Mandalay Lethwei Ring', town: 'Mandalay', country: 'Myanmar', geoQuery: 'Mandalay Lethwei Ring, Mandalay, Mandalay Region, Myanmar', lat: null, lon: null };
+      }),
+    ).toEqual([]);
+    // "Southern Thailand" is not all of Thailand, nor is a Thailand line that names three provinces.
+    expect(
+      quiet((d) => {
+        d.map[2]!.where = { place: 'Lumpinee Stadium', town: 'Bangkok', country: 'Thailand', geoQuery: 'Lumpinee Stadium, Bangkok, Thailand', lat: null, lon: null };
+      }),
+    ).toEqual([]);
+    // "North Korea" is not "South Korea".
+    expect(
+      quiet((d) => {
+        d.map[3]!.where = { place: 'Jangchung Arena', town: 'Seoul', country: 'South Korea', geoQuery: 'Jangchung Arena, Seoul, South Korea', lat: null, lon: null };
+      }),
+    ).toEqual([]);
+    // Inside a zone, by its whole name or the name without "State", it still fires.
+    expect(
+      quiet((d) => {
+        d.map[3]!.where = { place: 'Taunggyi fight ring', town: 'Taunggyi', country: 'Myanmar', geoQuery: 'Taunggyi, Shan State, Myanmar', lat: null, lon: null };
+      }),
+    ).toEqual(['X3']);
+    expect(
+      quiet((d) => {
+        d.map[3]!.where = { place: 'Hpa-an fight ring', town: 'Hpa-an', country: 'Myanmar', geoQuery: 'Hpa-an, Kayin, Myanmar', lat: null, lon: null };
+      }),
+    ).toEqual(['X3']);
+    // A whole country under the advice holds only the map's one gate and what comes after it.
+    const pyongyang = { place: 'Taekwondo Hall', town: 'Pyongyang', country: 'North Korea', geoQuery: 'Taekwondo Hall, Pyongyang, North Korea', lat: null, lon: null };
+    expect(quiet((d) => void (d.map[3]!.where = pyongyang))).toEqual(['X3']);
+    expect(
+      quiet((d) => {
+        d.map[1]!.kind = 'gate';
+        d.map[3]!.where = pyongyang;
+      }),
+    ).toEqual([]);
+    ledger = adviceLedger(ADVICE_MYANMAR);
+    expect(quiet(() => {})).toEqual(['X3', 'X3', 'X3']);
+    expect(quiet((d) => void (d.map[1]!.kind = 'gate'))).toEqual([]);
+    // With the gate last, the gym and the stadium stand in Myanmar before it.
+    expect(quiet((d) => void (d.map[3]!.kind = 'gate'))).toEqual(['X3', 'X3']);
+  });
+
+  it('an inward wish reaches for its person, never for the first word of a sentence, a holiday, or a place or country on the road (X5)', () => {
+    const ledger = ledgerFixture();
+    const inward = (wishText: string) => context(ledger, { weighing: { tags: ['inward'], binds: [] }, wishText });
+    const wish = 'I lost Sunna on Christmas Eve. The ring in Yangon is all I have now, and Myanmar is where I go.';
+    // The draft says "the" everywhere and "every bout": neither is Sunna.
+    expect(codes(checkDraft(draftFixture(ledger), inward(wish)).safety)).toEqual([]);
+    const reach = draftFixture(ledger);
+    reach.map[0]!.trial = 'Train until Ari Jónsson lets you spar, then show Sunna what you became.';
+    expect(codes(checkDraft(reach, inward(wish)).safety)).toEqual(['X5']);
+    // Eve the person is still Eve, by her whole name.
+    reach.map[0]!.trial = 'Train until Ari Jónsson lets you spar, then show Eve what you became.';
+    expect(codes(checkDraft(reach, inward('I wish Eve would come back to me.')).safety)).toEqual(['X5']);
+    expect(codes(checkDraft(draftFixture(ledger), inward('I wish Eve would come back to me.')).safety)).toEqual([]);
+    // A name that only opens a sentence of the wish is still the person when the road names it mid-sentence.
+    reach.map[0]!.trial = 'Train until Ari Jónsson lets you spar, then show Sunna what you became.';
+    expect(codes(checkDraft(reach, inward('I cannot stop missing her. Sunna was my whole world.')).safety)).toEqual(['X5']);
+    expect(codes(checkDraft(reach, inward('I wish Mr. Sunna would forgive me.')).safety)).toEqual(['X5']);
+    // A month is the person only where it is no date: "June", never "in June".
+    const june = draftFixture(ledger);
+    june.map[1]!.road[2]!.text = 'Fly to Yangon in June and sleep near the gym.';
+    expect(codes(checkDraft(june, inward('I wish June would love me again.')).safety)).toEqual([]);
+    june.map[0]!.trial = 'Train until Ari Jónsson lets you spar, then show June what you became.';
+    expect(codes(checkDraft(june, inward('I wish June would love me again.')).safety)).toEqual(['X5']);
+  });
+
+  it('a keeper who trains for a living is trained under and sparred with every day; a camp near a stadium is no camp beside a person (X6)', () => {
+    const ledger = ledgerFixture();
+    const draft = draftFixture(ledger);
+    const N = (name: string) => idOf(ledger, name);
+    const safe = [
+      'Train under Saya Min Thu every day for a month.',
+      'Sleep at the fight camp near the stadium; spar with them on Fridays.',
+      'Spar every day; ask him for a fight in March.',
+      'Visit Ari Jónsson every evening and hold the pads.',
+    ];
+    draft.map[1]!.road.push({ kind: 'do', text: safe[0]!, noteIds: [N('Saya Min Thu')] });
+    draft.map[2]!.road.push({ kind: 'do', text: safe[1]!, noteIds: [N('Theinbyu Stadium')] });
+    draft.map[2]!.road.push({ kind: 'do', text: safe[2]!, noteIds: [N('Ko Zaw Lin')] });
+    draft.map[0]!.road.push({ kind: 'do', text: safe[3]!, noteIds: [N('Ari Jónsson')] });
+    const r = checkDraft(draft, context(ledger));
+    // Each line survived the soft fixes, so the checks really read it.
+    const kept = r.draft.map.flatMap((w) => w.road.map((s) => s.text));
+    for (const s of safe) expect(kept).toContain(s);
+    expect(codes(r.safety)).toEqual([]);
+
+    // Asking again and again pesters anyone; coming back again and again or camping beside them
+    // pesters anyone who does not train for a living. "Never again" is no pestering.
+    const fires = (text: string, at = 2) => {
+      const d = draftFixture(ledger);
+      d.map[at]!.road[1]!.text = text;
+      return codes(checkDraft(d, context(ledger)).safety);
+    };
+    expect(fires('Write to Ko Zaw Lin again and again until he answers.')).toEqual(['X6']);
+    expect(fires('Every week, ask him for a bout.')).toEqual(['X6']);
+    expect(fires('Camp beside him until he takes you on.', 3)).toEqual(['X6']);
+    expect(fires('Visit him every day until he takes you on.', 3)).toEqual(['X6']);
+    expect(fires('Ask Ko Zaw Lin once, never again and again.')).toEqual([]);
+    // A letter or a message is asking, of a person or of "them"; a home is no one's trade.
+    expect(fires('Send him a message every week until he answers.')).toEqual(['X6']);
+    expect(fires('Message them every week until they answer.')).toEqual(['X6']);
+    expect(fires('Wait outside his house every night until he agrees.')).toEqual(['X6']);
+    expect(fires("Go to Ko Zaw Lin's home every day until he agrees.")).toEqual(['X6']);
+    expect(fires('Follow him home after the bouts.')).toEqual(['X6']);
+    // A retired coach no longer coaches for a living.
+    const retired = buildLedger(
+      [ROAD, KEEPERS, 'ROLE: KEEPERS\nK7 | person | U Tin | Mandalay, Myanmar | - | Retired coach who once trained champions | VERIFIED | https://en.wikipedia.org/wiki/Lethwei | 2026-09-30'],
+      seenUrls(),
+      TODAY,
+    );
+    const visit = draftFixture(retired);
+    visit.map[3]!.road[1]!.text = 'Visit U Tin every day until he takes you on.';
+    expect(codes(checkDraft(visit, context(retired)).safety)).toEqual(['X6']);
+  });
+});
+
+describe('the recompose turn', () => {
+  it('names the safety faults the fresh compose must keep clear of, and is counted as a repair', () => {
+    const ledger = ledgerFixture();
+    const unsafe = draftFixture(ledger);
+    unsafe.map[2]!.road[1]!.text = 'Ask Ko Zaw Lin every week until he says yes.';
+    const check = (d: QuestDraftT) => checkDraft(d, context(ledger));
+    const flow = drawFlow('quest');
+    drawFeed(flow, { kind: 'ok', value: unsafe }, check);
+    expect(flow.step).toBe('repair');
+    drawFeed(flow, { kind: 'ok', value: unsafe }, check);
+    expect(flow.step).toBe('recompose');
+    const req = drawRequest(flow, 'COMPOSE INPUT')!;
+    expect(req).toMatchObject({ stage: 'repair', effort: 'compose' });
+    expect(req.turn.startsWith('COMPOSE INPUT\n<faults>')).toBe(true);
+    for (const line of faultLines(flow.checked!.safety)) expect(req.turn).toContain(`- ${line}`);
+    expect(req.turn).toContain('never again and again');
+    // A fresh compose, not a repair: the old draft is not sent back.
+    expect(req.turn).not.toContain('<draft>');
+    // A clean fresh compose ends the road.
+    drawFeed(flow, { kind: 'ok', value: draftFixture(ledger) }, check);
+    expect(flow.step).toBe('done');
   });
 });
 

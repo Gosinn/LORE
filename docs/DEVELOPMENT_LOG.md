@@ -1,5 +1,37 @@
 # LORE — Development log
 
+## 2026-11-19 — The first live roads: "The fog won twice"
+
+The owner cast the first real wish ("I seek the gold of the pirates of the caribbean"): the weighing worked,
+the road faded twice, and "Try again" seemed to do nothing. No production logs were at hand, so a review
+(five lenses over the mind, each finding checked by two skeptics against the Claude API docs and the SDK)
+looked for what in the code would fail. **The real cause is still not confirmed from logs**; these were fixed:
+
+- **The search location**: the scouts tell web search the Lorer's town, country and time zone, and the
+  search provider refuses some countries outright (a 400 naming `user_location.country`, web search tool
+  docs). A Lorer in such a country would get no road at all, fast, which matches "Try again does nothing".
+  Now the scout goes again without the country (remembered for the process, also for dawn batches), then
+  without any location (`placeRefused`, `scoutRun`).
+- **The job budget**: two web-searching scouts, a compose at effort high and usually a repair could not fit
+  in 360 s, and the second attempt began again from the scouts. The budget is now 12 minutes, compose runs at
+  effort medium (the skill's guidance for Opus 5.5), the second attempt draws from the ledger the first one's
+  scouts built (kept in memory, `keptLedgers`), and with under 3 minutes left a safe but rough draft is
+  sealed instead of starting a repair it could not finish (`REPAIR_NEEDS_MS`, fault `late`).
+- **The log**: a refused request now logs the API's error type and message (`apiReason`).
+- **Safety checks that could never pass** for some wishes, found by running the repo's own `checkDraft`:
+  X3 matched an advice zone by its last word ("Sagaing Region" caught every "… Region", "North Korea" caught
+  "South Korea", "Southern Thailand" every Thai waypoint); X5 took any capitalised word ("The", "Christmas")
+  for the other person; X6 fired on ordinary trainer lines ("Train under … every day"). Now: X3 matches whole
+  zone names in the zone's own country, and a whole-country "all travel" note fires only before the gate
+  waypoint (as the compose prompt says); X5 skips sentence starts, small words, dates and places, and matches
+  whole names; X6 needs an asking or visiting verb with a repetition aimed at a person, and a working
+  teacher, trainer, crew or host may be visited and camped beside at work (never at home). The fresh compose
+  after a failed repair is now told its safety faults. Every unsafe draft the old checks caught still fails
+  (about 80 hand-built drafts compared, old against new).
+- **Verified**: typecheck; `npm test` (API 369, web 236). **Not verified**: a real road on the live server.
+
+"Try again" works once per road per day by design; the presses after the first were refused (409).
+
 ## 2026-11-19 — The Loracle, phases B and C: Two roads, Ask the stone, the dawn lane, crews and the Epic (D31 note)
 
 The owner: "alright lets just keep going then". Built from the Loracle spec v3 (phases B and C), in two tracks

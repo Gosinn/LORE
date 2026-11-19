@@ -12,7 +12,7 @@
 // one drawn now.
 import { faultCodes, faultLines, type CheckResult, type DeeperCheck } from './checks.ts';
 import type { Structured } from './client.ts';
-import { deeperRepairTurn, repairTurn } from './prompts.ts';
+import { deeperRepairTurn, recomposeTurn, repairTurn } from './prompts.ts';
 import type { DeeperDraftT, QuestDraftT } from './schema.ts';
 import type { LoracleStage, SpendOutcome } from './types.ts';
 
@@ -93,9 +93,12 @@ export function drawRequest(flow: DrawFlow, composeInput: string): DrawRequest |
         sign: first ? 'repair' : null,
       };
     }
-    case 'recompose':
-      // Counted as a repair, not a new cast.
-      return { stage: 'repair', turn: composeInput, effort: 'compose', maxTokens: flow.maxTokens, addendum, sign: first ? 'repair' : null };
+    case 'recompose': {
+      // Counted as a repair, not a new cast. A fresh compose that names the safety faults to keep clear of.
+      const safety = flow.checked?.safety ?? [];
+      const turn = safety.length > 0 ? recomposeTurn(composeInput, faultLines(safety)) : composeInput;
+      return { stage: 'repair', turn, effort: 'compose', maxTokens: flow.maxTokens, addendum, sign: first ? 'repair' : null };
+    }
     default:
       return null;
   }

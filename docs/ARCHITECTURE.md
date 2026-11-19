@@ -107,7 +107,7 @@ rounded to two decimals) names the town at the device's location for "Where do y
  lib/loracle/jobs.ts  (≤3 at once, one per Lorer, run_id guard, heartbeat, boot + lazy sweeps)
      mind.cast ── two research passes with web search/fetch (streamed; signs → road.signs)
               ── ledger.ts (code: only URLs the tools returned, dated, merged)
-              ── compose (structured output, effort high) ── checks.ts (+ one repair) ── draw.ts marks
+              ── compose (structured output, effort medium) ── checks.ts (+ one repair) ── draw.ts marks
      ──> road `ready` + wish_waypoints ──> drawPins (Nominatim) ──> road `drawn` (the scroll is sealed)
      every model request ──> loracle_spend (cost, tokens, no text)
 ```

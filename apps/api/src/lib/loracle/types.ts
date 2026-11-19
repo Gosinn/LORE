@@ -365,6 +365,11 @@ export type SignSink = (sign: LoracleSign) => void;
 export interface CastOptions {
   /** When the job's budget runs out (epoch ms): a larger rerun that could not finish is not started. */
   deadline?: number;
+  /**
+   * Told the scouts' ledger as soon as it is built, before anything is composed: an attempt cut off
+   * after the scouts lets the next attempt draw from it instead of paying for the scouts again.
+   */
+  onLedger?: (record: LedgerRecord) => void;
 }
 
 /**

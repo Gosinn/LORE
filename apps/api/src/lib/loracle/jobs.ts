@@ -51,6 +51,7 @@ import {
   type DeeperFocus,
   type DrawFrom,
   type EarlierRoad,
+  type LedgerRecord,
   type LoracleMind,
   type MindContext,
   type SpendEntry,
@@ -628,6 +629,12 @@ export function createWishJobs(opts: {
   const running = new Map<string, Running>(); // by road or ask id
   const busyLorers = new Set<string>();
   const retryTimers = new Map<string, { timer: NodeJS.Timeout; job: Job; done: () => void }>();
+  /**
+   * The scouts' ledger of a cast's road whose attempt failed after the scouts (say, cut off while
+   * composing): the automatic second attempt draws from it instead of paying for the scouts again. In
+   * memory only (a restarted process scouts again); dropped when the road is done, silent or faded.
+   */
+  const keptLedgers = new Map<string, LedgerRecord>();
   const drawing = new Set<string>(); // road ids the sweep is re-drawing (claimed or about to be)
   const redrawing = new Map<string, Running>(); // the claimed ones, so a burn or shutdown can stop them
   const inflight = new Set<Promise<unknown>>();
@@ -808,8 +815,10 @@ export function createWishJobs(opts: {
     const weighed: WeighedWish = { text: wish.text, riddleAnswer: null, rerouted: false, weighing: wish.weighing };
     const spendFor = { userId, wishId, day: wish.day, roadId };
 
-    // "Ask again" draws from the wish's ledger; a dawn road whose scouts are done resumes from its own.
-    const resumed = claimed.batch?.ledger ?? null;
+    // "Ask again" draws from the wish's ledger; a dawn road whose scouts are done resumes from its own,
+    // and a cast's second attempt from what its first one's scouts found.
+    const kept = claimed.n === 1 && claimed.attempts > 1 ? (keptLedgers.get(roadId) ?? null) : null;
+    const resumed = claimed.batch?.ledger ?? kept;
     let from: DrawFrom | null = null;
     if (claimed.n > 1 || resumed) {
       const roads = await db.select({ quest: wishRoads.quest }).from(wishRoads).where(eq(wishRoads.wishId, wishId));
@@ -824,10 +833,14 @@ export function createWishJobs(opts: {
       }
     }
 
+    // True only when this attempt failed and another was queued: the next one may draw from the kept ledger.
+    let keepLedger = false;
     try {
       let draft: CastDraft;
       // Kept apart from the race: when an abort wins, this still says what was paid for.
-      const castP = from ? mind.draw(weighed, ctx, from, onSign, signal, { deadline }) : mind.cast(weighed, ctx, onSign, signal, { deadline });
+      const castP = from
+        ? mind.draw(weighed, ctx, from, onSign, signal, { deadline })
+        : mind.cast(weighed, ctx, onSign, signal, { deadline, onLedger: (record) => keptLedgers.set(roadId, record) });
       try {
         draft = await raced(castP, signal, timeout);
       } catch (err) {
@@ -849,7 +862,7 @@ export function createWishJobs(opts: {
           },
           'loracle: road attempt failed',
         );
-        await failAttempt(r.job, runId, failure, claimed.attempts);
+        keepLedger = (await failAttempt(r.job, runId, failure, claimed.attempts)) === 'retry';
         return;
       }
 
@@ -896,6 +909,7 @@ export function createWishJobs(opts: {
       await draw(roadId, runId, signal);
     } finally {
       clearInterval(heartbeat);
+      if (!keepLedger) keptLedgers.delete(roadId);
     }
   }
 
@@ -925,8 +939,9 @@ export function createWishJobs(opts: {
   }
 
   /** A failed attempt: queue the automatic retry, or let the road fade (the wish too, if it has no other road). */
-  async function failAttempt(job: Job, runId: string, failure: WishFailure, attempts: number) {
-    if (job.kind !== 'road') return;
+  /** Write a failed attempt: queued again for one more ('retry'), or faded. */
+  async function failAttempt(job: Job, runId: string, failure: WishFailure, attempts: number): Promise<'retry' | 'faded' | 'lost'> {
+    if (job.kind !== 'road') return 'lost';
     const guard = and(eq(wishRoads.id, job.roadId), eq(wishRoads.runId, runId));
     if (attempts < MAX_ATTEMPTS) {
       const rows = await db
@@ -941,7 +956,7 @@ export function createWishJobs(opts: {
         .where(guard)
         .returning({ id: wishRoads.id });
       if (rows.length) scheduleRetry(job, failure);
-      return;
+      return rows.length ? 'retry' : 'lost';
     }
     await db.transaction(async (tx) => {
       const rows = await tx
@@ -955,6 +970,7 @@ export function createWishJobs(opts: {
         .set({ status: 'faded', updatedAt: new Date() })
         .where(and(eq(wishes.id, job.wishId), eq(wishes.status, 'listening')));
     });
+    return 'faded';
   }
 
   // ---- Deeper asks (phase B) ------------------------------------------------

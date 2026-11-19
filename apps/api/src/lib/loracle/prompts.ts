@@ -494,6 +494,20 @@ export function repairTurn(composeInput: string, draftJson: string, faults: stri
   ].join('\n');
 }
 
+/**
+ * A fresh compose after safety faults outlived the repair: the compose input and the faults to keep
+ * clear of. No draft: the road is drawn again from the ledger, not patched.
+ */
+export function recomposeTurn(composeInput: string, faults: string[]): string {
+  return [
+    composeInput,
+    '<faults>',
+    ...faults.map((f) => `- ${f}`),
+    '</faults>',
+    'An earlier road broke these safety rules, and its repair did not mend them. Draw the quest afresh from the ledger, clear of every one.',
+  ].join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // Phase B turns
 

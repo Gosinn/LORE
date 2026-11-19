@@ -12,6 +12,7 @@ import { safeErr } from '../src/lib/safeLog.ts';
 import {
   MindError,
   type CastDraft,
+  type CastOptions,
   type DeeperDraft,
   type DrawFrom,
   type DraftRoad,
@@ -115,12 +116,14 @@ const ROAD: DraftRoad = {
   ],
 };
 
-type CastStep = 'road' | 'fail' | 'silent' | 'block' | 'blockPaid';
+type CastStep = 'road' | 'fail' | 'silent' | 'block' | 'blockPaid' | 'scoutedThenTimeout';
 
 class StubMind implements LoracleMind {
   readonly kind = 'claude' as const;
   weighs = 0;
   casts = 0;
+  draws = 0;
+  lastFrom: DrawFrom | null = null;
   lastContext: MindContext | null = null;
   lastWish: MindWish | null = null;
   weighFails = 0;
@@ -147,9 +150,14 @@ class StubMind implements LoracleMind {
     return { verdict: this.verdict(wish), spend: [spend('weigh')] };
   }
 
-  async cast(_wish: WeighedWish, _context: MindContext, onSign: SignSink, signal: AbortSignal): Promise<CastDraft> {
+  async cast(_wish: WeighedWish, _context: MindContext, onSign: SignSink, signal: AbortSignal, opts: CastOptions = {}): Promise<CastDraft> {
     this.casts++;
     const step = this.plan.shift() ?? 'road';
+    if (step === 'scoutedThenTimeout') {
+      // The scouts finished (and were paid for); the compose was cut off by the job's budget.
+      opts.onLedger?.({ notes: [], gaps: ['KEPT-LEDGER'], dossiers: ['KEPT-DOSSIER'], sources: [], seen: [] });
+      throw new MindError('timeout', { spend: [spend('road'), spend('keepers')] });
+    }
     onSign({ kind: 'search', query: 'Lethwei gyms in Yangon' });
     onSign({ kind: 'fetch', host: 'www.example.org' });
     if (step === 'block' || step === 'blockPaid') {
@@ -189,7 +197,9 @@ class StubMind implements LoracleMind {
   }
 
   // Phase B (its own tests live in loracle-b.test.ts): drawn like a cast here.
-  async draw(wish: WeighedWish, context: MindContext, _from: DrawFrom, onSign: SignSink, signal: AbortSignal): Promise<CastDraft> {
+  async draw(wish: WeighedWish, context: MindContext, from: DrawFrom, onSign: SignSink, signal: AbortSignal): Promise<CastDraft> {
+    this.draws++;
+    this.lastFrom = from;
     return this.cast(wish, context, onSign, signal);
   }
 
@@ -934,6 +944,30 @@ describe('when the fog wins', () => {
     expect(wish.status).toBe('revealed');
     expect(wish.road.attempts).toBe(2);
     expect(wish.road.signs).toContain(signLine({ kind: 'retry' }));
+  });
+
+  it('keeps what the scouts found when an attempt is cut off after them: the second draws from it', async () => {
+    const c = await lorer('kept');
+    stub.plan = ['scoutedThenTimeout'];
+    const casts = stub.casts;
+    const draws = stub.draws;
+    const wish = await drawn(c);
+    expect(wish.status).toBe('revealed');
+    expect(wish.road.attempts).toBe(2);
+    // One cast (the scouts), then one draw from their ledger: the scouts were not paid for twice.
+    expect(stub.casts - casts).toBe(2); // the stub's draw composes through cast()
+    expect(stub.draws - draws).toBe(1);
+    expect(stub.lastFrom).toMatchObject({ task: 'quest', earlier: [], ledger: { gaps: ['KEPT-LEDGER'], dossiers: ['KEPT-DOSSIER'] } });
+  });
+
+  it('does not keep a ledger past a fresh first attempt', async () => {
+    const c = await lorer('fresh');
+    stub.plan = ['fail'];
+    const draws = stub.draws;
+    const wish = await drawn(c);
+    expect(wish.road.attempts).toBe(2);
+    // The first attempt failed before any ledger was kept: the second casts again.
+    expect(stub.draws - draws).toBe(0);
   });
 
   it('fades after the second failure, and the free retry draws it', async () => {

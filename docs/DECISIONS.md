@@ -274,7 +274,7 @@ a deed for this week). The deterministic Futures (D26) are gone from the app; th
 `lib/oracle.ts` stay so exports keep old readings.
 - **Mind:** Claude Opus 5.5 (`claude-opus-5-5`) through Anthropic's API with our own key on the server,
   for every call: adaptive thinking, an explicit effort per stage (weigh low, research medium, compose
-  high, repair medium), server-side fallbacks, web search and web fetch (`_20260209`) for the research,
+  medium, repair medium; compose was high until the first live roads ran past the job budget, 2026-11-19), server-side fallbacks, web search and web fetch (`_20260209`) for the research,
   structured output for the weighing and the scroll. No prefill, no forced tool choice. Refusals become
   silence; `pause_turn` is continued. Code, not the model, writes the wait's signs, keeps only URLs the
   tools returned, checks the scroll (banned phrases, made-up people, unsafe roads) and asks for one repair.

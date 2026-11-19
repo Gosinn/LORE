@@ -1,12 +1,12 @@
 // The Loracle's mind against a fake Anthropic client: no network, no key, no cost.
 import Anthropic from '@anthropic-ai/sdk';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { loracleConfig } from '../src/config.ts';
-import { allText, batchParams, composeParams, CutOff, echoable, failureOf, finalText, MAX_RESENDS, partialReply, readStructured, type Block, type MindClient, type Params, type Reply } from '../src/lib/loracle/client.ts';
+import { allText, batchParams, composeParams, CutOff, echoable, failureOf, finalText, forgetRefusedCountries, MAX_RESENDS, partialReply, readStructured, type Block, type MindClient, type Params, type Reply } from '../src/lib/loracle/client.ts';
 import { WeighingWire } from '../src/lib/loracle/schema.ts';
 import { priceMessage, SEARCH_USD, spendOf } from '../src/lib/loracle/cost.ts';
 import { fakeMind } from '../src/lib/loracle/fake.ts';
-import { claudeMind, mindFor, verdictOf } from '../src/lib/loracle/mind.ts';
+import { apiReason, claudeMind, mindFor, REPAIR_NEEDS_MS, verdictOf } from '../src/lib/loracle/mind.ts';
 import { AGAIN_ADDENDUM, COMPOSE_PROMPT, DEEPER_ADDENDUM, SCOUT_PROMPT, WEIGH_PROMPT } from '../src/lib/loracle/prompts.ts';
 import { deeperScoutReply, goodAnswer } from './loracleFixtures.ts';
 import { MindError, type MindContext, type MindWish, type Weighing } from '../src/lib/loracle/types.ts';
@@ -358,7 +358,7 @@ describe('every request', () => {
     const [weigh, road, keepers, compose] = client.calls.map((c) => c.params);
     expect(weigh!.output_config).toMatchObject({ effort: 'low', format: { type: 'json_schema' } });
     expect(road!.output_config).toEqual({ effort: 'medium' });
-    expect(compose!.output_config).toMatchObject({ effort: 'high', format: { type: 'json_schema' } });
+    expect(compose!.output_config).toMatchObject({ effort: 'medium', format: { type: 'json_schema' } });
     expect(road!.tools).toEqual([
       expect.objectContaining({ type: 'web_search_20260209', name: 'web_search', max_uses: 6, user_location: { type: 'approximate', city: 'Reykjavík', country: 'IS', timezone: 'Atlantic/Reykjavik' } }),
       expect.objectContaining({ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 }),
@@ -783,7 +783,7 @@ describe('Ask again (draw)', () => {
     expect(system[1]!.cache_control).toEqual({ type: 'ephemeral' });
     expect(String(call.messages[0]!.content)).toContain('<earlier_roads>');
     expect(String(call.messages[0]!.content)).toContain('S1 |');
-    expect(call.output_config?.effort).toBe('high');
+    expect(call.output_config?.effort).toBe('medium');
     expect(r.spend.map((s) => s.stage)).toEqual(['again']);
     expect(signs.map((s) => s.kind)).toEqual(['compose', 'seal']);
   });
@@ -952,5 +952,105 @@ describe('the batch form of a request', () => {
     const m = msg([text('x')], 'end_turn', { server_tool_use: { web_search_requests: 1, web_fetch_requests: 0 } });
     expect(spendOf('road', 'ok', m, 'claude-opus-5-5', 0, null, { batch: true }).costMicros).toBe(7_000 + 10_000);
     expect(spendOf('road', 'ok', m, 'claude-opus-5-5', 0, null).costMicros).toBe(14_000 + 10_000);
+  });
+});
+
+describe('where the search stands', () => {
+  afterEach(() => forgetRefusedCountries());
+  const refused = (message: string) =>
+    new Anthropic.BadRequestError(400, { type: 'error', error: { type: 'invalid_request_error', message } }, message, new Headers({ 'request-id': 'req_400' }));
+  const COUNTRY = 'tools.0.user_location.country: not a country the search provider supports';
+  const locationOf = (p: Params) => (p.tools?.[0] as { user_location?: Record<string, unknown> }).user_location;
+
+  it('searches again without the country when the provider refuses it, and leaves it out from then on', async () => {
+    const client = new FakeClient({ road: [refused(COUNTRY), roadReply], keepers: [refused(COUNTRY), keepersReply], compose: [json(goodDraft())] });
+    const r = await castWith(client).run();
+    expect(r.kind).toBe('road');
+    const roads = client.of('road');
+    expect(roads).toHaveLength(2);
+    expect(locationOf(roads[0]!.params)).toMatchObject({ type: 'approximate', city: 'Reykjavík', country: 'IS', timezone: 'Atlantic/Reykjavik' });
+    expect(locationOf(roads[1]!.params)).toEqual({ type: 'approximate', city: 'Reykjavík', timezone: 'Atlantic/Reykjavik' });
+    expect(locationOf(client.of('keepers')[1]!.params)).toEqual({ type: 'approximate', city: 'Reykjavík', timezone: 'Atlantic/Reykjavik' });
+    // A refused request costs nothing and is not counted.
+    expect(r.spend.map((s) => s.stage)).toEqual(['road', 'keepers', 'compose']);
+
+    const next = new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(goodDraft())] });
+    await castWith(next).run();
+    expect(next.of('road')).toHaveLength(1);
+    expect(locationOf(next.of('road')[0]!.params)).not.toHaveProperty('country');
+  });
+
+  it('drops the whole location when the provider refuses another part of it', async () => {
+    const other = refused('tools.0.user_location.timezone: not a valid IANA time zone');
+    const client = new FakeClient({ road: [other, roadReply], keepers: [other, keepersReply], compose: [json(goodDraft())] });
+    expect((await castWith(client).run()).kind).toBe('road');
+    expect(locationOf(client.of('road')[1]!.params)).toBeUndefined();
+  });
+
+  it('fails as before on any other refused request (no second try)', async () => {
+    const bad = refused('max_tokens: too large');
+    const client = new FakeClient({ road: [bad], keepers: [bad] });
+    const err = (await castWith(client).run().catch((e: unknown) => e)) as MindError;
+    expect(err).toMatchObject({ failure: 'error' });
+    expect(client.of('road')).toHaveLength(1);
+  });
+
+  it('logs what the API said, never more than a short line', () => {
+    expect(apiReason(refused(COUNTRY))).toEqual({ errorType: 'invalid_request_error', reason: COUNTRY });
+    expect(apiReason(new Error('x'.repeat(1000))).reason).toHaveLength(400);
+    expect(apiReason(null)).toEqual({});
+  });
+});
+
+describe('the job budget', () => {
+  it('hands back the scouts’ ledger before composing, so a cut-off attempt is not scouted twice', async () => {
+    const client = new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [new Anthropic.APIConnectionTimeoutError()] });
+    const kept: unknown[] = [];
+    const mind = claudeMind(config(), { client });
+    const err = await mind
+      .cast({ ...WISH, weighing: WEIGHING }, CTX, () => undefined, new AbortController().signal, { onLedger: (rec) => kept.push(rec) })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ failure: 'timeout' });
+    expect(kept).toHaveLength(1);
+    const record = kept[0] as { notes: unknown[]; seen?: unknown[]; sources?: unknown[] };
+    expect(record.notes).toHaveLength(7);
+    expect(record.seen?.length).toBeGreaterThan(0);
+
+    // The next attempt draws from it: no scouts.
+    const again = new FakeClient({ compose: [json(goodDraft())] });
+    const r = await claudeMind(config(), { client: again }).draw(
+      { ...WISH, weighing: WEIGHING },
+      CTX,
+      { task: 'quest', ledger: record as never, earlier: [], sources: [] },
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(r.kind).toBe('road');
+    expect(again.of('road')).toHaveLength(0);
+    expect(again.of('keepers')).toHaveLength(0);
+  });
+
+  it('seals a safe but rough draft rather than start a repair the job cannot finish', async () => {
+    const bad = goodDraft();
+    bad.map[0]!.clue = 'Bring a ticket to the reception.';
+    const client = new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(bad)], repair: [json(goodDraft())] });
+    const mind = claudeMind(config(), { client });
+    const r = await mind.cast({ ...WISH, weighing: WEIGHING }, CTX, () => undefined, new AbortController().signal, {
+      deadline: Date.now() + REPAIR_NEEDS_MS - 1_000,
+    });
+    expect(r).toMatchObject({ kind: 'road', rough: true });
+    expect(client.of('repair')).toHaveLength(0);
+    if (r.kind === 'road') expect(r.faults).toContain('late');
+  });
+
+  it('still repairs when there is time', async () => {
+    const bad = goodDraft();
+    bad.map[0]!.clue = 'Bring a ticket to the reception.';
+    const client = new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(bad)], repair: [json(goodDraft())] });
+    const r = await claudeMind(config(), { client }).cast({ ...WISH, weighing: WEIGHING }, CTX, () => undefined, new AbortController().signal, {
+      deadline: Date.now() + REPAIR_NEEDS_MS + 60_000,
+    });
+    expect(r).toMatchObject({ kind: 'road', rough: false });
+    expect(client.of('repair')).toHaveLength(1);
   });
 });
