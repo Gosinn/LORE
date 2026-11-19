@@ -37,23 +37,39 @@ import {
   NOTIFICATION_TYPES,
   PARTICIPANT_ROLES,
   PLACE_PRECISIONS,
+  DEEPER_STATUSES,
+  ROAD_LANES,
   ROAD_STATUSES,
   RSVP_STATUSES,
+  WISH_AUDIENCES,
   WISH_FAILURES,
   WISH_STATUSES,
   type CopyChange,
   type CopyRevisionKind,
+  type DeeperStatus,
   type Emblem,
   type Keeper,
   type LoracleContext,
   type PinPrecision,
+  type RoadLane,
   type RoadStatus,
   type RoadStep,
   type WaypointKind,
+  type WishAudience,
   type WishFailure,
   type WishStatus,
 } from '#shared';
-import type { LedgerRecord, StoredQuest, Weighing, WishRealm } from '../lib/loracle/types.ts';
+import type {
+  AskDawnState,
+  BatchItem,
+  LedgerNote,
+  LedgerRecord,
+  RoadDawnState,
+  StoredDeeper,
+  StoredQuest,
+  Weighing,
+  WishRealm,
+} from '../lib/loracle/types.ts';
 
 export const crewRole = pgEnum('crew_role', CREW_ROLES);
 export const membershipStatus = pgEnum('membership_status', MEMBERSHIP_STATUSES);
@@ -455,9 +471,10 @@ export const worldCache = pgTable('world_cache', {
 });
 
 // ---------------------------------------------------------------------------
-// The Loracle: wishes and the roads the stones draw for them. Private to the Lorer (no
-// audience, no crew in phase A); deleted with the account. Status values come from the
-// shared vocabulary (WISH_STATUSES, ROAD_STATUSES, WISH_FAILURES).
+// The Loracle: wishes and the roads the stones draw for them. Private to the Lorer unless they
+// show a quest to one crew (phase C, `audience` + `crew_id`; who sees what lives in lib/access.ts);
+// deleted with the account. Status values come from the shared vocabulary (WISH_STATUSES,
+// ROAD_STATUSES, WISH_FAILURES, ROAD_LANES, DEEPER_STATUSES, WISH_AUDIENCES).
 
 /** A wish the Lorer cast that the weighing sent on as a quest. Care, riddle and reroute answers store nothing. */
 export const wishes = pgTable(
@@ -486,6 +503,13 @@ export const wishes = pgTable(
     ledgerAt: ts('ledger_at'),
     fulfilledAt: ts('fulfilled_at'),
     releasedAt: ts('released_at'),
+    /** Phase C, "Show to a crew": only_me (the default) or crew (with crew_id, one the Lorer is in). */
+    audience: text('audience').$type<WishAudience>().notNull().default('only_me'),
+    crewId: uuid('crew_id').references(() => crews.id, { onDelete: 'set null' }),
+    /** When it was last shown to a crew. */
+    sharedAt: ts('shared_at'),
+    /** A moderator took it down after a report (D29): it can't be shown to a crew again. */
+    sharingRemovedAt: ts('sharing_removed_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -493,11 +517,13 @@ export const wishes = pgTable(
     index('wishes_user_created_idx').on(t.userId, t.createdAt),
     index('wishes_user_day_key_idx').on(t.userId, t.day, t.textKey),
     index('wishes_status_idx').on(t.status),
+    index('wishes_crew_idx').on(t.crewId),
     check('wishes_status', sql`${t.status} in (${oneOf(WISH_STATUSES)})`),
+    check('wishes_audience', sql`${t.audience} in (${oneOf(WISH_AUDIENCES)})`),
   ],
 );
 
-/** A road drawn for a wish: the scroll. One per wish in phase A (`n` = 1). */
+/** A road drawn for a wish: the scroll. `n` = 1 for the cast; "Ask again" (phase B) adds 2, 3, … */
 export const wishRoads = pgTable(
   'wish_roads',
   {
@@ -507,6 +533,14 @@ export const wishRoads = pgTable(
       .references(() => wishes.id, { onDelete: 'cascade' }),
     n: integer('n').notNull().default(1),
     status: text('status').$type<RoadStatus>().notNull().default('queued'),
+    /** Phase B: `now` (the in-process jobs) or `dawn` (the hourly tick, Message Batches). */
+    lane: text('lane').$type<RoadLane>().notNull().default('now'),
+    /** Dawn lane: the Lorer's next 06:00, when it must have been drawn (the tick's promise keeper). */
+    dueBy: ts('due_by'),
+    /** The Lorer's local day the road was asked for (the soft budget counts per day). Null before phase B. */
+    day: date('day', { mode: 'string' }),
+    /** Dawn lane: where the batched work stands (scouts, ledger, compose flow, the batch out). Cleared when done. */
+    batch: jsonb('batch').$type<RoadDawnState>(),
     /** Why the last attempt failed. */
     failure: text('failure').$type<WishFailure>(),
     attempts: integer('attempts').notNull().default(0),
@@ -533,8 +567,10 @@ export const wishRoads = pgTable(
   (t) => [
     uniqueIndex('wish_roads_wish_n_idx').on(t.wishId, t.n),
     index('wish_roads_status_idx').on(t.status),
+    index('wish_roads_lane_status_idx').on(t.lane, t.status),
     check('wish_roads_status', sql`${t.status} in (${oneOf(ROAD_STATUSES)})`),
     check('wish_roads_failure', sql`${t.failure} is null or ${t.failure} in (${oneOf(WISH_FAILURES)})`),
+    check('wish_roads_lane', sql`${t.lane} in (${oneOf(ROAD_LANES)})`),
   ],
 );
 
@@ -591,6 +627,90 @@ export const wishWaypoints = pgTable(
 );
 
 /**
+ * "Ask the stone about this" (phase B): one deeper ask pinned to a waypoint. Only the Lorer who cast
+ * the wish asks and sees them; deleted with the wish, the waypoint or the account.
+ */
+export const wishAsks = pgTable(
+  'wish_asks',
+  {
+    id: id(),
+    waypointId: uuid('waypoint_id')
+      .notNull()
+      .references(() => wishWaypoints.id, { onDelete: 'cascade' }),
+    wishId: uuid('wish_id')
+      .notNull()
+      .references(() => wishes.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The Lorer's local day of the ask (the soft budget counts per day). */
+    day: date('day', { mode: 'string' }).notNull(),
+    lane: text('lane').$type<RoadLane>().notNull().default('now'),
+    dueBy: ts('due_by'),
+    /** The Lorer's question, if any (200 chars). */
+    question: text('question'),
+    status: text('status').$type<DeeperStatus>().notNull().default('listening'),
+    failure: text('failure').$type<WishFailure>(),
+    attempts: integer('attempts').notNull().default(0),
+    /** Set while a job works on it (a listening ask with no run id waits its turn). */
+    runId: uuid('run_id'),
+    heartbeatAt: ts('heartbeat_at'),
+    signs: text('signs').array().notNull().default(sql`'{}'::text[]`),
+    /** The checked answer with its own sources. Null until answered. */
+    answer: jsonb('answer').$type<StoredDeeper>(),
+    /** What the deeper scout found (notes), kept with the ask; never sent to the client, exported. */
+    found: jsonb('found').$type<LedgerNote[]>(),
+    faults: text('faults').array().notNull().default(sql`'{}'::text[]`),
+    /** Hard faults remained after the repair (for the owner; never shown). */
+    rough: boolean('rough').notNull().default(false),
+    /** Dawn lane: where the batched work stands. Cleared when done. */
+    batch: jsonb('batch').$type<AskDawnState>(),
+    answeredAt: ts('answered_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('wish_asks_user_day_idx').on(t.userId, t.day),
+    index('wish_asks_waypoint_idx').on(t.waypointId),
+    index('wish_asks_lane_status_idx').on(t.lane, t.status),
+    // One open ask at a time per waypoint (listening or waiting for dawn); a double tap is a 409.
+    uniqueIndex('wish_asks_one_open').on(t.waypointId).where(sql`${t.status} in ('listening', 'dawn')`),
+    check('wish_asks_status', sql`${t.status} in (${oneOf(DEEPER_STATUSES)})`),
+    check('wish_asks_lane', sql`${t.lane} in (${oneOf(ROAD_LANES)})`),
+    check('wish_asks_failure', sql`${t.failure} is null or ${t.failure} in (${oneOf(WISH_FAILURES)})`),
+  ],
+);
+
+/** "Walk with you" (phase C): a crew member who walks a waypoint of a quest shown to their crew. */
+export const wishWalkers = pgTable(
+  'wish_walkers',
+  {
+    waypointId: uuid('waypoint_id')
+      .notNull()
+      .references(() => wishWaypoints.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.waypointId, t.userId] }), index('wish_walkers_user_idx').on(t.userId)],
+);
+
+/**
+ * The dawn lane's batches (phase B): one row per Message Batch sent to Anthropic. `items` say which
+ * road or ask each request belongs to. Holds no text. `ended_at` is set once its results were read.
+ */
+export const loracleBatches = pgTable('loracle_batches', {
+  /** Anthropic's batch id. */
+  id: text('id').primaryKey(),
+  /** scouts | draw | deeper-scout | deeper */
+  stage: text('stage').notNull(),
+  items: jsonb('items').$type<BatchItem[]>().notNull(),
+  submittedAt: ts('submitted_at').notNull().defaultNow(),
+  endedAt: ts('ended_at'),
+});
+
+/**
  * What each request to the stone's mind cost: the throttle and the owner's monthly ceiling read
  * this. Stores no text. Rows outlive their wish and their account (ids set to null), so burning a
  * scroll or deleting an account doesn't hide what was spent. Care rows never carry a user id.
@@ -604,7 +724,7 @@ export const loracleSpend = pgTable(
     utcDay: date('utc_day', { mode: 'string' }).notNull(),
     /** The Lorer's local day (null for care rows). */
     day: date('day', { mode: 'string' }),
-    /** weigh | road | keepers | compose | repair (LORACLE_STAGES). */
+    /** weigh | road | keepers | compose | repair | again | deeper-scout | deeper (LORACLE_STAGES). */
     stage: text('stage').notNull(),
     /** ok | refusal | max_tokens | error | care | riddle | reroute | silent (SPEND_OUTCOMES). */
     outcome: text('outcome').notNull(),
@@ -625,6 +745,10 @@ export const loracleSpend = pgTable(
      * outlives a burned scroll, so burning never refunds a cast toward the hidden limit.
      */
     roadId: uuid('road_id'),
+    /** The deeper ask a request answered (phase B). No foreign key, like road_id. */
+    askId: uuid('ask_id'),
+    /** now | dawn (a batch request, priced at half the token rates). */
+    lane: text('lane').$type<RoadLane>().notNull().default('now'),
     createdAt: createdAt(),
   },
   (t) => [

@@ -4,6 +4,7 @@ import type { Config } from './config.ts';
 import type { Db } from './db/index.ts';
 import type { LiveCopy } from './lib/copy.ts';
 import { unauthorized } from './lib/errors.ts';
+import type { BatchClient } from './lib/loracle/client.ts';
 import type { LoracleMind } from './lib/loracle/types.ts';
 import type { MediaStorage } from './lib/storage.ts';
 import type { WorldData } from './lib/world.ts';
@@ -19,6 +20,11 @@ export interface AppContext {
    * undefined while asleep (casts answer 503 `asleep`). Tests pass their own.
    */
   mind?: LoracleMind;
+  /**
+   * The Message Batches client for the dawn lane (phase B). Undefined: made from the key when the
+   * stone is awake. Tests pass their own (no network).
+   */
+  batches?: BatchClient;
   /** Which database is in use, reported by /api/health so a deploy can be checked from outside. */
   dbKind?: 'postgres' | 'pglite';
   /**

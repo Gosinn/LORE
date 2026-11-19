@@ -25,6 +25,8 @@ const app = await buildApp({ db: database.db, config, storage, world, dbKind: da
 // Roads a previous process left in progress were interrupted: retry them once, else let them fade.
 // Wishes waiting for the new moon wake here too when the month allows.
 await app.wishJobs.sweep({ boot: true });
+// The dawn lane's lazy tick: batches that ended while the server slept are read now (phase B).
+app.dawn.tickSoon();
 // Who moderates and edits LORE's words (ADMIN_USERNAMES, or the default owner with its cut-off).
 const owner = await ownerStartupNote(database.db, config);
 app.log[owner.level](owner.message);

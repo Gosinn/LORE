@@ -1,0 +1,439 @@
+/* ----------------------------------------------------------------- THE LORACLE, PHASES B AND C
+   Ask the stone (deeper asks pinned to a waypoint), "Two roads" and Ask again, the dawn lane's wait, Show
+   to a crew, Walk with you, and the Epic. Loaded by the Loracle page only (pages/Oracle.tsx). Built from the
+   temple's own pieces in app.css (ORACLE): carved blocks on the wall, parchment for what the stone says, wax
+   for what is final, ember the only light. Nothing fixed, no backdrop-filter, no new motion. */
+
+/* --- The dawn lane: written down, read before dawn ------------------------------------------- */
+
+.dawn-wait {
+  align-items: stretch;
+}
+.dawn-moon {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  color: var(--gold-ink);
+  background: radial-gradient(circle, rgb(246 230 180 / 0.75) 0, rgb(236 213 157 / 0.35) 45%, transparent 70%);
+}
+.dawn-moon .sigil {
+  width: 46px;
+  height: 46px;
+}
+.dawn-moon-small {
+  flex: none;
+  margin-top: 3px;
+  color: var(--gold-ink);
+}
+
+/* --- Two roads: carved tabs on the wall, above the scroll ------------------------------------ */
+
+.road-tabs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px;
+}
+.roads-title {
+  font: 700 13px/1.3 var(--font-carved);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--glow-text);
+  text-shadow: var(--engraved);
+}
+.road-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+/* The road on screen is the raised block with glow letters; the others sit pressed into the wall. */
+.oracle-page .btn.road-tab {
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 128px;
+  max-width: 220px;
+  min-height: 54px;
+  padding: 6px 12px 8px;
+  font-size: 13px;
+  white-space: normal;
+}
+.oracle-page .btn.road-tab:not(.on) {
+  color: var(--carve-2);
+  box-shadow: var(--block-pressed);
+  transform: translateY(3px);
+}
+.oracle-page .btn.road-tab.on {
+  box-shadow:
+    var(--block-depth),
+    0 0 18px -6px var(--glow-hot);
+}
+.oracle-page .btn.road-tab:focus-visible {
+  outline: 2px solid var(--glow);
+  outline-offset: 3px;
+}
+.road-tab-name {
+  overflow-wrap: anywhere;
+}
+.road-tab-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: italic 14px/1.2 var(--font-scroll);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--carve-2);
+}
+.road-tab.on .road-tab-sub {
+  color: var(--glow-text);
+}
+.roads-hint {
+  max-width: 34em;
+  font: italic 15.5px/1.45 var(--font-scroll);
+  color: var(--carve-2);
+  text-align: center;
+  text-shadow: 0 -1px 0 #000a;
+}
+
+/* --- Ask again: a stone button at the end ------------------------------------------------------ */
+
+.ask-again {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 26px 0 8px;
+}
+.ask-again-hint {
+  font: italic 16px/1.45 var(--font-scroll);
+  color: var(--carve-2);
+  text-align: center;
+  text-shadow: 0 -1px 0 #000a;
+}
+
+/* --- Ask the stone: a small scroll pinned to the waypoint -------------------------------------- */
+
+.ask-stone {
+  gap: 10px;
+}
+.ask-form {
+  margin-top: 6px;
+}
+/* The ask's label is a sentence ("Ask what you will…"), set in the scroll's hand, not carved capitals. */
+.ink-form .ask-label {
+  font: italic 17px/1.4 var(--font-scroll);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+}
+.ask-consent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.deeper-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 22px 4px 12px;
+  padding: 22px 16px 20px;
+  transform: rotate(-0.35deg);
+}
+.deeper-scroll + .deeper-scroll {
+  margin-top: 26px;
+  transform: rotate(0.3deg);
+}
+.deeper-part {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.deeper-scroll .deeper-q {
+  font: italic 17px/1.4 var(--font-scroll);
+  color: var(--ink-2);
+}
+.deeper-scroll .deeper-answer {
+  font: 18px/1.45 var(--font-scroll);
+  color: var(--ink);
+}
+.deeper-scroll .deeper-clue {
+  font: italic 18px/1.45 var(--font-scroll);
+  color: var(--ink);
+}
+.deeper-scroll .deeper-words {
+  padding-left: 12px;
+  border-left: 3px double #b8975e;
+  font: italic 17.5px/1.45 var(--font-scroll);
+  color: var(--ink);
+}
+.deeper-scroll .wait-signs {
+  margin: 0;
+}
+
+/* --- Walk with you: who walks a waypoint, as small marks --------------------------------------- */
+
+.walker-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
+}
+.wp-text .walker-marks {
+  margin-top: 4px;
+}
+.walker-steps {
+  margin-right: 2px;
+  color: var(--verdigris);
+}
+.walker-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 47% 53% 51% 49% / 52% 46% 54% 48%;
+  font: 700 11px/1 var(--font-carved);
+  color: var(--scroll-ink);
+  background: radial-gradient(circle at 35% 30%, #fbf3de, var(--parch-2) 60%, var(--parch-3));
+  box-shadow:
+    0 0 0 1.2px var(--scroll-ink),
+    inset 0 0 0 2px var(--parch-1);
+}
+.walker-mark.more {
+  font-size: 9.5px;
+  letter-spacing: 0;
+}
+.sheet-walk .walk-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-walk .walk-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: italic 17px/1.4 var(--font-scroll);
+  color: var(--verdigris);
+}
+
+/* --- Show to a crew ------------------------------------------------------------------------------ */
+
+.quest-share {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.oracle-page .btn.share-open {
+  gap: 8px;
+  min-width: min(100%, 260px);
+}
+.quest-shown-by {
+  font: italic 15px/1.4 var(--font-scroll);
+  color: var(--muted);
+  text-align: center;
+}
+.quest-share .report-link {
+  min-height: 44px;
+  padding: 0 10px;
+  font: italic 15px var(--font-scroll);
+  color: var(--muted);
+}
+.quest-share .report-link:hover {
+  color: var(--ink);
+}
+.share-hint {
+  margin: 4px 0 12px;
+  font: italic 17px/1.45 var(--font-scroll);
+  color: var(--ink-2);
+}
+.crew-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.oracle-page .btn.crew-pick {
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+.crew-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+/* The one chosen: a drop of wax pressed into the parchment block. */
+.oracle-page .btn.crew-pick[aria-pressed='true'] {
+  border-color: var(--wax-lo);
+  box-shadow:
+    inset 0 0 0 2px var(--wax),
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    0 3px 0 #b8975e;
+}
+.crew-only {
+  color: var(--wax);
+}
+
+/* --- The epic ------------------------------------------------------------------------------------ */
+
+.oracle-page .btn.epic-open {
+  margin: 2px 0 8px;
+}
+.epic-scroll .epic-kicker {
+  margin-bottom: -4px;
+}
+.epic-line {
+  font: italic 16px/1.45 var(--font-scroll);
+  color: var(--muted);
+  text-align: center;
+}
+.epic-leg.linked {
+  cursor: pointer;
+}
+.epic-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  stroke-linecap: round;
+  pointer-events: stroke;
+}
+.epic-leg.linked .map-road.inked {
+  stroke: var(--gold-ink);
+  stroke-width: 3;
+}
+.epic-leg.linked:hover .map-road.inked {
+  stroke: var(--wax);
+}
+.map-pin.linked .map-medal {
+  stroke: var(--gold-ink);
+  stroke-width: 2.4;
+}
+.epic-chronicle {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.epic-entry {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 4px;
+}
+.epic-entry + .epic-entry {
+  border-top: 1px dashed #b8975e;
+}
+.epic-entry .wax-seal {
+  margin-top: 2px;
+}
+.epic-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.epic-when {
+  font: italic 15.5px/1.4 var(--font-scroll);
+  color: var(--verdigris);
+}
+.epic-entry:not(.inked) .epic-when {
+  color: var(--muted);
+}
+.epic-text .inked-note {
+  font: italic 16px/1.4 var(--font-scroll);
+  color: var(--ink-2);
+}
+.epic-walked {
+  font: italic 15px/1.4 var(--font-scroll);
+  color: var(--ink-2);
+}
+.epic-chapter {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  min-height: 44px;
+  font: 700 12px/1 var(--font-carved);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--verdigris);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.oracle-page .btn.epic-write {
+  align-self: flex-start;
+  padding: 0 2px;
+}
+.oracle-page .btn.epic-back {
+  align-self: center;
+  margin-top: 6px;
+}
+
+/* "You walk this one too" is a polite status, always rendered (empty when not walking): no gap when empty. */
+.sheet-walk .walk-line:empty {
+  display: block;
+  margin: 0;
+  min-height: 0;
+}
+
+/* Report (D29) from a shown quest: the app's Sheet (components/ui.tsx) portals .overlay > .sheet to <body>,
+   outside the temple and outside the kit's guard (lore.css dresses sheets only while no .oracle-page is open).
+   Dress it as the temple's parchment sheet while the Loracle is open, so the buttons and the letters stay the
+   temple's (D34). The Loracle's own sheets are .loracle-overlay > .parch-sheet and are left alone. */
+body:has(.oracle-page) .overlay {
+  background: rgb(10 7 4 / 0.62);
+}
+body:has(.oracle-page) .overlay > .sheet {
+  --bg: var(--parch-1);
+  --surface: #f3e6c6;
+  --surface-2: #e7d2a5;
+  --ink: var(--scroll-ink);
+  --ink-2: #4c3720;
+  --muted: var(--scroll-ink-muted);
+  --line: #d2b783;
+  --line-strong: #b8975e;
+  --ember: var(--wax);
+  --ember-hover: #7f1b11;
+  --ember-ink: #fbefd9;
+  --ember-soft: #edcfae;
+  --danger: #7f1b11;
+  color: var(--ink);
+  color-scheme: light;
+  font-family: var(--font-scroll);
+  border-radius: 14px 14px 0 0;
+  background:
+    linear-gradient(90deg, rgb(120 78 30 / 0.3), transparent 8px calc(100% - 8px), rgb(120 78 30 / 0.3)),
+    var(--grain-paper),
+    linear-gradient(175deg, var(--parch-1), var(--parch-2) 60%, var(--parch-3));
+}
+body:has(.oracle-page) .overlay > .sheet .sheet-head h2 {
+  font: 700 18px/1.25 var(--font-carved);
+  letter-spacing: 0.08em;
+  color: var(--scroll-ink);
+}
+body:has(.oracle-page) .overlay > .sheet :is(.btn, .chip) {
+  border-radius: 6px 7px 5px 6px;
+  min-height: 44px;
+  font-family: var(--font-carved);
+  letter-spacing: 0.06em;
+}
+body:has(.oracle-page) .overlay > .sheet :focus-visible {
+  outline: 2px solid var(--wax);
+  outline-offset: 2px;
+}
+@media (min-width: 640px) {
+  body:has(.oracle-page) .overlay > .sheet {
+    border-radius: 14px;
+  }
+}

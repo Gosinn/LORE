@@ -134,8 +134,9 @@ export function spendOf(
   requestedModel: string,
   ms: number,
   requestId: string | null,
+  { batch = false }: { batch?: boolean } = {},
 ): SpendEntry {
-  const p = priceMessage(message, requestedModel);
+  const p = priceMessage(message, requestedModel, { batch });
   return {
     stage,
     outcome,

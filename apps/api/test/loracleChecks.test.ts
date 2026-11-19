@@ -1,10 +1,10 @@
 // The Loracle's code-side mind: ledger, checks, marks, draw and seals. No network, no database.
 import { describe, expect, it } from 'vitest';
-import { checkDraft, findPhrase, type CheckContext } from '../src/lib/loracle/checks.ts';
+import { checkDeeper, checkDraft, findPhrase, type CheckContext, type DeeperCheckContext } from '../src/lib/loracle/checks.ts';
 import { drawPins, shapeWaypoint, toRoad, waypointState, weekDay, type FullWaypoint } from '../src/lib/loracle/draw.ts';
 import { SeenUrls, buildLedger, canonicalUrl, foldName, markOf, parseDossier, samePlace, type Ledger } from '../src/lib/loracle/ledger.ts';
 import { BANNED, HEDGES } from '../src/lib/loracle/prompts.ts';
-import { QuestDraftWire, type QuestDraftT } from '../src/lib/loracle/schema.ts';
+import { DeeperWire, QuestDraftWire, type DeeperDraftT, type QuestDraftT } from '../src/lib/loracle/schema.ts';
 import type { LedgerNote } from '../src/lib/loracle/types.ts';
 
 const TODAY = '2026-11-18';
@@ -545,6 +545,75 @@ describe('the safety checks', () => {
     draft.map[2]!.road[1]!.text = 'Ask Ko Zaw Lin every week until he says yes.';
     const r = checkDraft(draft, context(ledger));
     expect(codes(r.safety)).toContain('X6');
+  });
+});
+
+describe('"Ask again" (H18)', () => {
+  const earlier = (over: { title?: string; waypoints?: { name: string; place: string }[] }) => [
+    { title: 'The Old Road', calling: 'An earlier calling.', keepers: [], waypoints: [{ name: 'Elsewhere', place: 'Elsewhere Hall' }], ...over },
+  ];
+
+  it('never redraws an earlier road: not its title, not its places in the same order', () => {
+    const ledger = ledgerFixture();
+    const places = draftFixture(ledger).map.map((w) => ({ name: w.name, place: w.where.place }));
+    expect(codes(checkDraft(draftFixture(ledger), context(ledger, { earlier: earlier({ title: 'the ninth limb' }) })).hard)).toContain('H18');
+    expect(codes(checkDraft(draftFixture(ledger), context(ledger, { earlier: earlier({ waypoints: places }) })).hard)).toContain('H18');
+    // The same places in another order is another road; so is no earlier road at all.
+    expect(codes(checkDraft(draftFixture(ledger), context(ledger, { earlier: earlier({ waypoints: [...places].reverse() }) })).hard)).not.toContain('H18');
+    expect(codes(checkDraft(draftFixture(ledger), context(ledger)).hard)).not.toContain('H18');
+  });
+});
+
+describe('the deeper checks', () => {
+  /** A deeper answer on the Yangon gym (abroad from Iceland) that passes its checks. */
+  function answerFixture(ledger: Ledger): DeeperDraftT {
+    const N = (name: string) => idOf(ledger, name);
+    return DeeperWire.parse({
+      answer: 'No. Saya Min Thu still coaches fighters at Thut Ti.',
+      clue: 'Drums and a reed horn play during the bouts.',
+      steps: [
+        { kind: 'do', text: 'Fly to Yangon and sleep near the gym.', noteIds: [N('Thut Ti Lethwei Gym')] },
+        { kind: 'do', text: 'Ask Saya Min Thu at Thut Ti for a place in training.', noteIds: [N('Saya Min Thu')] },
+        { kind: 'cost', text: 'Training costs 300 USD a month.', noteIds: [N('Thut Ti training fee')] },
+      ],
+      keeper: { name: 'Saya Min Thu', role: 'head trainer', verb: 'train you for the ring', noteId: N('Saya Min Thu') },
+      words: 'I came to train, not to watch.',
+      unknown: 'Which fighter will hold the pads for you first.',
+    });
+  }
+  const deeperContext = (ledger: Ledger, over: Partial<DeeperCheckContext> = {}): DeeperCheckContext => ({
+    ledger,
+    seen: seenUrls(),
+    todayIso: TODAY,
+    tags: ['open'],
+    wishText: 'I wish to become the Lethwei champion of the world.',
+    question: 'Am I too old?',
+    homeCountry: 'IS',
+    waypointCountry: 'Myanmar',
+    ...over,
+  });
+
+  it('passes a sound answer', () => {
+    const ledger = ledgerFixture();
+    const r = checkDeeper(answerFixture(ledger), deeperContext(ledger));
+    expect(r.safety).toEqual([]);
+  });
+
+  it('keeps the road’s safety rules: no solo road abroad before 18 (X4), no reaching for the other person (X5), no pestering (X6)', () => {
+    const ledger = ledgerFixture();
+    const solo = answerFixture(ledger);
+    solo.steps[0]!.text = 'Fly to Yangon alone and sleep near the gym.';
+    expect(codes(checkDeeper(solo, deeperContext(ledger, { tags: ['open', 'youth'] })).safety)).toEqual(['X4']);
+    // At home the same step is no fault.
+    expect(codes(checkDeeper(solo, deeperContext(ledger, { tags: ['open', 'youth'], waypointCountry: 'Iceland' })).safety)).toEqual([]);
+    const inward = answerFixture(ledger);
+    inward.words = 'Tell Sunna you trained here.';
+    expect(codes(checkDeeper(inward, deeperContext(ledger, { tags: ['inward'], wishText: 'I wish Sunna would love me again.' })).safety)).toEqual(['X5']);
+    const pester = answerFixture(ledger);
+    pester.steps[1]!.text = 'Ask Saya Min Thu at Thut Ti every week until he says yes.';
+    const r = checkDeeper(pester, deeperContext(ledger));
+    expect(codes(r.safety)).toEqual(['X6']);
+    expect(codes(r.hard)).not.toContain('X6');
   });
 });
 

@@ -78,6 +78,13 @@
       "when": 1795044756543,
       "tag": "0010_places",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795065774163,
+      "tag": "0011_loracle_b_c",
+      "breakpoints": true
     }
   ]
 }

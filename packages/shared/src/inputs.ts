@@ -34,6 +34,7 @@ import {
   REPORT_TARGETS,
   SUPPORT_TOPICS,
   TIME_BANDS,
+  WISH_AUDIENCES,
 } from './vocabulary.ts';
 
 const id = z.uuid();
@@ -584,6 +585,28 @@ export const LinkWaypointInput = z
     message: 'Name a plan, an idea or a chapter',
   });
 export type LinkWaypointInput = z.infer<typeof LinkWaypointInput>;
+
+/**
+ * POST /loracle/waypoints/:id/ask ("Ask the stone about this", phase B): an optional question
+ * (200 chars). Answered with a DeeperView (202); 409 `sealed` on a sealed waypoint.
+ */
+export const AskDeeperInput = z.object({ question: optionalText(200) });
+export type AskDeeperInput = z.infer<typeof AskDeeperInput>;
+
+/**
+ * PUT /loracle/wishes/:id/share ("Show to a crew", phase C): `crew` with one crew the Lorer is an
+ * active member of, or `only_me` (crewId null) to keep it private again. Only the Lorer who cast it.
+ */
+export const ShareWishInput = z
+  .object({
+    audience: z.enum(WISH_AUDIENCES),
+    crewId: id.nullable().default(null),
+  })
+  .refine((v) => (v.audience === 'crew') === !!v.crewId, {
+    message: 'Choose one crew to show it to, or keep it to yourself',
+    path: ['crewId'],
+  });
+export type ShareWishInput = z.infer<typeof ShareWishInput>;
 
 // ---------------------------------------------------------------------------
 // Discussion

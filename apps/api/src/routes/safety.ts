@@ -25,9 +25,14 @@ import {
   sessions,
   supportMessages,
   users,
+  wishes,
+  wishRoads,
+  wishWalkers,
+  wishWaypoints,
 } from '../db/schema.ts';
-import { idParam, loadVisibleChapter, loadVisibleEvent, loadVisibleIdea, requireOwner } from '../lib/access.ts';
+import { idParam, loadVisibleChapter, loadVisibleEvent, loadVisibleIdea, loadVisibleWish, requireOwner } from '../lib/access.ts';
 import { badRequest, forbidden, notFound } from '../lib/errors.ts';
+import { letGoOnBlock } from '../lib/loracle/sharing.ts';
 import { iso, isoOrNull, userColumns, toUserSummary, userSummaries } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 import { deleteMediaFiles } from './chapters.ts';
@@ -80,6 +85,32 @@ export async function safetyRoutes(app: FastifyInstance, { db, config, storage }
         else href = `/chapters/${(await loadVisibleChapter(db, me, c.chapterId!)).id}`;
         return { subjectId: c.authorId, snapshot: clip(c.body), href };
       }
+      case 'quest': {
+        // A Loracle quest (phase C): its Lorer's own, or one shown to the reporter's crew. The
+        // snapshot keeps each road's title and calling and its waypoint names; reported by a crew
+        // member, it starts with the wish in the Lorer's own words (what the crew reads first).
+        // Reported by its own Lorer, it is the stone's words being reported: no one's account is its subject.
+        const w = await loadVisibleWish(db, me, id);
+        const roads = await db
+          .select({ id: wishRoads.id, n: wishRoads.n, quest: wishRoads.quest })
+          .from(wishRoads)
+          .where(eq(wishRoads.wishId, w.id))
+          .orderBy(asc(wishRoads.n));
+        const names = await db
+          .select({ roadId: wishWaypoints.roadId, name: wishWaypoints.name })
+          .from(wishWaypoints)
+          .where(eq(wishWaypoints.wishId, w.id))
+          .orderBy(asc(wishWaypoints.position));
+        const text = roads
+          .filter((r) => r.quest)
+          .map((r) =>
+            [r.quest!.title, r.quest!.calling, names.filter((n) => n.roadId === r.id).map((n) => n.name).join(' · ')].join('\n'),
+          )
+          .join('\n\n');
+        const mine = w.userId === me;
+        const snapshot = mine ? text || w.text : [w.text, text].filter(Boolean).join('\n\n');
+        return { subjectId: mine ? null : w.userId, snapshot: clip(snapshot), href: `/oracle/quest/${w.id}` };
+      }
     }
   }
 
@@ -125,6 +156,7 @@ export async function safetyRoutes(app: FastifyInstance, { db, config, storage }
               and(eq(friendships.requesterId, other), eq(friendships.addresseeId, me)),
             ),
           );
+        await letGoOnBlock(tx, me, other);
       });
     }
     reply.status(201);
@@ -233,6 +265,21 @@ export async function safetyRoutes(app: FastifyInstance, { db, config, storage }
         return (await db.delete(events).where(eq(events.id, id)).returning({ id: events.id })).length > 0;
       case 'idea':
         return (await db.delete(ideas).where(eq(ideas.id, id)).returning({ id: ideas.id })).length > 0;
+      case 'quest': {
+        // A quest is its Lorer's own: taking it down hides it from the crew again (and lets go of
+        // its walkers), it is never burned for them. It can't be shown to a crew again
+        // (sharing_removed_at; PUT /loracle/wishes/:id/share answers 409 `removed`).
+        const [before] = await db.select({ audience: wishes.audience }).from(wishes).where(eq(wishes.id, id)).limit(1);
+        if (!before) return false;
+        await db
+          .update(wishes)
+          .set({ audience: 'only_me', crewId: null, sharedAt: null, sharingRemovedAt: new Date(), updatedAt: new Date() })
+          .where(eq(wishes.id, id));
+        await db
+          .delete(wishWalkers)
+          .where(inArray(wishWalkers.waypointId, db.select({ id: wishWaypoints.id }).from(wishWaypoints).where(eq(wishWaypoints.wishId, id))));
+        return before.audience === 'crew';
+      }
       case 'user':
         return false; // People are suspended, not removed.
     }

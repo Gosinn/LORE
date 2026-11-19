@@ -151,6 +151,11 @@ export function PrivacyPage() {
           how long it took and what it cost, never its text.
         </li>
         <li>
+          <strong>Asking and showing quests:</strong> the questions you ask the stone about a waypoint and what it answered,
+          the crew you show a quest to and when, and the waypoints of other people’s quests you walk with them. All of it is
+          in your download.
+        </li>
+        <li>
           <strong>Places:</strong> a plan, idea or chapter can have a place you pick from a search: its name, its point on
           the map, and how exactly others may see it (Exact, About here or Only me). We also keep whether “Show my places
           on maps” is on. The Lore Map never uses where your device is. All of it is in your download.
@@ -171,12 +176,27 @@ export function PrivacyPage() {
         to Anthropic only after you agree on the sheet shown before your first wish. Don’t put other people’s private
         details in a wish.
       </p>
+      <p>
+        Unless you choose to show one: with <strong>Show to a crew</strong>, the people in that one crew can read that
+        quest (the wish as you wrote it, its roads and waypoints, and the days you inked them) and walk its waypoints with
+        you. They never see what you entered for the stone (where you stand, your age, money, time, body, languages and
+        passport), the stone’s signs, This week and the provisions it drew from your answers, your notes, links and
+        reminders on it, or the questions you asked the stone; and they get its points on the map only while “Show my
+        places on maps” is on. But the quest was drawn for you, so its waypoints and steps can show the town it starts
+        from, the passport its visas are for and what it costs. <strong>Keep it to myself again</strong> hides it from
+        them at once and lets go of everyone who walked with you. If a quest you showed is taken down after a report, it
+        stays yours alone.
+      </p>
 
       <h2>Who sees it</h2>
       <p>
         You decide: each plan, idea and chapter shows who can see it (only you, the people in it, your friends, or a crew).
         Your private calendar, notes, reminders, wishes, quests and what you told The Loracle are only ever visible to
         you. If something is reported, the people who moderate LORE can see the reported content and the accounts involved, only to decide what to do.
+      </p>
+      <p>
+        The one exception is a quest you show to a crew: the people in that crew see it while it is shown, as described
+        under “Wishes are yours alone”, and the people who walk a waypoint with you are shown to each other and to you.
       </p>
       <p>
         A place is seen only by people who can already see the plan, idea or chapter, and only as exactly as you chose:
@@ -203,6 +223,16 @@ export function PrivacyPage() {
           processes this to answer you, doesn’t use it to train its models, and deletes it after a limited period. We send a
           random code instead of your account, so abuse can be stopped without identifying you. Transfers to the USA rely on
           Anthropic’s data processing terms and standard contractual clauses.
+        </li>
+        {/* OWNER: the 29 days is Anthropic's documented life of a batch's results (Message Batches); our server deletes
+            each batch once it has read it. Check both with the rest of the Anthropic terms above, including whether
+            deleting a batch also ends anything Anthropic keeps under its own retention. Not verified. */}
+        <li>
+          <strong>Anthropic, for questions and the dawn lane:</strong> when you ask the stone about a waypoint, our server
+          also sends your question, that waypoint and what the stone found for its quest. On a day when many wishes come
+          in, yours may go to Anthropic in a batch and be read before your next dawn instead of at once. Our server deletes
+          the batch at Anthropic as soon as it has collected the answers; until then Anthropic keeps them, for at most 29
+          days.
         </li>
         <li>
           <strong>OpenStreetMap Nominatim</strong> finds the town you type for The Loracle, or the town at your rounded
@@ -242,6 +272,10 @@ export function PrivacyPage() {
         </li>
         <li>
           <strong>Burn</strong> any quest: it is deleted at once.
+        </li>
+        <li>
+          <strong>Keep a quest to yourself again</strong> at any time after showing it to a crew: they no longer see it, and
+          everyone who walked with you is let go.
         </li>
         <li>
           <strong>Hide your places</strong> from everyone else at once with “Show my places on maps” on the Lore Map, or

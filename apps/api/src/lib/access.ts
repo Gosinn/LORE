@@ -183,12 +183,42 @@ export async function loadVisibleChapter(db: Db, viewerId: string, chapterId: st
   return row;
 }
 
-// The Loracle: wishes, their roads and waypoints are visible to the Lorer who cast them, and to no
-// one else (no sharing in phase A). Sealing is not visibility: routes/loracle.ts strips sealed
-// waypoints when it builds the view.
+// The Loracle: wishes, their roads and waypoints are visible to the Lorer who cast them and, when
+// they show a quest to one crew (phase C, "Show to a crew"), to that crew's active members: only
+// while the Lorer is still an active member of it too, and never across a block either way. Leaving
+// the crew, a block or "Only me" hides it again at once. Everything the Lorer does to a quest (cast,
+// ink, ask, share, burn) is theirs alone: routes load with wishVisible, then check `userId`.
+// Sealing is not visibility: routes/loracle.ts strips sealed waypoints when it builds the view.
+// The quest log and the map show only the Lorer's own (wishOwned).
 
-/** Wishes: only the Lorer who cast it. */
-export const wishVisible = (viewerId: string) => eq(wishes.userId, viewerId);
+/** Wishes the viewer cast (the quest log, the map). */
+export const wishOwned = (viewerId: string) => eq(wishes.userId, viewerId);
+
+/** No block between two people, either way. */
+const unblocked = (a: Ref, b: Ref) =>
+  sql`not exists (select 1 from ${blocks} wish_block where (wish_block.blocker_id = ${a} and wish_block.blocked_id = ${b}) or (wish_block.blocker_id = ${b} and wish_block.blocked_id = ${a}))`;
+
+/** Wishes the viewer may open: their own, and quests shown to a crew they share with the Lorer. */
+export const wishVisible = (viewerId: string) => sql`(
+  ${wishes.userId} = ${viewerId}
+  or (${wishes.audience} = 'crew' and ${wishes.crewId} is not null
+      and ${isActiveMember(wishes.crewId, viewerId)}
+      and exists (select 1 from ${crewMembers} wish_owner where wish_owner.crew_id = ${wishes.crewId} and wish_owner.user_id = ${wishes.userId} and wish_owner.status = 'active')
+      and ${unblocked(wishes.userId, sql`${viewerId}::uuid`)})
+)`;
+
+/**
+ * A walker shows on a quest (phase C) while the quest is still shown to their crew, they are still an
+ * active member of it, and no block stands between them and the viewer, or between them and the Lorer
+ * (a Lorer who blocks a walker is never shown walking "with" them). `walkerId` is the walker's column;
+ * `crewId` the wish's crew; `lorerId` the wish's Lorer.
+ */
+export const walkerShown = (walkerId: Ref, crewId: Ref, viewerId: string, lorerId: Ref) => sql`(
+  ${isActiveMemberRef(crewId, walkerId)} and ${unblocked(walkerId, sql`${viewerId}::uuid`)} and ${unblocked(walkerId, lorerId)}
+)`;
+
+const isActiveMemberRef = (crewId: Ref, userId: Ref) =>
+  sql`exists (select 1 from ${crewMembers} walker_m where walker_m.crew_id = ${crewId} and walker_m.user_id = ${userId} and walker_m.status = 'active')`;
 
 export async function loadVisibleWish(db: Db, viewerId: string, wishId: string) {
   const [row] = await db

@@ -109,6 +109,18 @@ export type StepDraftT = WaypointDraftT['road'][number];
 export type LineDraftT = QuestDraftT['provisions']['coin'][number];
 export type PersonDraftT = NonNullable<WaypointDraftT['person']>;
 
+/** A deeper ask's answer (phase B): one waypoint lit, never a map. */
+export const DeeperWire = z.object({
+  answer: z.string().nullable(),
+  clue: z.string(),
+  steps: z.array(Step),
+  keeper: Person.nullable(),
+  words: z.string().nullable(),
+  unknown: z.string(),
+});
+export type DeeperDraftT = z.infer<typeof DeeperWire>;
+
 /** The JSON Schemas sent as output_config.format (built once; byte-stable for the schema cache). */
 export const WEIGH_FORMAT = { type: 'json_schema' as const, schema: zodOutputFormat(WeighingWire).schema };
 export const QUEST_FORMAT = { type: 'json_schema' as const, schema: zodOutputFormat(QuestDraftWire).schema };
+export const DEEPER_FORMAT = { type: 'json_schema' as const, schema: zodOutputFormat(DeeperWire).schema };

@@ -48,7 +48,7 @@ describe('data export', () => {
     expect(shared.myContributions.map((c: any) => c.type)).toEqual(['story', 'photo']);
     expect(data.personalCalendar[0].title).toBe('Dentist');
     // The Loracle's part is there even before the first wish (lib/accounts.ts; see loracle.test.ts for a full one).
-    expect(data.loracle).toEqual({ consentAt: null, context: null, wishes: [], spend: [] });
+    expect(data.loracle).toEqual({ consentAt: null, context: null, wishes: [], walking: [], spend: [] });
     expect(JSON.stringify(data)).not.toMatch(/password|scrypt/i);
   });
 });

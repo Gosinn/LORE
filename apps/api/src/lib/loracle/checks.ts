@@ -1,7 +1,7 @@
 // The checks: code that reads every draft before it becomes a scroll.
 //
 // Soft faults are fixed here and only logged (S1–S14). Hard faults earn one repair call; what
-// remains after it makes the road `rough` (H1–H17). Safety faults block the road: one repair, then
+// remains after it makes the road `rough` (H1–H18). Safety faults block the road: one repair, then
 // one fresh compose, then the road fades (X1–X6).
 //
 // Shown fields: title, calling, truth, waypoint name, clue, trial, earns, mystery, step text,
@@ -22,8 +22,8 @@ import {
   STUBBORN,
   countryName,
 } from './prompts.ts';
-import type { LineDraftT, QuestDraftT, StepDraftT, WaypointDraftT } from './schema.ts';
-import type { Weighing } from './types.ts';
+import type { DeeperDraftT, LineDraftT, QuestDraftT, StepDraftT, WaypointDraftT } from './schema.ts';
+import type { EarlierRoad, Weighing } from './types.ts';
 
 export interface Fault {
   /** "H3", "X1", … */
@@ -43,6 +43,8 @@ export interface CheckContext {
   homeCountry: string;
   todayIso: string;
   seen: SeenUrls;
+  /** "Ask again": the roads already drawn (a new road must not repeat one, H18). */
+  earlier?: readonly EarlierRoad[];
 }
 
 export interface CheckResult {
@@ -131,12 +133,12 @@ export function sameCountry(country: string, homeIso: string): boolean {
 // ---------------------------------------------------------------------------
 // Numbers (S5)
 
-interface Num {
+export interface Num {
   digits: string;
   value: number;
 }
 
-function numbersIn(text: string): Num[] {
+export function numbersIn(text: string): Num[] {
   const out: Num[] = [];
   for (const m of text.matchAll(/\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?/g)) {
     const raw = m[0];
@@ -147,7 +149,7 @@ function numbersIn(text: string): Num[] {
   return out;
 }
 
-function numberBacked(n: Num, pool: Num[]): boolean {
+export function numberBacked(n: Num, pool: Num[]): boolean {
   if (pool.some((p) => p.digits === n.digits || p.value === n.value)) return true;
   const values = pool.map((p) => p.value).filter((v) => v > 0);
   for (const v of values) for (let k = 2; k <= 9; k++) if (Math.abs(v * k - n.value) < 1e-9) return true;
@@ -461,6 +463,18 @@ export function checkDraft(input: QuestDraftT, ctx: CheckContext): CheckResult {
       hardF('H17', `waypoint ${i + 1} person`, `${wp(i, w)}: the person has no ${w.person.verb.trim() ? 'role' : 'verb'}.`);
   });
 
+  // H18: "Ask again" never redraws an earlier road (its title, or its places in the same order).
+  if (ctx.earlier?.length) {
+    const places = (list: readonly string[]) => list.map((p) => norm(p)).join(' | ');
+    const mine = places(map.map((w) => w.where.place));
+    const repeats = ctx.earlier.some(
+      (r) =>
+        (!!draft.title.trim() && norm(r.title) === norm(draft.title)) ||
+        (r.waypoints.length > 0 && places(r.waypoints.map((w) => w.place)) === mine),
+    );
+    if (repeats) hardF('H18', 'map', 'This road repeats an earlier one; change the calling’s shape and the order of the trials.');
+  }
+
   // H1: banned words in shown fields.
   const shown: [string, string | null][] = [
     ['title', draft.title],
@@ -737,3 +751,208 @@ export const markFor = (ids: string[], ledger: Ledger) => markOf(ids, ledger.not
 export const faultLines = (faults: readonly Fault[]) => faults.map((f) => f.detail);
 /** Fault codes for the log (no text). */
 export const faultCodes = (faults: readonly Fault[]) => faults.map((f) => `${f.code} ${f.at}`);
+
+// ---------------------------------------------------------------------------
+// Phase B: a deeper ask's answer. The same rules as the road, for the fields it has: steps cite their
+// notes and carry no hedge, placeholder, stock word, unbacked number or unseen host (fixed in code);
+// banned words, a keeper the ledger doesn't name, logistics in the clue, templated unknowns, overlong
+// fields and a missing answer to a question asked earn the one repair; what remains after it makes the
+// answer `rough` (never shown). Safety faults, as on the road (X4 no solo travel abroad before 18, X5
+// never reach for the person an inward wish is about, X6 never pester a person), earn the repair too,
+// and an answer they outlive is never shown: the ask fails (lib/loracle/flow.ts deeperFeed).
+
+export interface DeeperCheckContext {
+  ledger: Ledger;
+  seen: SeenUrls;
+  todayIso: string;
+  tags: readonly LoracleTag[];
+  /** The wish text (for an inward wish's other person); never logged. */
+  wishText: string;
+  /** The Lorer's question, if any. */
+  question: string | null;
+  /** The realm's ISO country code (X4: abroad). */
+  homeCountry: string;
+  /** The lit waypoint's country, as the road names it (X4: abroad). */
+  waypointCountry: string;
+}
+
+export interface DeeperCheck {
+  draft: DeeperDraftT;
+  soft: string[];
+  hard: Fault[];
+  /** X4, X5, X6: an answer these outlive is never shown. */
+  safety: Fault[];
+}
+
+const DEEPER_CAPS = { answer: 40, clue: 14, unknown: 18, words: 30 };
+
+export function checkDeeper(input: DeeperDraftT, ctx: DeeperCheckContext): DeeperCheck {
+  const draft: DeeperDraftT = structuredClone(input);
+  const soft: string[] = [];
+  const hard: Fault[] = [];
+  const { ledger } = ctx;
+  const notes = new Map(ledger.notes.map((n) => [n.id, n]));
+  const ledgerNames = [
+    ...new Set(
+      ledger.notes
+        .flatMap((n) => [n.name, n.place ? venueOf(n.place) : null])
+        .filter((s): s is string => !!s && s.length > 3),
+    ),
+  ];
+  const personNotes = ledger.notes.filter((n) => n.kind === 'person' && n.name);
+  const hostSeen = (host: string) => {
+    const h = host.toLowerCase().replace(/^www\./, '');
+    return [...ctx.seen.hosts()].some((s) => s === h || s.endsWith(`.${h}`) || h.endsWith(`.${s}`));
+  };
+  const hardF = (code: string, at: string, detail: string) => hard.push({ code, at, detail });
+  const safety: Fault[] = [];
+  const safeF = (code: string, at: string, detail: string) => safety.push({ code, at, detail });
+
+  // S14: no exclamation marks or emoji.
+  const tidy = (s: string) => s.replace(EMOJI, '').replace(/!+/g, '.').replace(/\s{2,}/g, ' ').trim();
+  draft.answer = draft.answer === null ? null : tidy(draft.answer) || null;
+  draft.clue = tidy(draft.clue);
+  draft.words = draft.words === null ? null : tidy(draft.words) || null;
+  draft.unknown = tidy(draft.unknown);
+  for (const s of draft.steps) s.text = tidy(s.text);
+
+  // S1: unknown note ids; S9: the keeper's note is the one that names them.
+  draft.steps.forEach((s, j) => {
+    const kept = [...new Set(s.noteIds.filter((id) => notes.has(id)))];
+    if (kept.length !== s.noteIds.length) soft.push(`S1 step ${j + 1}`);
+    s.noteIds = kept;
+  });
+  const k = draft.keeper;
+  if (k) {
+    if (k.noteId && !notes.has(k.noteId)) {
+      k.noteId = null;
+      soft.push('S1 keeper');
+    }
+    const name = k.name;
+    if (name) {
+      const current = k.noteId ? notes.get(k.noteId) : undefined;
+      if (!(current?.kind === 'person' && (mentions(current.name ?? '', name) || mentions(name, current.name)))) {
+        const match = personNotes.find((n) => mentions(n.name!, name) || mentions(name, n.name));
+        if ((match?.id ?? null) !== k.noteId) {
+          k.noteId = match?.id ?? null;
+          soft.push('S9 keeper');
+        }
+      }
+    }
+  }
+
+  // Steps: S2, S4, S5, S6 as on the road.
+  const ty = Number(ctx.todayIso.slice(0, 4));
+  const dropped = (code: string) => {
+    soft.push(code);
+    return false;
+  };
+  draft.steps = draft.steps.filter((s, j) => {
+    const at = `step ${j + 1}`;
+    if (s.noteIds.length === 0) return dropped(`S2 ${at}`);
+    if (findPhrase(s.text, [...HEDGES, ...PLACEHOLDERS], ledgerNames) || PLACEHOLDER.test(s.text)) return dropped(`S4 ${at}`);
+    if (findPhrase(s.text, [...STOCK, ...FILLER, ...MACHINERY], ledgerNames)) return dropped(`S4 ${at}`);
+    const cited = s.noteIds.map((id) => notes.get(id)!).filter(Boolean);
+    const pool = cited.flatMap((n) => numbersIn(`${n.text} ${n.name ?? ''} ${n.place ?? ''}`));
+    const disputed = cited.filter((n) => n.status === 'disputed').flatMap((n) => numbersIn(n.text));
+    for (const n of numbersIn(s.text)) {
+      if (n.value === 0 || n.value === 1) continue;
+      if (Number.isInteger(n.value) && n.value >= ty && n.value <= ty + 2) continue;
+      if (disputed.some((d) => d.digits === n.digits) || !numberBacked(n, pool)) return dropped(`S5 ${at}`);
+    }
+    for (const m of s.text.matchAll(/\b(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?:\/[^\s]*)?/gi)) {
+      const host = m[1]!;
+      if (/^\d/.test(host) || !/[a-z]/i.test(host.split('.').at(-1)!)) continue;
+      if (!hostSeen(host)) {
+        s.text = s.text
+          .split(/(?<=[.;])\s+/)
+          .filter((sentence) => !sentence.includes(m[0]))
+          .join(' ')
+          .trim();
+        soft.push(`S6 ${at}`);
+      }
+    }
+    return !!s.text;
+  });
+
+  // S7: three steps (help > gate > cost > do).
+  if (draft.steps.length > 3) {
+    const keep = new Set(
+      draft.steps
+        .map((s, j) => ({ s, j }))
+        .sort((a, b) => STEP_ORDER[a.s.kind] - STEP_ORDER[b.s.kind] || a.j - b.j)
+        .slice(0, 3)
+        .map((x) => x.s),
+    );
+    draft.steps = draft.steps.filter((s) => keep.has(s));
+    soft.push('S7 steps');
+  }
+
+  // No question asked: no answer is given.
+  if (!ctx.question && draft.answer) {
+    draft.answer = null;
+    soft.push('S15 answer');
+  }
+
+  // ---- Hard faults
+  if (draft.steps.length < 2) hardF('H17', 'steps', `Only ${draft.steps.length} step(s) hold; give three, each citing its notes.`);
+  if (!draft.clue) hardF('H17', 'clue', 'There is no clue.');
+  if (!draft.unknown) hardF('H17', 'unknown', 'There is no new unknown.');
+  if (ctx.question && !draft.answer) hardF('H17', 'answer', 'The Lorer asked a question. Answer it first, plainly and truly from the ledger.');
+  if (k && (!k.verb.trim() || !k.role.trim())) hardF('H17', 'keeper', `The keeper has no ${k.verb.trim() ? 'role' : 'verb'}.`);
+
+  const shown: [string, string | null][] = [
+    ['answer', draft.answer],
+    ['clue', draft.clue],
+    ['words', draft.words],
+    ['unknown', draft.unknown],
+    ['keeper verb', k?.verb ?? null],
+  ];
+  for (const [at, text] of shown) {
+    if (!text) continue;
+    const hit = findPhrase(text, BANNED, ledgerNames);
+    if (hit) hardF('H1', at, `The ${at} uses "${hit}". Say it plainly in the stone's own words.`);
+  }
+  const keeperName = k?.name ?? null;
+  if (keeperName) {
+    if (/ or |\/|,|&| and /i.test(keeperName)) hardF('H5', 'keeper', 'keeper.name must hold exactly one human.');
+    else if (!personNotes.some((p) => mentions(p.name!, keeperName) || mentions(keeperName, p.name)))
+      hardF('H5', 'keeper', `"${keeperName}" is in no person note of the ledger.`);
+  }
+  if (over(draft.answer, DEEPER_CAPS.answer)) hardF('H9', 'answer', `The answer is over ${DEEPER_CAPS.answer} words.`);
+  if (over(draft.clue, DEEPER_CAPS.clue)) hardF('H9', 'clue', `The clue is over ${DEEPER_CAPS.clue} words.`);
+  if (over(draft.unknown, DEEPER_CAPS.unknown)) hardF('H9', 'unknown', `The unknown is over ${DEEPER_CAPS.unknown} words.`);
+  if (over(draft.words, DEEPER_CAPS.words)) hardF('H9', 'words', `The words to say are over ${DEEPER_CAPS.words} words.`);
+  if (CLUE_LOGISTICS.test(draft.clue)) hardF('H14', 'clue', 'The clue speaks of logistics.');
+  if (MYSTERY_TEMPLATE.test(draft.unknown)) hardF('H7', 'unknown', 'The unknown is a template.');
+
+  // ---- Safety faults
+  const tags = new Set(ctx.tags);
+  // X4: no solo travel abroad before 18.
+  if (tags.has('youth') && !sameCountry(ctx.waypointCountry, ctx.homeCountry)) {
+    draft.steps.forEach((s, j) => {
+      if (SOLO.test(s.text)) safeF('X4', `step ${j + 1}`, 'No solo travel abroad before 18.');
+    });
+    if (draft.answer && SOLO.test(draft.answer)) safeF('X4', 'answer', 'No solo travel abroad before 18.');
+  }
+  // X5: an inward wish never reaches for the other person.
+  if (tags.has('inward')) {
+    const targets = otherPeople(ctx.wishText, ledgerNames);
+    for (const text of [draft.answer ?? '', draft.words ?? '', ...draft.steps.map((s) => s.text)]) {
+      if (targets.some((t) => mentions(text, t) || norm(text).includes(norm(t)))) {
+        safeF('X5', 'answer', 'The answer reaches for the person the wish is about. The road is the Lorer’s alone.');
+        break;
+      }
+    }
+  }
+  // X6: never pester a person or camp beside them.
+  draft.steps.forEach((s, j) => {
+    if (
+      PESTER.test(s.text) &&
+      (personNotes.some((n) => mentions(s.text, n.name)) || (keeperName && mentions(s.text, keeperName)) || /\b(him|her|them)\b/i.test(s.text))
+    )
+      safeF('X6', `step ${j + 1}`, 'Ask a person once, through a public channel; never again and again, never camp beside them.');
+  });
+
+  return { draft, soft, hard, safety };
+}

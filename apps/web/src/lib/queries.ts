@@ -1,11 +1,15 @@
 import { QueryClient, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type {
   AppNotification,
+  AskResult,
+  CareView,
   ChapterDetail,
   ChapterSummary,
   Comment,
   CrewDetail,
   CrewSummary,
+  DeeperView,
+  EpicView,
   EventDetail,
   EventSummary,
   FriendRequest,
@@ -20,6 +24,7 @@ import type {
   PersonalEntry,
   PublicProfile,
   RoadStatus,
+  ShareWishInput,
   UserSearchResult,
   UserSummary,
   Wish,
@@ -27,6 +32,7 @@ import type {
 import { ROAD_IN_PROGRESS } from '#shared';
 import { api, ApiError, qs } from './api.ts';
 import { todayISO } from './dates.ts';
+import { asksAtDawn, asksListening, roadAtDawn, roadsOf } from './loracle.ts';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,11 +92,16 @@ export const useOracleSign = () =>
 
 const DRAWING: readonly RoadStatus[] = [...ROAD_IN_PROGRESS, 'ready'];
 
-/** How often to ask about a wish: every 2 s while its road is drawn (until the pins are sealed); slowly under the moon. */
+/**
+ * How often to ask about a wish: every 2 s while a road is drawn (until the pins are sealed) or the stone
+ * answers a deeper ask; once a minute under the moon or while something waits for dawn.
+ */
 export function wishPollMs(wish: Wish | undefined): number | false {
   if (!wish) return false;
   if (wish.status === 'moon') return 60_000;
-  return DRAWING.includes(wish.road.status) ? 2_000 : false;
+  const roads = roadsOf(wish);
+  if (roads.some((r) => DRAWING.includes(r.status) && !roadAtDawn(r)) || asksListening(wish)) return 2_000;
+  return roads.some(roadAtDawn) || asksAtDawn(wish) ? 60_000 : false;
 }
 
 /** One wish and its road. `background` keeps polling in a hidden tab (for "Tell me when it's sealed"). */
@@ -100,6 +111,42 @@ export const useWish = (id: string, background = false) =>
     queryFn: () => api.get<Wish>(`/loracle/wishes/${id}`),
     refetchInterval: (q) => wishPollMs(q.state.data),
     refetchIntervalInBackground: background,
+  });
+
+/**
+ * The Epic of a fulfilled quest (GET /loracle/wishes/:id/epic): its map, every inked waypoint with the chapter
+ * the viewer may read. For the Lorer, and for the crew it was shown to. 409 `not_fulfilled` before it came true.
+ */
+export const useEpic = (id: string) => useQuery({ queryKey: ['epic', id], queryFn: () => api.get<EpicView>(`/loracle/wishes/${id}/epic`) });
+
+/** A Loracle deed that answers with the whole wish (as the viewer may see it): the quest page takes it at once. */
+const wishEntry = (w: Wish): [QueryKey, unknown] | null => (w && typeof w === 'object' && 'roads' in w ? [['wish', w.id], w] : null);
+
+/** "Ask again" (phase B): another road for the same wish (202 Wish; it may wait for dawn). Only the Lorer. */
+export const useAskAgain = (wishId: string, onAsked?: () => void) =>
+  useAction(() => api.post<Wish>(`/loracle/wishes/${wishId}/again`), { set: wishEntry, onSuccess: () => onAsked?.() });
+
+/**
+ * "Ask the stone about this" (phase B): a deeper ask on an open waypoint, with an optional question (202
+ * DeeperView; the wish is then polled while it is answered). Only the Lorer. A question at the care floor
+ * comes back as the care screen instead (200 { route: 'care' }; nothing was stored or sent).
+ */
+export const useAskStone = (waypointId: string, on: { asked?: (ask: DeeperView) => void; care?: (care: CareView) => void } = {}) =>
+  useAction((question: string | null) => api.post<AskResult>(`/loracle/waypoints/${waypointId}/ask`, { question }), {
+    onSuccess: (r) => {
+      if ('route' in r) on.care?.(r.care);
+      else on.asked?.(r);
+    },
+  });
+
+/** "Show to a crew" / "Keep it to myself again" (phase C). Only the Lorer; one crew they are an active member of. */
+export const useShareWish = (wishId: string, onShared?: () => void) =>
+  useAction((body: ShareWishInput) => api.put<Wish>(`/loracle/wishes/${wishId}/share`, body), { set: wishEntry, onSuccess: () => onShared?.() });
+
+/** "Walk with you" (true) / "Walk no more" (false) on an open waypoint of a quest shown to the viewer's crew (phase C). */
+export const useWalk = (waypointId: string) =>
+  useAction((on: boolean) => (on ? api.post<Wish>(`/loracle/waypoints/${waypointId}/walk`) : api.del<Wish>(`/loracle/waypoints/${waypointId}/walk`)), {
+    set: wishEntry,
   });
 
 /** Moderators only. */

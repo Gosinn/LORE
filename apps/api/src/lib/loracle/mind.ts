@@ -6,26 +6,76 @@
 //          ─► REPAIR (effort medium, once, only on hard or safety faults) ─► CHECKS
 //          ─► (safety faults still there: one fresh compose ─► CHECKS, else the road fails)
 //          ─► DRAW (code: marks, sources, pins from the ledger)
+//   draw:  (phase B) the same COMPOSE … DRAW from a ledger already found: "Ask again" (with the AGAIN
+//          addendum and the roads already drawn), or a dawn road resumed live after its scouts
+//   deeper: (phase B) a DEEPER scout (effort low, 3 searches, 1 fetch) ─► its findings join the
+//          ledger ─► ANSWER (effort medium, structured) ─► CHECKS ─► REPAIR once ─► CHECKS
+//
+// The compose/repair steps are lib/loracle/flow.ts, a machine the dawn lane also runs batch by batch.
 //
 // Privacy: the mind is told the wish, the realm's label and country, the reach, the callings, what
 // the Lorer told the stone about themselves, today and an anonymous id (metadata.user_id). Never a
 // name, account, email, user id or coordinates. Logs carry stages, timings, tokens, cost and
 // request ids only: never the wish, the draft or the key.
 import type { LoracleConfig } from '../../config.ts';
-import { CutOff, anthropicClient, composeParams, failureOf, readStructured, runScout, scoutParams, weighParams } from './client.ts';
+import {
+  CutOff,
+  anthropicClient,
+  composeParams,
+  deeperParams,
+  failureOf,
+  readStructured,
+  runScout,
+  scoutParams,
+  weighParams,
+} from './client.ts';
 import type { Block, MindClient, Reply } from './client.ts';
-import { checkDraft, faultCodes, faultLines, type CheckResult } from './checks.ts';
+import { checkDeeper, checkDraft, faultCodes } from './checks.ts';
 import { spendOf } from './cost.ts';
-import { toRoad } from './draw.ts';
+import { toDeeper, toRoad } from './draw.ts';
 import { fakeMind } from './fake.ts';
-import { SeenUrls, buildLedger, ledgerRecord, nameKeepsComingUp, weighsCost } from './ledger.ts';
+import {
+  COMPOSE_TOKENS,
+  deeperFaults,
+  deeperFeed,
+  deeperFlow,
+  deeperRequest,
+  doneFaults,
+  drawFeed,
+  drawFlow,
+  drawRequest,
+  outcomeOf,
+} from './flow.ts';
+import {
+  SeenUrls,
+  buildLedger,
+  ledgerRecord,
+  mergeDossier,
+  nameKeepsComingUp,
+  restoreLedger,
+  weighsCost,
+  type Ledger,
+} from './ledger.ts';
 import { careFloor } from './care.ts';
-import { composeTurn, repairTurn, scoutTurn, weighTurn, type ScoutRole } from './prompts.ts';
-import { QuestDraftWire, WeighingWire, type QuestDraftT, type WeighingWireT } from './schema.ts';
+import {
+  AGAIN_ADDENDUM,
+  againTurn,
+  composeTurn,
+  deeperScoutTurn,
+  deeperTurn,
+  scoutTurn,
+  weighTurn,
+  type ScoutRole,
+} from './prompts.ts';
+import { DeeperWire, QuestDraftWire, WeighingWire, type WeighingWireT } from './schema.ts';
 import {
   MindError,
   type CastDraft,
   type CastOptions,
+  type DeeperAsk,
+  type DeeperDraft,
+  type DrawFrom,
+  type EarlierRoad,
   type LoracleMind,
   type LoracleStage,
   type MindContext,
@@ -175,184 +225,291 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
 
     async cast(wish: WeighedWish, ctx: MindContext, sink: SignSink, signal: AbortSignal, opts: CastOptions = {}): Promise<CastDraft> {
       const spend: SpendEntry[] = [];
-      const { deadline } = opts;
-      // A sign is a courtesy to the waiting Lorer: a failing sink never breaks the road.
-      const onSign: SignSink = (sign) => {
-        try {
-          sink(sign);
-        } catch (err) {
-          log.warn({ loracle: 'sign', kind: sign.kind, error: err instanceof Error ? err.name : 'unknown' }, 'loracle sign sink failed');
-        }
-      };
+      const onSign = safeSink(sink);
       try {
         const c = getClient(spend);
         signal.throwIfAborted();
+        const scouted = await scoutRoad(c, wish, ctx, onSign, signal, spend);
+        if (scouted.kind === 'silent') return { kind: 'silent', spend };
+        return await composeRoad(c, wish, ctx, scouted, { task: 'quest', earlier: [] }, onSign, signal, spend, opts.deadline);
+      } catch (err) {
+        throw fail(err, spend, signal);
+      }
+    },
 
-        // ---- Scouts, in parallel. Signs as real searches and fetches happen.
-        const seen = new SeenUrls();
-        const signed = new Set<string>();
-        const queries = new Set<string>();
-        const onBlock = (b: Block) => {
-          if (b.type !== 'server_tool_use' || signed.has(b.id)) return;
-          signed.add(b.id);
-          const input = b.input as { query?: unknown; url?: unknown };
-          if (b.name === 'web_search' && typeof input.query === 'string') {
-            const q = input.query.trim().toLowerCase();
-            if (q && !queries.has(q)) {
-              queries.add(q);
-              onSign({ kind: 'search', query: input.query });
-            }
-          } else if (b.name === 'web_fetch' && typeof input.url === 'string') {
-            try {
-              onSign({ kind: 'fetch', host: new URL(input.url).hostname });
-            } catch {
-              /* not a URL: no sign */
-            }
-          }
-        };
-        const roles: ScoutRole[] = ['ROAD', 'KEEPERS'];
-        const runs = await Promise.allSettled(
-          roles.map((role) =>
-            runScout(c, scoutParams(cfg, role, scoutTurn(wish, ctx, wish.weighing, role), ctx), onBlock, { signal }, (reply, ms, cut) => {
-              const stop = reply.message.stop_reason;
-              const outcome: SpendOutcome = cut ? 'error' : stop === 'refusal' ? 'refusal' : stop === 'max_tokens' ? 'max_tokens' : 'ok';
-              account(spend, role === 'ROAD' ? 'road' : 'keepers', outcome, reply, ms);
-            }),
-          ),
-        );
-        const dossiers: string[] = [];
-        let refusals = 0;
-        let firstError: unknown = null;
-        for (const [i, r] of runs.entries()) {
-          if (r.status === 'rejected') {
-            firstError ??= r.reason;
-            continue;
-          }
-          const run = r.value;
-          for (const b of run.blocks) {
-            onBlock(b);
-            seen.collect(b);
-          }
-          if (run.kind === 'refusal') refusals++;
-          else if (run.text.trim()) dossiers.push(run.text);
-          // A scout that wrote no dossier (its notes stayed in thinking, or its resends ran out).
-          else log.warn({ loracle: 'scout', role: roles[i], stop: run.stop, requests: run.replies.length }, 'loracle scout brought back nothing');
+    async draw(wish: WeighedWish, ctx: MindContext, from: DrawFrom, sink: SignSink, signal: AbortSignal, opts: CastOptions = {}): Promise<CastDraft> {
+      const spend: SpendEntry[] = [];
+      const onSign = safeSink(sink);
+      try {
+        const c = getClient(spend);
+        signal.throwIfAborted();
+        let found: Scouted | null = null;
+        const restored = restoreLedger(from.ledger, from.sources, ctx.todayIso);
+        if (restored) found = { kind: 'ledger', ...restored };
+        else {
+          // A phase A ledger that can't be read back: the scouts go out again.
+          log.info({ loracle: 'draw', restored: false }, 'loracle ledger could not be read back; scouting again');
+          const scouted = await scoutRoad(c, wish, ctx, onSign, signal, spend);
+          if (scouted.kind === 'silent') return { kind: 'silent', spend };
+          found = scouted;
+        }
+        return await composeRoad(c, wish, ctx, found, { task: from.task, earlier: from.earlier }, onSign, signal, spend, opts.deadline);
+      } catch (err) {
+        throw fail(err, spend, signal);
+      }
+    },
+
+    async deeper(ask: DeeperAsk, ctx: MindContext, sink: SignSink, signal: AbortSignal): Promise<DeeperDraft> {
+      // The route answers the care floor first; this is the floor under it (nothing is sent).
+      if (ask.focus.question && careFloor(ask.focus.question)) return { kind: 'silent', spend: [] };
+      const spend: SpendEntry[] = [];
+      const onSign = safeSink(sink);
+      try {
+        const c = getClient(spend);
+        signal.throwIfAborted();
+        const restored = restoreLedger(ask.ledger, ask.sources, ctx.todayIso);
+        if (!restored) throw new MindError('error', { spend });
+        const { seen } = restored;
+
+        // ---- The DEEPER scout: one waypoint, a few searches, effort low.
+        const onBlock = signer(onSign);
+        const turn = deeperScoutTurn(ask.wish, ctx, ask.wish.weighing, ask.focus);
+        const run = await runScout(c, scoutParams(cfg, 'DEEPER', turn, ctx), onBlock, { signal }, (reply, ms, cut) => {
+          const stop = reply.message.stop_reason;
+          const outcome: SpendOutcome = cut ? 'error' : stop === 'refusal' ? 'refusal' : stop === 'max_tokens' ? 'max_tokens' : 'ok';
+          account(spend, 'deeper-scout', outcome, reply, ms);
+        });
+        for (const b of run.blocks) {
+          onBlock(b);
+          seen.collect(b);
         }
         signal.throwIfAborted();
-        if (dossiers.length === 0) {
-          if (refusals === roles.length) return { kind: 'silent', spend };
-          throw firstError ?? new MindError('error', { spend });
-        }
+        // A refusing or empty scout leaves the ledger as it was: the answer draws on what the cast found.
+        const merged =
+          run.kind === 'ok' && run.text.trim()
+            ? mergeDossier(restored.ledger, run.text, seen, ctx.todayIso)
+            : { ledger: restored.ledger, added: [] };
+        if (nameKeepsComingUp(merged.added)) onSign({ kind: 'name' });
+        if (weighsCost(merged.added)) onSign({ kind: 'cost' });
 
-        // ---- Ledger (code).
-        const ledger = buildLedger(dossiers, seen, ctx.todayIso);
-        if (nameKeepsComingUp(ledger.notes)) onSign({ kind: 'name' });
-        if (weighsCost(ledger.notes)) onSign({ kind: 'cost' });
-        log.info({ loracle: 'ledger', notes: ledger.notes.length, sources: ledger.sources.length, gaps: ledger.gaps.length, seen: seen.size }, 'loracle ledger');
-        if (ledger.notes.length < MIN_NOTES) throw new MindError('error', { spend });
-
-        // ---- Compose, check, repair.
-        const checkCtx = { ledger, weighing: wish.weighing, wishText: wish.text, homeCountry: ctx.realm.country, todayIso: ctx.todayIso, seen };
-        const composeInput = composeTurn(wish, ctx, wish.weighing, ledger.text);
-
-        const draw = async (
-          stage: 'compose' | 'repair',
-          turn: string,
-          effort: typeof cfg.effort.compose,
-        ): Promise<{ kind: 'ok'; draft: QuestDraftT } | { kind: 'refusal' } | { kind: 'invalid'; text: string }> => {
-          for (const maxTokens of [32_000, 64_000]) {
-            signal.throwIfAborted();
-            // The larger rerun would outlast the job: stop here rather than pay for a cut-off reply.
-            if (maxTokens > 32_000 && deadline !== undefined && deadline - Date.now() < RERUN_NEEDS_MS) {
-              throw new MindError('timeout', { spend });
-            }
-            const t0 = Date.now();
-            let reply: Reply;
-            try {
-              reply = await c.stream(composeParams(cfg, turn, ctx.anonId, { effort, maxTokens }), { signal });
-            } catch (err) {
-              if (err instanceof CutOff) account(spend, stage, 'error', err.reply, Date.now() - t0);
-              throw err;
-            }
-            const read = readStructured(reply.message, QuestDraftWire);
-            const ms = Date.now() - t0;
-            if (read.kind === 'max_tokens') {
-              account(spend, stage, 'max_tokens', reply, ms);
-              continue;
-            }
-            if (read.kind === 'refusal') {
-              account(spend, stage, 'refusal', reply, ms);
-              return { kind: 'refusal' };
-            }
-            if (read.kind === 'invalid') {
-              account(spend, stage, 'error', reply, ms);
-              return { kind: 'invalid', text: read.text };
-            }
-            account(spend, stage, 'ok', reply, ms);
-            return { kind: 'ok', draft: read.value };
+        // ---- The answer (lib/loracle/flow.ts), checked, repaired once.
+        const { ledger } = merged;
+        const input = deeperTurn(composeTurn(ask.wish, ctx, ask.wish.weighing, ledger.text), ask.focus);
+        const checkCtx = {
+          ledger,
+          seen,
+          todayIso: ctx.todayIso,
+          tags: ask.wish.weighing.tags,
+          wishText: ask.wish.text,
+          question: ask.focus.question,
+          homeCountry: ctx.realm.country,
+          waypointCountry: ask.focus.waypoint.country,
+        };
+        const flow = deeperFlow();
+        for (;;) {
+          const req = deeperRequest(flow, input);
+          if (!req) break;
+          signal.throwIfAborted();
+          if (req.sign) onSign({ kind: req.sign });
+          const t0 = Date.now();
+          let reply: Reply;
+          try {
+            reply = await c.stream(deeperParams(cfg, req.turn, ctx.anonId, { maxTokens: req.maxTokens }), { signal });
+          } catch (err) {
+            if (err instanceof CutOff) account(spend, 'deeper', 'error', err.reply, Date.now() - t0);
+            throw err;
           }
+          const read = readStructured(reply.message, DeeperWire);
+          account(spend, 'deeper', outcomeOf(read), reply, Date.now() - t0);
+          deeperFeed(flow, read, (d) => checkDeeper(d, checkCtx));
+        }
+        if (flow.step === 'silent') return { kind: 'silent', spend };
+        if (flow.step !== 'done' || !flow.checked) {
+          if (flow.failure === 'safety') log.error({ loracle: 'safety', faults: faultCodes(flow.checked?.safety ?? []) }, 'loracle deeper safety faults remained');
           throw new MindError('error', { spend });
-        };
-
-        onSign({ kind: 'compose' });
-        const first = await draw('compose', composeInput, cfg.effort.compose);
-        if (first.kind === 'refusal') return { kind: 'silent', spend };
-        let checked: CheckResult | null = first.kind === 'ok' ? checkDraft(first.draft, checkCtx) : null;
-        const faults: string[] = [];
-        const needsRepair = (r: CheckResult | null) => !r || r.hard.length > 0 || r.safety.length > 0;
-
-        if (needsRepair(checked)) {
-          onSign({ kind: 'repair' });
-          const lines = checked
-            ? faultLines([...checked.safety, ...checked.hard])
-            : ['The answer was not valid JSON for the schema (H17). Return the whole quest as the schema asks.'];
-          const draftJson = checked ? JSON.stringify(checked.draft) : first.kind === 'invalid' ? first.text.slice(0, 60_000) : '{}';
-          faults.push('repair', ...(checked ? faultCodes([...checked.safety, ...checked.hard]) : ['H17 json']));
-          const repaired = await draw('repair', repairTurn(composeInput, draftJson, lines), cfg.effort.repair);
-          if (repaired.kind === 'ok') {
-            const again = checkDraft(repaired.draft, checkCtx);
-            // Keep the repair unless it made things worse on safety.
-            if (!checked || again.safety.length <= checked.safety.length) checked = again;
-          } else if (repaired.kind === 'refusal' && !checked) {
-            return { kind: 'silent', spend };
-          }
         }
-
-        if (checked && checked.safety.length > 0) {
-          // Safety still broken: one fresh compose from scratch (counted as a repair, not a new cast).
-          faults.push('recompose', ...faultCodes(checked.safety));
-          onSign({ kind: 'repair' });
-          const fresh = await draw('repair', composeInput, cfg.effort.compose);
-          if (fresh.kind === 'ok') {
-            const again = checkDraft(fresh.draft, checkCtx);
-            if (again.safety.length === 0) checked = again;
-          }
-          if (checked.safety.length > 0) {
-            log.error({ loracle: 'safety', faults: faultCodes(checked.safety) }, 'loracle safety faults remained');
-            throw new MindError('error', { spend });
-          }
-        }
-        if (!checked) throw new MindError('error', { spend });
-
-        // ---- Seal and draw.
         onSign({ kind: 'seal' });
-        const road = toRoad(checked.draft, ledger, ctx.todayIso);
-        const rough = checked.hard.length > 0;
-        faults.push(...checked.soft, ...faultCodes(checked.hard));
-        log.info({ loracle: 'road', rough, waypoints: road.waypoints.length, faults: faults.length, soft: checked.soft.length, hard: checked.hard.length }, 'loracle road');
-        return {
-          kind: 'road',
-          road,
-          rough,
-          faults,
-          forge: checked.draft.forge,
-          ledger: ledgerRecord(ledger, dossiers),
-          spend,
-        };
+        const rough = flow.checked.hard.length > 0;
+        const faults = deeperFaults(flow);
+        log.info({ loracle: 'deeper', rough, added: merged.added.length, faults: faults.length }, 'loracle deeper answer');
+        return { kind: 'answer', answer: toDeeper(flow.checked.draft, ledger), found: merged.added, rough, faults, spend };
       } catch (err) {
         throw fail(err, spend, signal);
       }
     },
   };
+
+  /** A sign is a courtesy to the waiting Lorer: a failing sink never breaks the road. */
+  function safeSink(sink: SignSink): SignSink {
+    return (sign) => {
+      try {
+        sink(sign);
+      } catch (err) {
+        log.warn({ loracle: 'sign', kind: sign.kind, error: err instanceof Error ? err.name : 'unknown' }, 'loracle sign sink failed');
+      }
+    };
+  }
+
+  type Scouted = { kind: 'ledger'; ledger: Ledger; seen: SeenUrls; dossiers: string[] };
+
+  /** The scouts, in parallel (ROAD ‖ KEEPERS), then the ledger. Signs as real searches and fetches happen. */
+  async function scoutRoad(
+    c: MindClient,
+    wish: WeighedWish,
+    ctx: MindContext,
+    onSign: SignSink,
+    signal: AbortSignal,
+    spend: SpendEntry[],
+  ): Promise<Scouted | { kind: 'silent' }> {
+    const seen = new SeenUrls();
+    const onBlock = signer(onSign);
+    const roles: ScoutRole[] = ['ROAD', 'KEEPERS'];
+    const runs = await Promise.allSettled(
+      roles.map((role) =>
+        runScout(c, scoutParams(cfg, role, scoutTurn(wish, ctx, wish.weighing, role), ctx), onBlock, { signal }, (reply, ms, cut) => {
+          const stop = reply.message.stop_reason;
+          const outcome: SpendOutcome = cut ? 'error' : stop === 'refusal' ? 'refusal' : stop === 'max_tokens' ? 'max_tokens' : 'ok';
+          account(spend, role === 'ROAD' ? 'road' : 'keepers', outcome, reply, ms);
+        }),
+      ),
+    );
+    const dossiers: string[] = [];
+    let refusals = 0;
+    let firstError: unknown = null;
+    for (const [i, r] of runs.entries()) {
+      if (r.status === 'rejected') {
+        firstError ??= r.reason;
+        continue;
+      }
+      const run = r.value;
+      for (const b of run.blocks) {
+        onBlock(b);
+        seen.collect(b);
+      }
+      if (run.kind === 'refusal') refusals++;
+      else if (run.text.trim()) dossiers.push(run.text);
+      // A scout that wrote no dossier (its notes stayed in thinking, or its resends ran out).
+      else log.warn({ loracle: 'scout', role: roles[i], stop: run.stop, requests: run.replies.length }, 'loracle scout brought back nothing');
+    }
+    signal.throwIfAborted();
+    if (dossiers.length === 0) {
+      if (refusals === roles.length) return { kind: 'silent' };
+      throw firstError ?? new MindError('error', { spend });
+    }
+
+    // ---- Ledger (code).
+    const ledger = buildLedger(dossiers, seen, ctx.todayIso);
+    if (nameKeepsComingUp(ledger.notes)) onSign({ kind: 'name' });
+    if (weighsCost(ledger.notes)) onSign({ kind: 'cost' });
+    log.info({ loracle: 'ledger', notes: ledger.notes.length, sources: ledger.sources.length, gaps: ledger.gaps.length, seen: seen.size }, 'loracle ledger');
+    if (ledger.notes.length < MIN_NOTES) throw new MindError('error', { spend });
+    return { kind: 'ledger', ledger, seen, dossiers };
+  }
+
+  /**
+   * Compose, check and repair a road from a ledger (lib/loracle/flow.ts), then seal it. The same
+   * machine runs batch by batch in the dawn lane.
+   */
+  async function composeRoad(
+    c: MindClient,
+    wish: WeighedWish,
+    ctx: MindContext,
+    found: Scouted,
+    from: { task: 'quest' | 'again'; earlier: EarlierRoad[] },
+    onSign: SignSink,
+    signal: AbortSignal,
+    spend: SpendEntry[],
+    deadline: number | undefined,
+  ): Promise<CastDraft> {
+    const { ledger, seen, dossiers } = found;
+    const checkCtx = {
+      ledger,
+      weighing: wish.weighing,
+      wishText: wish.text,
+      homeCountry: ctx.realm.country,
+      todayIso: ctx.todayIso,
+      seen,
+      earlier: from.task === 'again' ? from.earlier : undefined,
+    };
+    const base = composeTurn(wish, ctx, wish.weighing, ledger.text);
+    const composeInput = from.task === 'again' ? againTurn(base, from.earlier) : base;
+    const flow = drawFlow(from.task);
+    for (;;) {
+      const req = drawRequest(flow, composeInput);
+      if (!req) break;
+      signal.throwIfAborted();
+      // The larger rerun would outlast the job: stop here rather than pay for a cut-off reply.
+      if (req.maxTokens > COMPOSE_TOKENS[0] && deadline !== undefined && deadline - Date.now() < RERUN_NEEDS_MS) {
+        throw new MindError('timeout', { spend });
+      }
+      if (req.sign) onSign({ kind: req.sign });
+      const t0 = Date.now();
+      let reply: Reply;
+      try {
+        reply = await c.stream(
+          composeParams(cfg, req.turn, ctx.anonId, {
+            effort: cfg.effort[req.effort],
+            maxTokens: req.maxTokens,
+            addendum: req.addendum === 'again' ? AGAIN_ADDENDUM : null,
+          }),
+          { signal },
+        );
+      } catch (err) {
+        if (err instanceof CutOff) account(spend, req.stage, 'error', err.reply, Date.now() - t0);
+        throw err;
+      }
+      const read = readStructured(reply.message, QuestDraftWire);
+      account(spend, req.stage, outcomeOf(read), reply, Date.now() - t0);
+      drawFeed(flow, read, (d) => checkDraft(d, checkCtx));
+    }
+    if (flow.step === 'silent') return { kind: 'silent', spend };
+    if (flow.step !== 'done' || !flow.checked) {
+      if (flow.failure === 'safety') log.error({ loracle: 'safety', faults: faultCodes(flow.checked?.safety ?? []) }, 'loracle safety faults remained');
+      throw new MindError('error', { spend });
+    }
+
+    // ---- Seal and draw.
+    onSign({ kind: 'seal' });
+    const checked = flow.checked;
+    const road = toRoad(checked.draft, ledger, ctx.todayIso);
+    const rough = checked.hard.length > 0;
+    const faults = doneFaults(flow);
+    log.info({ loracle: 'road', rough, waypoints: road.waypoints.length, faults: faults.length, soft: checked.soft.length, hard: checked.hard.length }, 'loracle road');
+    return {
+      kind: 'road',
+      road,
+      rough,
+      faults,
+      forge: checked.draft.forge,
+      ledger: ledgerRecord(ledger, dossiers, seen),
+      spend,
+    };
+  }
 }
 
+/**
+ * Real searches and fetches retold as signs, each once: a search by its words (the same words twice
+ * is one sign), a fetch by its host.
+ */
+export function signer(onSign: SignSink): (b: Block) => void {
+  const signed = new Set<string>();
+  const queries = new Set<string>();
+  return (b) => {
+    if (b.type !== 'server_tool_use' || signed.has(b.id)) return;
+    signed.add(b.id);
+    const input = b.input as { query?: unknown; url?: unknown };
+    if (b.name === 'web_search' && typeof input.query === 'string') {
+      const q = input.query.trim().toLowerCase();
+      if (q && !queries.has(q)) {
+        queries.add(q);
+        onSign({ kind: 'search', query: input.query });
+      }
+    } else if (b.name === 'web_fetch' && typeof input.url === 'string') {
+      try {
+        onSign({ kind: 'fetch', host: new URL(input.url).hostname });
+      } catch {
+        /* not a URL: no sign */
+      }
+    }
+  };
+}

@@ -27,11 +27,13 @@ import {
   reports,
   supportMessages,
   users,
+  wishAsks,
   wishes,
   wishRoads,
+  wishWalkers,
   wishWaypoints,
 } from '../db/schema.ts';
-import { approximatePoint, placeAccess, placeFor } from './access.ts';
+import { approximatePoint, placeAccess, placeFor, wishVisible } from './access.ts';
 import { wishJobsFor } from './loracle/jobs.ts';
 import { signedMediaPath } from './mediaUrls.ts';
 import type { MediaStorage } from './storage.ts';
@@ -39,17 +41,11 @@ import type { MediaStorage } from './storage.ts';
 export async function deleteAccount(db: Db, storage: MediaStorage, userId: string): Promise<void> {
   const filesToRemove: string[] = [];
 
-  // The Loracle: stop any road still being drawn. The wishes, roads and waypoints cascade with the
-  // account below; spend rows keep no text and lose their user (set null). A job that finishes late
-  // finds its run gone and writes nothing.
-  const jobs = wishJobsFor(db);
-  if (jobs) {
-    const drawing = await db
-      .select({ id: wishes.id })
-      .from(wishes)
-      .where(and(eq(wishes.userId, userId), inArray(wishes.status, ['listening', 'moon'])));
-    for (const { id } of drawing) jobs.abort(id);
-  }
+  // The Loracle: stop every road and deeper ask still being drawn. The wishes, roads, waypoints,
+  // asks and walks cascade with the account below; spend rows keep no text and lose their user (set
+  // null). A job that finishes late finds its run gone and writes nothing; a dawn batch's results
+  // for rows that are gone are only counted (lib/loracle/dawn.ts).
+  wishJobsFor(db)?.abortLorer(userId);
 
   await db.transaction(async (tx) => {
     // Crews they own pass to the longest-standing admin, else member. A crew with no
@@ -407,11 +403,13 @@ export async function exportAccount(db: Db, userId: string) {
 }
 
 /**
- * The Loracle's part of the export: every wish with its road, waypoints, what the stone found (the
- * ledger's notes and gaps) and what the weighing read in the wish about the Lorer (its tags, the
- * wish beneath the wish, the binds, the companion and the clock). Left out, as internal working
- * notes deleted with the wish: the weighing's search plans and lists, the forge, raw dossiers and
- * the waypoints' note ids. Spend rows carry no text.
+ * The Loracle's part of the export: every wish with its roads, waypoints and deeper asks, what the
+ * stone found (the ledger's notes and gaps, an ask's own findings) and what the weighing read in the
+ * wish about the Lorer (its tags, the wish beneath the wish, the binds, the companion and the
+ * clock), whom it was shown to, and the other Lorers' waypoints this one walks. Left out, as
+ * internal working notes deleted with the wish: the weighing's search plans and lists, the forge,
+ * raw dossiers, the URLs the tools returned, the dawn lane's state and the waypoints' note ids.
+ * Spend rows carry no text.
  */
 async function exportLoracle(db: Db, userId: string) {
   const wishRows = await db
@@ -427,9 +425,14 @@ async function exportLoracle(db: Db, userId: string) {
       ledger: wishes.ledger,
       fulfilledAt: wishes.fulfilledAt,
       releasedAt: wishes.releasedAt,
+      audience: wishes.audience,
+      crew: crews.name,
+      sharedAt: wishes.sharedAt,
+      sharingRemovedAt: wishes.sharingRemovedAt,
       createdAt: wishes.createdAt,
     })
     .from(wishes)
+    .leftJoin(crews, eq(crews.id, wishes.crewId))
     .where(eq(wishes.userId, userId))
     .orderBy(asc(wishes.createdAt));
   const ids = wishRows.map((w) => w.id);
@@ -440,6 +443,7 @@ async function exportLoracle(db: Db, userId: string) {
           wishId: wishRoads.wishId,
           n: wishRoads.n,
           status: wishRoads.status,
+          lane: wishRoads.lane,
           signs: wishRoads.signs,
           quest: wishRoads.quest,
           readyAt: wishRoads.readyAt,
@@ -452,6 +456,7 @@ async function exportLoracle(db: Db, userId: string) {
   const waypointRows = ids.length
     ? await db
         .select({
+          id: wishWaypoints.id,
           roadId: wishWaypoints.roadId,
           position: wishWaypoints.position,
           kind: wishWaypoints.kind,
@@ -483,10 +488,38 @@ async function exportLoracle(db: Db, userId: string) {
         .where(inArray(wishWaypoints.wishId, ids))
         .orderBy(asc(wishWaypoints.position))
     : [];
+  // Deeper asks (phase B): the question, the answer and what the stone found for it.
+  const askRows = ids.length
+    ? await db
+        .select({
+          waypointId: wishAsks.waypointId,
+          question: wishAsks.question,
+          status: wishAsks.status,
+          lane: wishAsks.lane,
+          answer: wishAsks.answer,
+          found: wishAsks.found,
+          createdAt: wishAsks.createdAt,
+          answeredAt: wishAsks.answeredAt,
+        })
+        .from(wishAsks)
+        .where(inArray(wishAsks.wishId, ids))
+        .orderBy(asc(wishAsks.createdAt))
+    : [];
+  // Walks (phase C): the waypoints of other Lorers' quests this Lorer walks with them, only while
+  // those quests are still shown to them (leaving the crew or a block lets go of the walk anyway).
+  const walking = await db
+    .select({ waypoint: wishWaypoints.name, quest: sql<string | null>`${wishRoads.quest} ->> 'title'`, since: wishWalkers.createdAt })
+    .from(wishWalkers)
+    .innerJoin(wishWaypoints, eq(wishWaypoints.id, wishWalkers.waypointId))
+    .innerJoin(wishRoads, eq(wishRoads.id, wishWaypoints.roadId))
+    .innerJoin(wishes, eq(wishes.id, wishWaypoints.wishId))
+    .where(and(eq(wishWalkers.userId, userId), wishVisible(userId)))
+    .orderBy(asc(wishWalkers.createdAt));
   const spend = await db
     .select({
       utcDay: loracleSpend.utcDay,
       stage: loracleSpend.stage,
+      lane: loracleSpend.lane,
       outcome: loracleSpend.outcome,
       costMicros: loracleSpend.costMicros,
     })
@@ -511,9 +544,15 @@ async function exportLoracle(db: Db, userId: string) {
         .filter((r) => r.wishId === id)
         .map(({ id: roadId, wishId: _wishId, ...road }) => ({
           ...road,
-          waypoints: waypointRows.filter((w) => w.roadId === roadId).map(({ roadId: _roadId, ...w }) => w),
+          waypoints: waypointRows
+            .filter((w) => w.roadId === roadId)
+            .map(({ roadId: _roadId, id: waypointId, ...w }) => ({
+              ...w,
+              asks: askRows.filter((a) => a.waypointId === waypointId).map(({ waypointId: _w, ...a }) => a),
+            })),
         })),
     })),
+    walking,
     spend,
   };
 }

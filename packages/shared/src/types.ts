@@ -5,6 +5,7 @@ import type {
   Calling,
   ContributionType,
   CrewRole,
+  DeeperStatus,
   Emblem,
   EventCategory,
   EventStatus,
@@ -23,6 +24,7 @@ import type {
   ProvisionGroup,
   ReportReason,
   ReportTarget,
+  RoadLane,
   RoadStatus,
   RsvpStatus,
   SpanUnit,
@@ -31,6 +33,7 @@ import type {
   TimeBand,
   WaitPhase,
   WaypointKind,
+  WishAudience,
   WishStatus,
 } from './vocabulary.ts';
 
@@ -385,8 +388,10 @@ export interface OracleSign {
 }
 
 // ---------------------------------------------------------------------------
-// The Loracle (wishes). Every shape here is only ever sent to the Lorer who owns it.
-// What never leaves the server: the weighing, the ledger, the forge, note ids, dossiers.
+// The Loracle (wishes). Every shape here is sent to the Lorer who cast the wish, and (phase C) a
+// quest they showed to a crew to that crew's members, without the Lorer's private parts (their
+// realm, notes, links, reminders and deeper asks). What never leaves the server: the weighing, the
+// ledger, the forge, note ids, dossiers.
 
 /** What the stone should know, and what calls to the Lorer. Kept privately; prefills the fold. */
 export interface LoracleContext {
@@ -501,8 +506,52 @@ export interface OpenWaypoint extends WaypointBase {
   steps: RoadStep[];
   /** The day the Lorer did it (YYYY-MM-DD), when inked. */
   inkedOn: string | null;
+  /** The Lorer's own note. Null for anyone else. */
   note: string | null;
+  /** What came of it in the Lorer's LORE. All null for anyone else. */
   links: WaypointLinks;
+  /** "Ask the stone about this" (phase B), oldest first, at most 10. Empty for anyone but the Lorer. */
+  asks: DeeperView[];
+  /** Crew members who walk this waypoint with the Lorer (phase C), first to join first. */
+  walkers: UserSummary[];
+  /** The viewer is one of the walkers. */
+  walking: boolean;
+}
+
+/** A deeper ask's answer: a small scroll pinned to its waypoint. Marks refer to the ask's own sources. */
+export interface DeeperAnswer {
+  /** The answer to the Lorer's question, when one was asked (40 words or fewer). */
+  answer: string | null;
+  /** A new sign of the place. */
+  clue: string;
+  /** Three real steps ("The real road" rules). */
+  steps: RoadStep[];
+  /** Whom to find there, and what to ask of them. */
+  keeper: Keeper | null;
+  /** One sentence to say on arrival. */
+  words: string | null;
+  /** One new unknown the place will answer. */
+  unknown: string;
+}
+
+/**
+ * "Ask the stone about this" (phase B): POST /loracle/waypoints/:id/ask answers this (202). While
+ * `listening` the wish is polled like a road in progress; `dawn` waits for the Lorer's next dawn
+ * (LORACLE_LINES.askDawn). Only ever sent to the Lorer who cast the wish.
+ */
+export interface DeeperView {
+  id: string;
+  question: string | null;
+  status: DeeperStatus;
+  lane: RoadLane;
+  /** Dawn lane: when it will have been answered at the latest (the Lorer's next 06:00). */
+  dueBy: string | null;
+  /** The real signs so far, oldest first. */
+  signs: string[];
+  answer: DeeperAnswer | null;
+  /** Numbered from 1; the answer's marks refer to these. */
+  sources: QuestSource[];
+  createdAt: string;
 }
 
 /** A sealed waypoint: the server sends no trial, keeper, earns, steps, ink or links. */
@@ -553,9 +602,13 @@ export interface FogLine {
  */
 export interface WishScroll {
   id: string;
-  /** 1 in phase A (one road per wish). */
+  /** 1 for the first road; "Ask again" adds 2, 3, … (tabs: "Two roads", "Three roads"). */
   n: number;
   status: RoadStatus;
+  /** `dawn`: written down past the stone's soft budget, read before `dueBy` (LORACLE_LINES.dawn). */
+  lane: RoadLane;
+  /** Dawn lane only: the Lorer's next 06:00, by which the road will have been drawn. */
+  dueBy: string | null;
   /** The ink phase while in progress (`roadPhase(status)`), else null. */
   phase: WaitPhase | null;
   /** The real signs so far, oldest first (show the newest three). */
@@ -577,20 +630,33 @@ export interface WishScroll {
   sources: QuestSource[];
 }
 
-/** A wish and its road, as GET /loracle/wishes/:id returns it. Poll every 2.5 s while the road is in progress or `ready`. */
+/**
+ * A wish and its roads, as GET /loracle/wishes/:id returns it. Poll every 2.5 s while any road is in
+ * progress or `ready` (in the now lane), or any of its waypoints' asks is `listening`.
+ */
 export interface Wish {
   id: string;
   text: string;
   status: WishStatus;
   createdAt: string;
-  /** The realm label it was cast from. */
+  /** The realm label it was cast from. Empty for anyone but the Lorer (their home stays theirs). */
   realm: string;
   /** The weighing found no one has walked this road as written ("Here is the nearest"). */
   beyond: boolean;
+  /** The first road (n = 1). Same as roads[0]. */
   road: WishScroll;
-  /** Waypoints inked, out of all of them. */
+  /** Every road, in order (phase B: "Ask again" adds one; tabs "Two roads", "Three roads"). */
+  roads: WishScroll[];
+  /** Waypoints inked, out of all of them, on the road walked furthest (ties: the first). */
   inked: number;
   total: number;
+  /** The viewer cast this wish. False: a crew member it was shown to (phase C). */
+  mine: boolean;
+  /** Who cast it. */
+  owner: UserSummary;
+  /** only_me, or crew: shown to `crew` ("{crew} can see this scroll", LORACLE_LINES.sharedWith). */
+  audience: WishAudience;
+  crew: CrewRef | null;
 }
 
 /** A rolled scroll in "Your quests". */
@@ -604,7 +670,65 @@ export interface WishSummary {
   seal: Emblem | null;
   inked: number;
   total: number;
+  /** The first road's lane: a `listening` wish whose lane is `dawn` waits for the Lorer's next dawn (LORACLE_LINES.logDawn). */
+  lane: RoadLane;
   createdAt: string;
+}
+
+/** A quest another Lorer showed to one of the viewer's crews (phase C). Open it with GET /loracle/wishes/:id. */
+export interface CrewQuestSummary extends WishSummary {
+  owner: UserSummary;
+  crew: CrewRef;
+  /** When it was shown to the crew. */
+  sharedAt: string;
+}
+
+/** One waypoint on the Epic page: where the road went, and the chapter written for it. */
+export interface EpicWaypoint {
+  id: string;
+  position: number;
+  kind: WaypointKind;
+  emblem: Emblem;
+  name: string;
+  where: WaypointWhere;
+  /** The day the Lorer did it, when inked. */
+  inkedOn: string | null;
+  /** The chapter linked to it, only when the viewer may see that chapter. */
+  chapter: { id: string; title: string } | null;
+  /** Crew members who walked it with the Lorer. */
+  walkers: UserSummary[];
+}
+
+/**
+ * GET /loracle/wishes/:id/epic: a fulfilled quest as lore (409 `not_fulfilled` before). The road
+ * shown is the one walked furthest. For the Lorer and, when it was shown to a crew, its members.
+ */
+export interface EpicView {
+  id: string;
+  text: string;
+  title: string | null;
+  calling: string | null;
+  truth: string | null;
+  span: QuestSpan | null;
+  fulfilledAt: string | null;
+  /** Which road was walked (its n). */
+  roadN: number;
+  map: EpicWaypoint[];
+  mine: boolean;
+  owner: UserSummary;
+  crew: CrewRef | null;
+}
+
+/** POST /loracle/tick (the hourly dawn tick; a server secret, never a Lorer): what it did. */
+export interface LoracleTickResult {
+  /** Batches that had ended and were read. */
+  collected: number;
+  /** Batches sent this tick. */
+  submitted: number;
+  /** Items handed to the live lane (a promise kept before dawn, or a batch that could not run them). */
+  live: number;
+  /** Dawn items still waiting. */
+  waiting: number;
 }
 
 /** The care screen: plain, still, nothing stored. Lines come from LORACLE_LINES (care1, care2, …). */
@@ -621,6 +745,7 @@ export interface CareView {
  * What a cast answers (POST /loracle/wishes). Only `quest` stores anything.
  * - quest: 202, the wish is written. `existing` = the same wish was already cast today (LORACLE_LINES.duplicate).
  *   `wish.status` is `listening`, or `moon` past the owner's monthly ceiling (LORACLE_LINES.moon).
+ *   A listening wish whose `road.lane` is `dawn` waits for the Lorer's next dawn (LORACLE_LINES.dawn).
  * - riddle: the wish was too vague; re-cast with `riddleAnswer`.
  * - reroute: the stone won't draw that road; `offer` is the wish under it (re-cast with `rerouted: true`
  *   and the `offerToken`).
@@ -642,6 +767,12 @@ export type CastResult =
   /** Far past the owner's monthly ceiling: nothing is weighed or written (LORACLE_LINES.moonFull). */
   | { route: 'moon' };
 
+/**
+ * What "Ask the stone about this" (POST /loracle/waypoints/:id/ask) returns: the ask (202), or, when the
+ * question meets the care floor, the care screen (200; nothing is stored or sent), as for a cast.
+ */
+export type AskResult = DeeperView | { route: 'care'; care: CareView };
+
 /** What GET /loracle returns. */
 export interface LoracleState {
   /** asleep: no API key; the page shows LORACLE_LINES.asleep and casting is disabled. */
@@ -655,6 +786,8 @@ export interface LoracleState {
   wishes: WishSummary[];
   /** Newest first, at most 10. */
   letGo: WishSummary[];
+  /** Quests other Lorers showed to the viewer's crews (phase C), newest shown first, at most 30. */
+  crewQuests: CrewQuestSummary[];
 }
 
 // ---------------------------------------------------------------------------

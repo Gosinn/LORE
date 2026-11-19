@@ -10,7 +10,12 @@ everyone adds their side of the story.
 wish for ("I wish to become the Lethwei champion of the world") and they draw you a quest: a calling, a
 road of waypoints that open one at a time, whom to find, what to carry, and one deed for this week. Each
 waypoint can become a plan, an idea in your vault or a reminder, and, once done, a chapter of your lore.
-The stone's mind is Claude (Anthropic); wishes are private to the one who cast them.
+The stone's mind is Claude (Anthropic); wishes are private to the one who cast them. Not sure of a road? **Ask
+again** and the stone draws another beside it ("Two roads"), or **ask the stone about** one waypoint and it
+answers with a small scroll pinned there. On a busy day a wish is written down and read before your dawn. A
+quest can be **shown to one crew**: its members read it, can **walk** its waypoints with you (and are asked
+along when one becomes a plan), and a quest that came true becomes **an Epic**, its map leading to the chapters.
+*Phases B and C: not yet looked at in a browser or on a phone.*
 
 Every screen wears **one base, the Loracle's own**: carved stone buttons with ember letters, a copper Create,
 wells to type into, dark slabs for cards, Cinzel and IM Fell English, so stepping into the Loracle never jumps.
@@ -98,6 +103,8 @@ development only).
 |---|---|
 | `ANTHROPIC_API_KEY` | The key for Claude (Anthropic API). Server only; never commit it. Without it the stone **sleeps**: the page says so, casting is off, everything else in LORE works. `/api/health` reports `loracle: "awake"`, `"asleep"` or `"fake"`. |
 | `LORACLE_MONTHLY_USD` | The owner's monthly spend ceiling across everyone, in US$ (default `150`). Past it, new wishes are written down and read at the new moon; at 1.1× it nothing is weighed until the new moon. Set a Console spend limit a little above that as the real backstop. |
+| `LORACLE_TICK_SECRET` | The dawn lane (phase B): a long random secret (24+ characters) that the hourly GitHub Actions run (`.github/workflows/loracle-tick.yml`) sends to `POST /api/loracle/tick`. Set the same value as a GitHub repository secret, with `LORE_URL`. Without it the dawn lane is off (everything is drawn at once) and the tick is a 404. |
+| `LORACLE_CASTS_NOW`, `LORACLE_DEEPER_NOW`, `LORACLE_DAILY_BUDGET_USD` | The stone's soft budget, never shown (defaults 3, 10, 10): casts ("Ask again" included) and deeper asks a Lorer gets drawn at once per local day, and US$ a UTC day across everyone. Past them, work waits for the Lorer's dawn at half price (Message Batches). Only while the dawn lane is on. |
 | `LORACLE_MIND=fake` | **Development only.** A deterministic fake mind: no network, no cost, real-looking signs over ~8 s and a canned quest. The `lore-api` entry in `.claude/launch.json` sets it. Never set it on a live server. |
 
 Every call uses Claude Opus 5.5 (`claude-opus-5-5`); a quest is estimated at about US$0.90–2.40
@@ -105,8 +112,9 @@ Every call uses Claude Opus 5.5 (`claude-opus-5-5`); a quest is estimated at abo
 [docs/DECISIONS.md](docs/DECISIONS.md) (D31). The live eval, `node tools/loracle-eval.mjs --yes`, spends
 real money and is run by the owner, not by CI (`--fake` is a free dry run).
 
-**Not yet verified:** no real Claude call has been made from this repo; real quests, their cost and the
-prompts are unproven until the owner sets a key and runs the eval.
+**Not yet verified:** phase A runs live with the owner's key on the server. Phases B and C (Ask again, Ask the
+stone, the dawn lane and its batches, crew quests) have made no real Claude call: they were built and tested
+with stub and fake minds and a fake batches client only.
 
 ## Scripts
 
@@ -156,7 +164,8 @@ from the home screen (Safari → Share → Add to Home Screen).
 **Live:** https://lore-g8co.onrender.com, deployed automatically from `main` on GitHub.
 
 **Free, no card (current):** Render + Neon, see [deploy/render/README.md](deploy/render/README.md). The
-only required setting is `DATABASE_URL`; add `ANTHROPIC_API_KEY` (secret) to wake the Loracle.
+only required setting is `DATABASE_URL`; add `ANTHROPIC_API_KEY` (secret) to wake the Loracle, and
+`LORACLE_TICK_SECRET` (plus the GitHub secrets `LORACLE_TICK_SECRET` and `LORE_URL`) to open its dawn lane.
 
 **Free, on Oracle Cloud (more room, needs a card check):** follow
 [deploy/oracle/README.md](deploy/oracle/README.md). One small server runs HTTPS (Caddy), LORE, Postgres

@@ -2,12 +2,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import { loracleConfig } from '../src/config.ts';
-import { allText, CutOff, echoable, failureOf, finalText, MAX_RESENDS, partialReply, readStructured, type Block, type MindClient, type Params, type Reply } from '../src/lib/loracle/client.ts';
+import { allText, batchParams, composeParams, CutOff, echoable, failureOf, finalText, MAX_RESENDS, partialReply, readStructured, type Block, type MindClient, type Params, type Reply } from '../src/lib/loracle/client.ts';
 import { WeighingWire } from '../src/lib/loracle/schema.ts';
-import { priceMessage, SEARCH_USD } from '../src/lib/loracle/cost.ts';
+import { priceMessage, SEARCH_USD, spendOf } from '../src/lib/loracle/cost.ts';
 import { fakeMind } from '../src/lib/loracle/fake.ts';
 import { claudeMind, mindFor, verdictOf } from '../src/lib/loracle/mind.ts';
-import { COMPOSE_PROMPT, SCOUT_PROMPT, WEIGH_PROMPT } from '../src/lib/loracle/prompts.ts';
+import { AGAIN_ADDENDUM, COMPOSE_PROMPT, DEEPER_ADDENDUM, SCOUT_PROMPT, WEIGH_PROMPT } from '../src/lib/loracle/prompts.ts';
+import { deeperScoutReply, goodAnswer } from './loracleFixtures.ts';
 import { MindError, type MindContext, type MindWish, type Weighing } from '../src/lib/loracle/types.ts';
 import type { LoracleSign } from '#shared';
 
@@ -736,5 +737,220 @@ describe('the edges the reviewers found', () => {
 
   it('asks each keeper for a deed that follows “Ask them to”', () => {
     expect(COMPOSE_PROMPT).toContain('written to follow the words "Ask them to"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase B: another road from a kept ledger, a deeper ask, and the batch form of a request
+
+describe('Ask again (draw)', () => {
+  const EARLIER = [
+    {
+      title: 'The First Watch',
+      calling: 'Find Sigrún Hafsteinsdóttir.',
+      keepers: ['Sigrún Hafsteinsdóttir'],
+      waypoints: [{ name: 'The Hall', place: 'Storm Harbour Rescue Team' }],
+    },
+  ];
+
+  async function firstRoad() {
+    const r = await castWith(new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(goodDraft())] })).run();
+    if (r.kind !== 'road') throw new Error(r.kind);
+    return r;
+  }
+
+  it('keeps the whole ledger with the cast, and draws from it again with no scouts and the AGAIN task', async () => {
+    const first = await firstRoad();
+    expect(first.ledger?.sources?.length).toBeGreaterThan(0);
+    expect(first.ledger?.seen?.map((s) => s.url)).toContain('https://stormharbour.is/recruits');
+    const client = new FakeClient({ compose: [json({ ...goodDraft(), title: 'The Second Watch' })] });
+    const signs: LoracleSign[] = [];
+    const r = await claudeMind(config(), { client }).draw(
+      { ...WISH, weighing: WEIGHING },
+      CTX,
+      { task: 'again', ledger: first.ledger!, earlier: EARLIER, sources: [] },
+      (s) => signs.push(s),
+      new AbortController().signal,
+    );
+    if (r.kind !== 'road') throw new Error(r.kind);
+    expect(r.road.title).toBe('The Second Watch');
+    expect(client.of('road')).toHaveLength(0);
+    expect(client.of('keepers')).toHaveLength(0);
+    const call = client.of('compose')[0]!.params;
+    const system = call.system as { text: string; cache_control?: unknown }[];
+    expect(system.map((b) => b.text)).toEqual([COMPOSE_PROMPT, AGAIN_ADDENDUM]);
+    expect(system[0]!.cache_control).toBeUndefined();
+    expect(system[1]!.cache_control).toEqual({ type: 'ephemeral' });
+    expect(String(call.messages[0]!.content)).toContain('<earlier_roads>');
+    expect(String(call.messages[0]!.content)).toContain('S1 |');
+    expect(call.output_config?.effort).toBe('high');
+    expect(r.spend.map((s) => s.stage)).toEqual(['again']);
+    expect(signs.map((s) => s.kind)).toEqual(['compose', 'seal']);
+  });
+
+  it('rebuilds a phase A ledger from its dossiers and the pages its road cites', async () => {
+    const first = await firstRoad();
+    const { notes, gaps, dossiers } = first.ledger!;
+    const client = new FakeClient({ compose: [json(goodDraft())] });
+    const r = await claudeMind(config(), { client }).draw(
+      { ...WISH, weighing: WEIGHING },
+      CTX,
+      { task: 'again', ledger: { notes, gaps, dossiers }, earlier: EARLIER, sources: first.road.sources },
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(r.kind).toBe('road');
+    expect(client.of('road')).toHaveLength(0);
+  });
+
+  it('sends the scouts again when a phase A ledger cannot be read back', async () => {
+    const client = new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(goodDraft())] });
+    const r = await claudeMind(config(), { client }).draw(
+      { ...WISH, weighing: WEIGHING },
+      CTX,
+      { task: 'quest', ledger: { notes: [], gaps: [] }, earlier: [], sources: [] },
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(r.kind).toBe('road');
+    expect(client.of('road')).toHaveLength(1);
+    expect(client.of('keepers')).toHaveLength(1);
+  });
+});
+
+describe('a deeper ask', () => {
+  it('sends a short DEEPER scout, joins its findings to the ledger and returns a checked answer', async () => {
+    const first = await castWith(new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(goodDraft())] })).run();
+    if (first.kind !== 'road') throw new Error(first.kind);
+    const question = 'I’m 34. Too late?';
+    // stageOf reads a DEEPER scout as `keepers` and the deeper answer as `compose`.
+    const client = new FakeClient({ keepers: [deeperScoutReply], compose: [json(goodAnswer(question))] });
+    const signs: LoracleSign[] = [];
+    const r = await claudeMind(config(), { client }).deeper(
+      {
+        wish: { ...WISH, weighing: WEIGHING },
+        ledger: first.ledger!,
+        sources: [],
+        focus: {
+          quest: {
+            title: 'The Orange Boats',
+            calling: 'Find Sigrún.',
+            waypoints: [{ position: 0, name: 'The Open Evening', place: 'Storm Harbour Rescue Team', when: 'Wednesday' }],
+          },
+          waypoint: {
+            position: 0,
+            name: 'The Open Evening',
+            when: 'Wednesday at 20:00',
+            place: 'Storm Harbour Rescue Team',
+            town: 'Reykjavík',
+            country: 'Iceland',
+            clue: 'Orange boats stacked by the door.',
+            trial: 'Come to the open evening.',
+            person: { name: 'Sigrún Hafsteinsdóttir', role: 'recruit leader' },
+            mystery: null,
+            steps: ['The open evening starts Wednesday at 20:00.'],
+          },
+          question,
+        },
+      },
+      CTX,
+      (s) => signs.push(s),
+      new AbortController().signal,
+    );
+    if (r.kind !== 'answer') throw new Error(r.kind);
+    expect(r.rough).toBe(false);
+    expect(r.found.map((n) => n.id)).toEqual(['N8']);
+    expect(r.answer.answer).toMatchObject({ keeper: { name: 'Sigrún Hafsteinsdóttir' }, unknown: 'Which night the team first calls its recruits out.' });
+    expect(r.answer.answer.answer).toMatch(/Sigrún/);
+    const winter = r.answer.sources.findIndex((s) => s.url === 'https://stormharbour.is/winter') + 1;
+    expect(winter).toBeGreaterThan(0);
+    expect(r.answer.answer.steps.at(-1)!.mark!.sources).toEqual([winter]);
+    const scout = client.of('keepers')[0]!.params;
+    expect(String(scout.messages[0]!.content)).toContain('ROLE: DEEPER');
+    expect(scout.output_config?.effort).toBe('low');
+    expect(scout.tools?.map((tool) => ('max_uses' in tool ? tool.max_uses : null))).toEqual([3, 1]);
+    const answer = client.of('compose')[0]!.params;
+    expect((answer.system as { text: string }[]).map((b) => b.text)).toEqual([COMPOSE_PROMPT, DEEPER_ADDENDUM]);
+    expect(answer.output_config?.effort).toBe('medium');
+    expect(String(answer.messages[0]!.content)).toContain(`<question>${question}</question>`);
+    expect(r.spend.map((s) => s.stage)).toEqual(['deeper-scout', 'deeper']);
+    expect(signs.map((s) => s.kind)).toEqual(expect.arrayContaining(['search', 'compose', 'seal']));
+    expect(JSON.stringify(scout)).toContain(ANON);
+  });
+
+  /** The same ask on the Open Evening, with the reply scripts given. */
+  async function askWith(question: string | null, script: ConstructorParameters<typeof FakeClient>[0]) {
+    const first = await castWith(new FakeClient({ road: [roadReply], keepers: [keepersReply], compose: [json(goodDraft())] })).run();
+    if (first.kind !== 'road') throw new Error(first.kind);
+    const client = new FakeClient(script);
+    const run = () =>
+      claudeMind(config(), { client }).deeper(
+        {
+          wish: { ...WISH, weighing: WEIGHING },
+          ledger: first.ledger!,
+          sources: [],
+          focus: {
+            quest: { title: 'The Orange Boats', calling: 'Find Sigrún.', waypoints: [{ position: 0, name: 'The Open Evening', place: 'Storm Harbour Rescue Team', when: 'Wednesday' }] },
+            waypoint: {
+              position: 0,
+              name: 'The Open Evening',
+              when: 'Wednesday at 20:00',
+              place: 'Storm Harbour Rescue Team',
+              town: 'Reykjavík',
+              country: 'Iceland',
+              clue: 'Orange boats stacked by the door.',
+              trial: 'Come to the open evening.',
+              person: { name: 'Sigrún Hafsteinsdóttir', role: 'recruit leader' },
+              mystery: null,
+              steps: [],
+            },
+            question,
+          },
+        },
+        CTX,
+        () => undefined,
+        new AbortController().signal,
+      );
+    return { client, run };
+  }
+
+  it('never shows an answer whose safety fault outlives the repair; a repair that clears it is shown', async () => {
+    const question = 'I’m 34. Too late?';
+    const pester = goodAnswer(question);
+    pester.steps[1] = { kind: 'do', text: 'Ask Sigrún Hafsteinsdóttir again and again until she takes you in.', noteIds: ['N5'] };
+    const stuck = await askWith(question, { keepers: [deeperScoutReply], compose: [json(pester)], repair: [json(pester)] });
+    await expect(stuck.run()).rejects.toBeInstanceOf(MindError);
+    expect(String(stuck.client.of('repair')[0]!.params.messages[0]!.content)).toContain('never again and again');
+    const fixed = await askWith(question, { keepers: [deeperScoutReply], compose: [json(pester)], repair: [json(goodAnswer(question))] });
+    const r = await fixed.run();
+    expect(r.kind).toBe('answer');
+  });
+
+  it('sends nothing for a question at the care floor', async () => {
+    const { client, run } = await askWith('Too late? I want to kill myself.', { keepers: [deeperScoutReply], compose: [json(goodAnswer(null))] });
+    expect(await run()).toMatchObject({ kind: 'silent', spend: [] });
+    expect(client.calls).toHaveLength(0);
+  });
+});
+
+describe('the batch form of a request', () => {
+  it('drops betas, fallbacks and stream, and keeps everything else', () => {
+    const live = composeParams({ model: 'claude-opus-5-5', effort: config().effort }, 'turn', ANON, {
+      effort: 'high',
+      maxTokens: 32_000,
+      addendum: AGAIN_ADDENDUM,
+    });
+    const batch = batchParams(live) as unknown as Record<string, unknown>;
+    expect(batch).not.toHaveProperty('betas');
+    expect(batch).not.toHaveProperty('fallbacks');
+    expect(batch).not.toHaveProperty('stream');
+    expect(batch).toMatchObject({ model: 'claude-opus-5-5', max_tokens: 32_000, metadata: { user_id: ANON }, output_config: { effort: 'high' } });
+    expect(live).toHaveProperty('fallbacks', 'default');
+  });
+
+  it('prices a batch reply at half the token rates, searches at full', () => {
+    const m = msg([text('x')], 'end_turn', { server_tool_use: { web_search_requests: 1, web_fetch_requests: 0 } });
+    expect(spendOf('road', 'ok', m, 'claude-opus-5-5', 0, null, { batch: true }).costMicros).toBe(7_000 + 10_000);
+    expect(spendOf('road', 'ok', m, 'claude-opus-5-5', 0, null).costMicros).toBe(14_000 + 10_000);
   });
 });

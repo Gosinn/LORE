@@ -201,6 +201,7 @@ export function HomePage() {
 
 /** Under the newest quest's name on Home (kept small: the Loracle's own components load with its page). */
 function teaserLine(w: WishSummary): string {
+  if (w.status === 'listening' && w.lane === 'dawn') return LORACLE_LINES.logDawn;
   switch (w.status) {
     case 'listening':
       return copy('The stone is drawing your road.');

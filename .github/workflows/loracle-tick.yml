@@ -1,0 +1,47 @@
+# The Loracle's dawn tick (phase B): once an hour, ask the server to read the night's Message
+# Batches, keep its promises and send what waits (lib/loracle/dawn.ts). It also wakes a sleeping
+# Render instance. Run it by hand too: GitHub → Actions → "Loracle dawn tick" → Run workflow.
+#
+# Needs two repository secrets (deploy/render/README.md, "The dawn tick"):
+#   LORACLE_TICK_SECRET   the same long random value as LORACLE_TICK_SECRET on the server
+#   LORE_URL              the server's address, e.g. https://lore-g8co.onrender.com
+# Without them it does nothing and succeeds quietly. A 404 means the server has no secret, or a
+# different one.
+#
+# Not yet run on GitHub: check the first scheduled run's log after setting the secrets.
+name: Loracle dawn tick
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: loracle-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Tick
+        env:
+          TICK_SECRET: ${{ secrets.LORACLE_TICK_SECRET }}
+          LORE_URL: ${{ secrets.LORE_URL }}
+        run: |
+          if [ -z "$TICK_SECRET" ] || [ -z "$LORE_URL" ]; then
+            echo "LORACLE_TICK_SECRET or LORE_URL is not set: the dawn lane is off, nothing to do."
+            exit 0
+          fi
+          # The secret goes in a header file, never on the command line.
+          header="$RUNNER_TEMP/tick-header"
+          printf 'Authorization: Bearer %s\n' "$TICK_SECRET" > "$header"
+          # A sleeping free instance takes about a minute to wake: wait for it, retry a few times.
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 30 --retry-all-errors --max-time 150 \
+            -X POST -H @"$header" "${LORE_URL%/}/api/loracle/tick"
+          echo
+          rm -f "$header"

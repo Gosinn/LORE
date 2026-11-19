@@ -52,6 +52,7 @@ export const router = createBrowserRouter(guarded([
       { path: 'notes', ...page(() => import('./pages/Notes.tsx'), 'NotesPage') },
       { path: 'oracle', ...page(() => import('./pages/Oracle.tsx'), 'OraclePage') },
       { path: 'oracle/quest/:id', ...page(() => import('./pages/Oracle.tsx'), 'QuestPage') },
+      { path: 'oracle/quest/:id/epic', ...page(() => import('./pages/Oracle.tsx'), 'EpicPage') },
       { path: 'admin', ...page(() => import('./pages/Admin.tsx'), 'AdminPage') },
       { path: '*', ...page(() => import('./pages/NotFound.tsx'), 'NotFound') },
     ],

@@ -6,6 +6,7 @@ import {
   EVENT_CATEGORY_LABELS,
   MAP_CAP,
   type ChapterSummary,
+  type CrewQuestSummary,
   type CrewRef,
   type CrewSummary,
   type Emblem,
@@ -46,6 +47,7 @@ import {
   placeAccess,
   placeFor,
   placeShown,
+  wishOwned,
   wishVisible,
   type PlaceAccess,
 } from './access.ts';
@@ -330,35 +332,105 @@ export async function wishSummaries(
       status: wishes.status,
       createdAt: wishes.createdAt,
       title: sql<string | null>`${wishRoads.quest} ->> 'title'`,
+      lane: wishRoads.lane,
     })
     .from(wishes)
     .leftJoin(wishRoads, and(eq(wishRoads.wishId, wishes.id), eq(wishRoads.n, 1)))
-    .where(and(wishVisible(viewerId), opts.letGo ? eq(wishes.status, 'released') : ne(wishes.status, 'released')))
+    .where(and(wishOwned(viewerId), opts.letGo ? eq(wishes.status, 'released') : ne(wishes.status, 'released')))
     .orderBy(desc(wishes.createdAt))
     .limit(opts.limit);
   if (!rows.length) return [];
-  const counts = await db
-    .select({
-      wishId: wishWaypoints.wishId,
-      total: sql<number>`count(*)::int`,
-      inked: sql<number>`count(${wishWaypoints.inkedAt})::int`,
-      seal: sql<Emblem | null>`max(case when ${wishWaypoints.position} = 0 then ${wishWaypoints.emblem} end)`,
-    })
-    .from(wishWaypoints)
-    .where(inArray(wishWaypoints.wishId, rows.map((r) => r.id)))
-    .groupBy(wishWaypoints.wishId);
-  const byWish = new Map(counts.map((c) => [c.wishId, c]));
+  const counts = await walkedRoads(db, rows.map((r) => r.id));
   return rows.map((r) => {
-    const c = byWish.get(r.id);
+    const c = counts.get(r.id);
     return {
       id: r.id,
-      title: r.title ?? null,
+      title: c?.title ?? r.title ?? null,
       text: r.text,
       status: r.status,
       seal: c?.seal ?? null,
       inked: c?.inked ?? 0,
       total: c?.total ?? 0,
+      lane: r.lane ?? 'now',
       createdAt: iso(r.createdAt),
+    };
+  });
+}
+
+/**
+ * For each wish, the road walked furthest (most waypoints inked; ties: the first road): its title,
+ * its seal (the first waypoint's emblem) and how much of it is inked. Phase B gives a wish more roads.
+ */
+export async function walkedRoads(
+  db: Db,
+  wishIds: string[],
+): Promise<Map<string, { roadId: string; n: number; title: string | null; seal: Emblem | null; inked: number; total: number }>> {
+  if (!wishIds.length) return new Map();
+  const counts = await db
+    .select({
+      wishId: wishWaypoints.wishId,
+      roadId: wishWaypoints.roadId,
+      n: wishRoads.n,
+      title: sql<string | null>`${wishRoads.quest} ->> 'title'`,
+      total: sql<number>`count(*)::int`,
+      inked: sql<number>`count(${wishWaypoints.inkedAt})::int`,
+      seal: sql<Emblem | null>`max(case when ${wishWaypoints.position} = 0 then ${wishWaypoints.emblem} end)`,
+    })
+    .from(wishWaypoints)
+    .innerJoin(wishRoads, eq(wishRoads.id, wishWaypoints.roadId))
+    .where(inArray(wishWaypoints.wishId, wishIds))
+    .groupBy(wishWaypoints.wishId, wishWaypoints.roadId, wishRoads.n, wishRoads.quest);
+  const best = new Map<string, (typeof counts)[number]>();
+  for (const c of counts) {
+    const b = best.get(c.wishId);
+    if (!b || c.inked > b.inked || (c.inked === b.inked && c.n < b.n)) best.set(c.wishId, c);
+  }
+  return best;
+}
+
+/**
+ * Quests other Lorers showed to the viewer's crews (phase C), newest shown first: only those the
+ * viewer may open (lib/access.ts wishVisible), never their own, never one let go.
+ */
+export async function crewQuestSummaries(db: Db, viewerId: string, limit: number): Promise<CrewQuestSummary[]> {
+  const rows = await db
+    .select({
+      id: wishes.id,
+      text: wishes.text,
+      status: wishes.status,
+      createdAt: wishes.createdAt,
+      sharedAt: wishes.sharedAt,
+      title: sql<string | null>`${wishRoads.quest} ->> 'title'`,
+      lane: wishRoads.lane,
+      owner: userColumns,
+      crewId: crews.id,
+      crewName: crews.name,
+      crewEmoji: crews.emoji,
+    })
+    .from(wishes)
+    .innerJoin(users, eq(users.id, wishes.userId))
+    .innerJoin(crews, eq(crews.id, wishes.crewId))
+    .leftJoin(wishRoads, and(eq(wishRoads.wishId, wishes.id), eq(wishRoads.n, 1)))
+    .where(and(wishVisible(viewerId), ne(wishes.userId, viewerId), ne(wishes.status, 'released')))
+    .orderBy(desc(sql`coalesce(${wishes.sharedAt}, ${wishes.createdAt})`))
+    .limit(limit);
+  if (!rows.length) return [];
+  const counts = await walkedRoads(db, rows.map((r) => r.id));
+  return rows.map((r) => {
+    const c = counts.get(r.id);
+    return {
+      id: r.id,
+      title: c?.title ?? r.title ?? null,
+      text: r.text,
+      status: r.status,
+      seal: c?.seal ?? null,
+      inked: c?.inked ?? 0,
+      total: c?.total ?? 0,
+      lane: r.lane ?? 'now',
+      createdAt: iso(r.createdAt),
+      owner: toUserSummary(r.owner),
+      crew: { id: r.crewId, name: r.crewName, emoji: r.crewEmoji },
+      sharedAt: iso(r.sharedAt ?? r.createdAt),
     };
   });
 }
@@ -592,7 +664,7 @@ async function mapIdeas(db: Db, viewerId: string, mode: MapMode, crewId: string 
 const atDay = (at: string | null) =>
   !at ? null : /^\d{4}-\d{2}$/.test(at) ? `${at}-01T00:00:00Z` : /^\d{4}-\d{2}-\d{2}$/.test(at) ? `${at}T00:00:00Z` : null;
 
-/** The Loracle's waypoints with a pin: only ever the wish's owner's (wishVisible), never a let-go wish's. */
+/** The Loracle's waypoints with a pin: only ever the wish's owner's (wishOwned), never a let-go wish's. */
 async function mapWaypoints(db: Db, viewerId: string, mode: MapMode, now: number): Promise<Kind> {
   const rows = await db
     .select({
@@ -612,7 +684,7 @@ async function mapWaypoints(db: Db, viewerId: string, mode: MapMode, now: number
     .innerJoin(wishes, eq(wishes.id, wishWaypoints.wishId))
     .where(
       and(
-        wishVisible(viewerId),
+        wishOwned(viewerId),
         sql`${wishWaypoints.lat} is not null and ${wishWaypoints.lon} is not null`,
         mode === 'adventures'
           ? and(notInArray(wishes.status, ['released', 'fulfilled']), isNull(wishWaypoints.inkedAt))
@@ -624,7 +696,7 @@ async function mapWaypoints(db: Db, viewerId: string, mode: MapMode, now: number
         sql`not exists (select 1 from ${ideas} where ${ideas.id} = ${wishWaypoints.ideaId} and ${ideas.status} <> 'archived' and ${ideaVisible(viewerId)} and ${placeShown(ideas, viewerId)})`,
       ),
     )
-    // No cap here: only the owner's own waypoints come back (wishVisible), and mapFeatures keeps the
+    // No cap here: only the owner's own waypoints come back (wishOwned), and mapFeatures keeps the
     // nearest in time across every kind.
     .orderBy(desc(wishes.createdAt), asc(wishWaypoints.position));
   const ranked = rows.map((r): Ranked => {

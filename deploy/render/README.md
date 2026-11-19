@@ -50,6 +50,28 @@ Render → the `lore` service → **Environment** → add `ANTHROPIC_API_KEY` as
 `LORACLE_MONTHLY_USD`, default 150) → Save. After the redeploy `/api/health` should say
 `"loracle":"awake"`. Never paste the key into chat, the repo or a screenshot. Not yet tried on Render.
 
+**The dawn tick (the Loracle, optional).** Past the stone's soft budget for a day (3 casts and 10 deeper
+asks per person, or US$10 across everyone), wishes are written down and read before the Lorer's next
+dawn at half the price, through Anthropic's Message Batches. Something has to knock every hour: a
+GitHub Actions schedule (`.github/workflows/loracle-tick.yml`) that calls the server.
+1. Make a long random secret, for example in PowerShell (64 hex characters):
+   `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | % { $_.ToString('x2') })`
+2. Render → the `lore` service → **Environment** → add `LORACLE_TICK_SECRET` with that value → Save.
+3. GitHub → the LORE repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   `LORACLE_TICK_SECRET` (the same value) and `LORE_URL` (your `https://lore-xxxx.onrender.com`).
+4. GitHub → **Actions → Loracle dawn tick → Run workflow** once. Its log should end with a line like
+   `{"collected":0,"submitted":0,"live":0,"waiting":0}`. A 404 means the two secrets differ (or the server
+   has none).
+
+Without the secret the dawn lane stays off: every wish is drawn at once, as before, and nothing waits
+for dawn. Optional knobs: `LORACLE_CASTS_NOW`, `LORACLE_DEEPER_NOW`, `LORACLE_DAILY_BUDGET_USD`. The
+hourly run uses about 730 short Actions runs a month (free for public repos; for a private repo it
+counts against the plan's free minutes: unverified for yours). Not yet tried on Render or GitHub.
+Each run also wakes the sleeping free instance and the Neon database once an hour, which spends some of their
+free hours (unverified how much). Checked only on a local server with the fake mind: no secret or a wrong one
+answers 404, the right one 200 with the four counts. Once a batch's answers are read the server deletes the batch at Anthropic
+(otherwise Anthropic keeps them up to 29 days); a failed delete is only logged.
+
 **You are the owner (moderation and LORE's words).** With no `ADMIN_USERNAMES` variable, your account
 `gosinn` (created before 19 November 2026) is the owner: Profile shows **Moderation** and **Edit text**,
 and the words you publish there go live for everyone without a deploy (README: "Change LORE's words

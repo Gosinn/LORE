@@ -1,5 +1,100 @@
 # LORE — Development log
 
+## 2026-11-19 — The Loracle, phases B and C: Two roads, Ask the stone, the dawn lane, crews and the Epic (D31 note)
+
+The owner: "alright lets just keep going then". Built from the Loracle spec v3 (phases B and C), in two tracks
+(API, web) and then joined. **Nothing of it has been looked at in a browser or on a phone, and no real Claude
+call was made** (stub and fake minds, a fake batches client, and the fake mind for the smoke run). Not committed.
+
+**What changed**
+
+- **Ask again ("Two roads")**: `POST /loracle/wishes/:id/again` (202 `Wish`) draws another road from the wish's
+  ledger; carved tabs above the scroll ("Two roads", "First road", "Second road"…, arrow keys move between
+  them; "Drawing", a moon for "Before dawn", or "Your road"). The road inked furthest is the one the quest keeps
+  (no keep button). "Try again" now retries the newest faded road.
+- **Ask the stone about this**: `POST /loracle/waypoints/:id/ask` (202 `DeeperView`) on an open waypoint, with
+  an optional question; the answer is a small scroll pinned to the waypoint (the answer, a new sign, the real
+  road, the keeper, words to say, still in the fog, where the stone looked). Refusals in the stone's words
+  (`in_progress` → "still answering", `rest`, `moon` → "Ask it again when the moon rises", `asleep`); consent
+  taken back shows the consent words in the sheet.
+- **The dawn lane** (`lib/loracle/dawn.ts`, `flow.ts`, `time.ts`): past the soft budget, roads and asks wait
+  for the Lorer's next 06:00 and go through Message Batches at half price; `POST /api/loracle/tick` (bearer
+  secret, 404 otherwise) from `.github/workflows/loracle-tick.yml` hourly. Off until `LORACLE_TICK_SECRET` is
+  set: until then everything is drawn at once. The quest log now knows a wish waits for dawn
+  (`WishSummary.lane`, "Written down. It will be read before dawn.", on Home's door too).
+- **Show to a crew / Walk with you / the Epic**: `PUT /loracle/wishes/:id/share`, `POST`/`DELETE
+  /loracle/waypoints/:id/walk`, `GET /loracle/wishes/:id/epic` (`/oracle/quest/:id/epic`), "Quests your crews
+  were shown" on `/oracle`, the crew member's read-only scroll with "{name} showed you this scroll." and Report
+  (`quest` target, D29). The plan route invites a waypoint's walkers.
+- **Joining the tracks**: the web's stand-in words (`MORE_B`, `MORE.logDawn`) moved into `LORACLE_LINES` with
+  the same text (whole phrases for "Two roads"…"Five roads"); the web now calls typed hooks (`useAskAgain`,
+  `useAskStone`, `useShareWish`, `useWalk` in `lib/queries.ts`; a returned `Wish` goes straight into the
+  cache); the guessed `busy` code is the real `in_progress`; "Try again" is hidden from crew members (only the
+  Lorer can); `WishSummary` gained `lane` so the quest log's dawn moon works.
+- **Words (D33)**: 72 new keys, none removed (`copy:check --offline`). Under "Only you can see your wishes and
+  your scrolls." a new line: "Show one to a crew, and that crew can read it." That line and the consent
+  sheet's "private to you" were left as they are for the owner to reword.
+- **Privacy Policy** (`Legal.tsx`, new paragraphs only): what a crew sees of a shown quest and what it never
+  sees; deeper questions and the dawn lane's batches at Anthropic (results kept up to 29 days by Anthropic, per
+  its docs; flagged for the owner to check); what is kept (asks, sharing, walks; all in the export); "Keep a
+  quest to yourself again". Its "Last updated" date was not changed.
+- One migration: `0011_loracle_b_c.sql` (`wish_asks`, `wish_walkers`, `loracle_batches`; new columns on
+  `wishes`, `wish_roads`, `loracle_spend`). `render.yaml` and `.env.example` list the new variables;
+  deploy/render/README.md has "The dawn tick".
+
+**Hardened after a review** (same day; the D31 note's "Hardened after review" has the list)
+
+- Privacy of a shown quest: a crew member no longer gets the road's signs (the scouts' searches name the
+  Lorer's passport and home), the dawn promise (their zone), This week or the provisions, nor the map points
+  while the Lorer's "Show my places on maps" is off. The share sheet's hint and the Privacy Policy paragraph
+  (both new words) now say what a crew can see: a quest drawn for you can show the town it starts from, your
+  passport on a visa step, and what it costs.
+- Walkers: invited only to a plan the Lorer organizes and that is open (`inviteToEvent`: reachable people
+  only); a Lorer's block hides and ends a walker; leaving a crew lets go for good (`lib/loracle/sharing.ts`);
+  the download lists only walks on quests still shown to you. A moderator's takedown can't be undone by
+  sharing again (409 `removed`); a crew member's report keeps the wish's own words.
+- Asks: the care floor first (`AskResult` `{ route: 'care' }`, the care screen in the sheet); X4/X5/X6 are
+  safety faults in a deeper answer (never shown); one open ask per waypoint is a unique index.
+- "Ask again" is told the earlier roads' waypoints, and H18 sends back a road that repeats one.
+- The dawn lane: consent checked at every send and guarded through it; items within 5 h of dawn are left to
+  the promise keeper; the month's room under the ceiling counts batches still out; batches and items are
+  claimed in the database (two processes are safe); burned wishes' batches still count; batch create has no
+  SDK retries; every batch read is deleted at Anthropic.
+- Web: the crew member's view speaks of the Lorer (the road walked, "{name} keeps the road inked furthest",
+  the dawn line, the fog line without "Try again", "{name}’s wish", "Walk with {name}"), no "Tell me when it's
+  sealed" for someone else's quest; that toggle follows the road being drawn, not the tab on screen; faded and
+  silent roads say so on their tab and "Try again" shows only on the road it redraws; "Report this quest"
+  wears the temple's parchment (D34); walking and asking keep focus and announce politely (a deeper ask's
+  signs at most every 5 s, like the wait's); two new lines reworded ("Ask the stone once more", "keeps every
+  road it drew").
+- The single migration `0011_loracle_b_c.sql` was regenerated (it has not shipped): it adds
+  `wishes.sharing_removed_at` and the index `wish_asks_one_open`.
+
+**Checked**
+
+- `npm run typecheck` passes (shared, API, web). `npm run build` passes (Oracle chunk 81.47 kB / 23.83 kB gzip;
+  main 516.98 kB / 161.50 kB gzip). `npm run copy:check -- --offline`: 0 text keys gone, 81 new.
+- `npm test`: API 356 pass in 20 files (`loracle-b.test.ts` 30, `loracle-c.test.ts` 16, `loracleMind.test.ts`
+  45, `loracleChecks.test.ts` 36, `loracle.test.ts` 51), copy tests 236 pass in 10 files. No test calls the
+  network. A completeness pass against the spec added five tests for parts that worked but had none: a scout
+  paused by the server (`pause_turn`) is sent on in the next batch with its turn echoed back and no new user
+  turn; "Ask again" past the soft budget is drawn at dawn from the kept ledger (no scouts, the AGAIN task, the
+  earlier roads, H18); a fair-share extra near its promise rolls a night; the promise keeper answers a question
+  live, and past the owner's ceiling a cast due soon waits for the new moon; a deeper ask cut off by a restart
+  is picked up by the sweep (and fades after two tries).
+- The HTTP smoke below was rerun after the review's fixes: 36 + 3 checks pass.
+- HTTP smoke on port 4100 with `LORACLE_MIND=fake`, no key, a fresh PGlite folder: 36 checks pass (cast; Ask
+  again and its 409 while drawing; Ask the stone, its 409s and its answer; share to a crew and the 400 without
+  one; the member's list and read-only view without realm, asks, notes or links; 403 `not_yours`; walk, 409
+  `own`; the plan invites the walker; a stranger gets 404 for the wish, the walk, the Epic and a report; the
+  Epic's 409 before it came true; a member's report; unshare hides it and lets the walkers go; the Epic after
+  it came true; the tick's 404 on a server without a secret). Then restarted with a secret: 404 without it and
+  with a wrong one, 200 with it (all counts 0). The dawn lane itself is only exercised in tests.
+- **Not verified**: anything on screen (no browser); a real Claude call, live or in a batch; whether the
+  Batches API takes the web search/fetch tools (if not, those items go live by themselves) and a beta-namespace
+  batch with no `betas`; the GitHub Actions run and the Render secret; how much of the free Render, Neon and
+  Actions allowances the hourly tick uses.
+
 ## 2026-11-19 — Your world, simpler: one tap is your world; Auto only when you choose it (D34 note)
 
 The owner: "make the day night thing simpler. becuase I cant just choose the gnostic day one , i have to coose

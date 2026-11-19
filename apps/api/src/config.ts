@@ -58,6 +58,24 @@ const Env = z.object({
   LORACLE_MIND: z.enum(['real', 'fake']).default('real'),
   /** The owner's monthly spend ceiling for the Loracle, in US$. Past it, wishes wait for the new moon. */
   LORACLE_MONTHLY_USD: z.coerce.number().min(0).default(150),
+  /**
+   * The stone's soft budget (phase B, never shown): casts and deeper asks a Lorer gets drawn at once
+   * per local day; past it (or past LORACLE_DAILY_BUDGET_USD across everyone) they are written down
+   * for dawn and read at half price. Only while the dawn lane runs (LORACLE_TICK_SECRET set).
+   */
+  LORACLE_CASTS_NOW: z.coerce.number().int().min(0).default(3),
+  LORACLE_DEEPER_NOW: z.coerce.number().int().min(0).default(10),
+  LORACLE_DAILY_BUDGET_USD: z.coerce.number().min(0).default(10),
+  /**
+   * The hourly dawn tick's bearer secret (POST /api/loracle/tick, from GitHub Actions). Unset: the
+   * tick route answers 404 and the dawn lane is off (every cast and ask is drawn at once, as in
+   * phase A). Never logged.
+   */
+  LORACLE_TICK_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim() || undefined)
+    .refine((v) => v === undefined || v.length >= 24, 'LORACLE_TICK_SECRET must be at least 24 characters'),
 });
 
 /**
@@ -103,6 +121,19 @@ export interface LoracleConfig {
    * Generous; it only stops a script from weighing wish after wish on the owner's money. Never shown.
    */
   weighsPer24h: number;
+  /** The hidden per-Lorer limit on deeper asks in a rolling 24 hours (phase B). Never shown. */
+  asksPer24h: number;
+  /** The soft budget (phase B): casts ("Ask again" included) drawn at once per Lorer per local day. */
+  castsNow: number;
+  /** The soft budget: deeper asks answered at once per Lorer per local day. */
+  deeperNow: number;
+  /** The soft budget across everyone, US$ per UTC day: past it, new work waits for dawn. */
+  dailyBudgetUsd: number;
+  /**
+   * The dawn tick's bearer secret (LORACLE_TICK_SECRET). Non-enumerable like the key. Unset: the tick
+   * route is a 404 and the dawn lane is off.
+   */
+  readonly tickSecret?: string;
   /** Jobs running at once across the server (one per Lorer). */
   maxConcurrent: number;
   /** A job's whole budget before it is cut off as a timeout. */
@@ -152,6 +183,10 @@ export function loracleConfig(opts: {
   monthlyUsd?: number;
   anonSalt: string;
   offerSecret?: string;
+  castsNow?: number;
+  deeperNow?: number;
+  dailyBudgetUsd?: number;
+  tickSecret?: string | undefined;
 }): LoracleConfig {
   const mode = opts.mind === 'fake' ? 'fake' : opts.apiKey ? 'awake' : 'asleep';
   const config = {
@@ -161,11 +196,16 @@ export function loracleConfig(opts: {
     monthlyUsd: opts.monthlyUsd ?? 150,
     castsPer24h: 10,
     weighsPer24h: 40,
+    asksPer24h: 30,
+    castsNow: opts.castsNow ?? 3,
+    deeperNow: opts.deeperNow ?? 10,
+    dailyBudgetUsd: opts.dailyBudgetUsd ?? 10,
     maxConcurrent: 3,
     jobTimeoutMs: 360_000,
     anonSalt: opts.anonSalt,
   } as LoracleConfig;
   if (opts.apiKey) Object.defineProperty(config, 'apiKey', { value: opts.apiKey, enumerable: false });
+  if (opts.tickSecret) Object.defineProperty(config, 'tickSecret', { value: opts.tickSecret, enumerable: false });
   Object.defineProperty(config, 'offerSecret', {
     value: opts.offerSecret ?? randomBytes(32).toString('hex'),
     enumerable: false,
@@ -227,6 +267,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       apiKey: e.ANTHROPIC_API_KEY,
       mind: e.LORACLE_MIND,
       monthlyUsd: e.LORACLE_MONTHLY_USD,
+      castsNow: e.LORACLE_CASTS_NOW,
+      deeperNow: e.LORACLE_DEEPER_NOW,
+      dailyBudgetUsd: e.LORACLE_DAILY_BUDGET_USD,
+      tickSecret: e.LORACLE_TICK_SECRET,
       // Stable per deployment, like the media secret; never the key itself.
       anonSalt: createHash('sha256')
         .update(`lore-loracle-anon:${e.DATABASE_URL ?? e.PGLITE_DIR}`)

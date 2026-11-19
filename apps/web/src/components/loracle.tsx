@@ -179,7 +179,7 @@ const EMBLEM_ICONS: Record<Emblem, LucideIcon> = {
   hand: Hand,
 };
 
-const emblemIcon = (emblem: Emblem | null | undefined): LucideIcon => (emblem && EMBLEM_ICONS[emblem]) || Compass;
+export const emblemIcon = (emblem: Emblem | null | undefined): LucideIcon => (emblem && EMBLEM_ICONS[emblem]) || Compass;
 
 export type SealTone = 'wax' | 'open' | 'inked' | 'gold' | 'stone';
 
@@ -290,10 +290,11 @@ export function ScrollSheet({ label, title, onClose, children }: { label: string
       if (!items.length) return;
       const a = items[0]!;
       const z = items[items.length - 1]!;
-      if (e.shiftKey && (document.activeElement === a || document.activeElement === node)) {
+      if (e.shiftKey && (document.activeElement === a || document.activeElement === node || !node.contains(document.activeElement))) {
         e.preventDefault();
         z.focus();
-      } else if (!e.shiftKey && document.activeElement === z) {
+      } else if (!e.shiftKey && (document.activeElement === z || !node.contains(document.activeElement))) {
+        // Also when focus fell out of the sheet (a pressed control React replaced): back to its start.
         e.preventDefault();
         a.focus();
       }
@@ -362,10 +363,10 @@ function leadLine(line: string) {
   );
 }
 
-/** Before the first wish leaves for Anthropic (Apple guideline 5.1.2(i)): what goes, what never goes, what LORE keeps. */
-export function ConsentSheet({ onYes, onNo, pending, error }: { onYes: () => void; onNo: () => void; pending: boolean; error: unknown }) {
+/** What goes, what never goes, what LORE keeps: the consent sheet's words (also shown inside a waypoint's sheet). */
+export function ConsentLines() {
   return (
-    <ScrollSheet label={L.consentTitle} onClose={onNo}>
+    <>
       <ul className="consent-lines">
         <li>{leadLine(L.consentGoes)}</li>
         <li>{leadLine(L.consentNever)}</li>
@@ -375,6 +376,15 @@ export function ConsentSheet({ onYes, onNo, pending, error }: { onYes: () => voi
       <p className="consent-more">
         <Link to="/privacy">{MORE.privacyMore}</Link>
       </p>
+    </>
+  );
+}
+
+/** Before the first wish leaves for Anthropic (Apple guideline 5.1.2(i)): what goes, what never goes, what LORE keeps. */
+export function ConsentSheet({ onYes, onNo, pending, error }: { onYes: () => void; onNo: () => void; pending: boolean; error: unknown }) {
+  return (
+    <ScrollSheet label={L.consentTitle} onClose={onNo}>
+      <ConsentLines />
       <ErrorNote error={error} />
       <div className="sheet-actions">
         <button type="button" className={`btn wax-btn${pending ? ' pending' : ''}`} onClick={onYes} disabled={pending}>
@@ -1107,7 +1117,7 @@ const WAIT_SEGMENTS = [
 const WAIT_GHOST = 'M16 96 C 40 70, 64 102, 90 78 C 116 54, 138 90, 164 64 C 192 38, 216 76, 242 50 C 266 26, 288 52, 304 24';
 
 /** The road drawing itself in four strokes of ink, one per phase of the wait. */
-function WaitInk({ phase, still }: { phase: number; still: boolean }) {
+export function WaitInk({ phase, still }: { phase: number; still: boolean }) {
   return (
     <svg viewBox="0 0 320 120" className={`wait-ink${still ? ' still' : ''}`} aria-hidden>
       <path d={WAIT_GHOST} className="wait-ghost" />
@@ -1118,6 +1128,26 @@ function WaitInk({ phase, still }: { phase: number; still: boolean }) {
       <path d="M298 18l12 12M310 18l-12 12" className={`wait-x${phase >= WAIT_SEGMENTS.length ? ' shown' : ''}`} />
     </svg>
   );
+}
+
+/**
+ * The newest of a stream of lines, for a polite live region: at most one announcement every 5 s, so a
+ * screen reader is never talked over (the wait's signs, a deeper ask's signs).
+ */
+export function useSpoken(newest: string): string {
+  const [spoken, setSpoken] = useState(newest);
+  const lastSpoken = useRef(0);
+  useEffect(() => {
+    const t = setTimeout(
+      () => {
+        lastSpoken.current = Date.now();
+        setSpoken(newest);
+      },
+      Math.max(0, lastSpoken.current + 5000 - Date.now()),
+    );
+    return () => clearTimeout(t);
+  }, [newest]);
+  return spoken;
 }
 
 /**
@@ -1134,7 +1164,8 @@ export function InkWait({
 }: {
   wish: Wish;
   notice: SealedNotice;
-  onRetry: () => void;
+  /** Absent for a crew member reading someone's quest: only its Lorer can try again. */
+  onRetry?: () => void;
   retrying: boolean;
   retryError: unknown;
 }) {
@@ -1156,18 +1187,7 @@ export function InkWait({
   }, [working]);
 
   // One announcement per 5 s at most.
-  const [spoken, setSpoken] = useState(newest);
-  const lastSpoken = useRef(0);
-  useEffect(() => {
-    const t = setTimeout(
-      () => {
-        lastSpoken.current = Date.now();
-        setSpoken(newest);
-      },
-      Math.max(0, lastSpoken.current + 5000 - Date.now()),
-    );
-    return () => clearTimeout(t);
-  }, [newest]);
+  const spoken = useSpoken(newest);
 
   return (
     <Scroll as="section" className="ink-wait">
@@ -1179,13 +1199,17 @@ export function InkWait({
       ) : faded ? (
         <div className="wait-faded">
           <p className="wait-fog" role="status">
-            {L.fogTwice}
+            {onRetry ? L.fogTwice : L.fogTwiceCrew}
           </p>
-          <ErrorNote error={retryError} />
-          <button type="button" className={`btn wax-btn${retrying ? ' pending' : ''}`} disabled={retrying} onClick={onRetry}>
-            <Sigil />
-            <span>{L.tryAgain}</span>
-          </button>
+          {onRetry && (
+            <>
+              <ErrorNote error={retryError} />
+              <button type="button" className={`btn wax-btn${retrying ? ' pending' : ''}`} disabled={retrying} onClick={onRetry}>
+                <Sigil />
+                <span>{L.tryAgain}</span>
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -1227,14 +1251,14 @@ export function InkWait({
 
 // ---------------------------------------------------------------------------------- the map
 
-const MAP_W = 340;
-const MAP_H = 236;
+export const MAP_W = 340;
+export const MAP_H = 236;
 const MX = 36;
 const MY = 34;
 const GAP = 44;
 
-interface Pin {
-  wp: Waypoint;
+export interface Pin<T extends { where: WaypointWhere } = Waypoint> {
+  wp: T;
   i: number;
   x: number;
   y: number;
@@ -1247,7 +1271,7 @@ const unwrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
  * mean latitude), fitted into the parchment with margins. Without: a drawn path across the sheet.
  * Pins missing a point sit between their neighbours; then pins are pushed at least 44 apart.
  */
-function layoutPins(map: Waypoint[]): { pins: Pin[]; drawnPath: boolean } {
+export function layoutPins<T extends { where: WaypointWhere }>(map: T[]): { pins: Pin<T>[]; drawnPath: boolean } {
   const n = map.length;
   const has = map.map((w) => w.where.lat != null && w.where.lon != null);
   const known = has.filter(Boolean).length;
@@ -1292,7 +1316,7 @@ function layoutPins(map: Waypoint[]): { pins: Pin[]; drawnPath: boolean } {
   }
 
   const pins = pts.map((pt, i) => ({ wp: map[i]!, i, x: pt.x, y: pt.y }));
-  const clamp = (p: Pin) => {
+  const clamp = (p: Pin<T>) => {
     p.x = Math.min(MAP_W - 22, Math.max(22, p.x));
     p.y = Math.min(MAP_H - 30, Math.max(22, p.y));
   };
@@ -1332,7 +1356,7 @@ function layoutPins(map: Waypoint[]): { pins: Pin[]; drawnPath: boolean } {
 }
 
 /** One leg of the road: a hand-drawn bend on land, waves at sea. */
-function legPath(a: Pin, b: Pin, sea: boolean): string {
+export function legPath(a: Pick<Pin, 'x' | 'y' | 'i'>, b: Pick<Pin, 'x' | 'y'>, sea: boolean): string {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -1353,7 +1377,7 @@ function legPath(a: Pin, b: Pin, sea: boolean): string {
   return d;
 }
 
-const shortName = (name: string) => (name.length > 22 ? `${name.slice(0, 21).trimEnd()}…` : name);
+export const shortName = (name: string) => (name.length > 22 ? `${name.slice(0, 21).trimEnd()}…` : name);
 
 /**
  * The true-shape ink map: no tiles, no third-party map requests. The SVG is decoration for sighted
@@ -1421,11 +1445,21 @@ export function TrueMap({ road, nextSealed, onOpen }: { road: WishScroll; nextSe
 }
 
 const civil = (date: string) => new Date(`${date.length === 7 ? `${date}-01` : date}T12:00:00`);
-const fmtDay = (date: string) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'long', year: 'numeric' }).format(civil(date));
-const inkedLine = (on: string | null) => (on ? fillLine(MORE.inkedOn, { date: fmtDay(on) }) : MORE.inked);
+export const fmtDay = (date: string) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'long', year: 'numeric' }).format(civil(date));
+export const inkedLine = (on: string | null) => (on ? fillLine(MORE.inkedOn, { date: fmtDay(on) }) : MORE.inked);
 
-/** The map in words: the accessible twin, and where a waypoint's sheet opens. */
-export function WaypointList({ road, nextSealed, onOpen }: { road: WishScroll; nextSealed: string | null; onOpen: (id: string) => void }) {
+/** The map in words: the accessible twin, and where a waypoint's sheet opens. `extra` adds to a row (who walks it). */
+export function WaypointList({
+  road,
+  nextSealed,
+  onOpen,
+  extra,
+}: {
+  road: WishScroll;
+  nextSealed: string | null;
+  onOpen: (id: string) => void;
+  extra?: (wp: Waypoint) => ReactNode;
+}) {
   return (
     <ol className="waypoint-list">
       {road.map.map((wp, i) => (
@@ -1447,6 +1481,7 @@ export function WaypointList({ road, nextSealed, onOpen }: { road: WishScroll; n
                   <Check size={12} aria-hidden strokeWidth={3} /> {inkedLine(wp.inkedOn)}
                 </span>
               ) : null}
+              {extra?.(wp)}
             </span>
           </button>
         </li>
@@ -1502,8 +1537,24 @@ function Mystery({ text }: { text: string }) {
   );
 }
 
-/** A waypoint's sheet: sealed, only its name, clue and mystery under wax; open, everything and the deeds. */
-export function WaypointSheet({ wp, index, onClose }: { wp: Waypoint; index: number; onClose: () => void }) {
+/**
+ * A waypoint's sheet: sealed, only its name, clue and mystery under wax; open, everything and the deeds.
+ * `readOnly` (a crew member reading someone's quest): no seal to break, no deeds. `extra` comes last
+ * (Ask the stone, its pinned scrolls, who walks it).
+ */
+export function WaypointSheet({
+  wp,
+  index,
+  onClose,
+  readOnly = false,
+  extra,
+}: {
+  wp: Waypoint;
+  index: number;
+  onClose: () => void;
+  readOnly?: boolean;
+  extra?: ReactNode;
+}) {
   const unseal = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/unseal`));
 
   if (wp.state === 'sealed') {
@@ -1514,13 +1565,18 @@ export function WaypointSheet({ wp, index, onClose }: { wp: Waypoint; index: num
         <p className="sealed-note">
           <Lock size={14} aria-hidden /> {L.sealed}
         </p>
-        <ErrorNote error={unseal.error} />
-        <div className="sheet-actions">
-          <button type="button" className={`btn wax-btn${unseal.isPending ? ' pending' : ''}`} disabled={unseal.isPending} onClick={() => unseal.mutate(undefined)}>
-            <Sigil />
-            <span>{L.breakSeal}</span>
-          </button>
-        </div>
+        {!readOnly && (
+          <>
+            <ErrorNote error={unseal.error} />
+            <div className="sheet-actions">
+              <button type="button" className={`btn wax-btn${unseal.isPending ? ' pending' : ''}`} disabled={unseal.isPending} onClick={() => unseal.mutate(undefined)}>
+                <Sigil />
+                <span>{L.breakSeal}</span>
+              </button>
+            </div>
+          </>
+        )}
+        {extra}
       </ScrollSheet>
     );
   }
@@ -1582,26 +1638,19 @@ export function WaypointSheet({ wp, index, onClose }: { wp: Waypoint; index: num
           </ol>
         </section>
       )}
-      <WaypointDeeds wp={wp} />
+      {!readOnly && <WaypointDeeds wp={wp} />}
+      {extra}
     </ScrollSheet>
   );
 }
 
-/** Make it a plan · Keep in the vault · I did this → Write the chapter. Each links back to the waypoint. */
-function WaypointDeeds({ wp }: { wp: OpenWaypoint }) {
+/**
+ * "Write the chapter": a private chapter is started from the waypoint in the Lorebook, tied to it, and
+ * opened so the Lorer can tell the story and add the photos.
+ */
+export function useWriteChapter(wp: Pick<OpenWaypoint, 'id' | 'name' | 'inkedOn' | 'where' | 'note'>) {
   const navigate = useNavigate();
-  const [inking, setInking] = useState(false);
-  const [on, setOn] = useState(todayISO());
-  const [note, setNote] = useState('');
-  const plan = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/plan`, {}));
-  const vault = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/vault`, {}));
-  const ink = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/ink`, { on, note: note.trim() || null }), {
-    onSuccess: () => setInking(false),
-  });
-  const unink = useAction(() => api.del<unknown>(`/loracle/waypoints/${wp.id}/ink`));
-  // The chapter is written in the Lorebook: a private chapter is started from the waypoint, tied to
-  // it, and opened so the Lorer can tell the story and add the photos.
-  const chapter = useAction(
+  return useAction(
     async () => {
       const c = await api.post<ChapterDetail>('/chapters', {
         title: wp.name.slice(0, 120),
@@ -1615,6 +1664,20 @@ function WaypointDeeds({ wp }: { wp: OpenWaypoint }) {
     },
     { onSuccess: (c) => navigate(`/chapters/${c.id}`) },
   );
+}
+
+/** Make it a plan · Keep in the vault · I did this → Write the chapter. Each links back to the waypoint. */
+function WaypointDeeds({ wp }: { wp: OpenWaypoint }) {
+  const [inking, setInking] = useState(false);
+  const [on, setOn] = useState(todayISO());
+  const [note, setNote] = useState('');
+  const plan = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/plan`, {}));
+  const vault = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/vault`, {}));
+  const ink = useAction(() => api.post<unknown>(`/loracle/waypoints/${wp.id}/ink`, { on, note: note.trim() || null }), {
+    onSuccess: () => setInking(false),
+  });
+  const unink = useAction(() => api.del<unknown>(`/loracle/waypoints/${wp.id}/ink`));
+  const chapter = useWriteChapter(wp);
   const busy = plan.isPending || vault.isPending || ink.isPending || unink.isPending || chapter.isPending;
   const inkId = useId();
 
@@ -1733,8 +1796,11 @@ export function ProvisionsTable({ road }: { road: WishScroll }) {
   );
 }
 
-/** This week: one deed under an hour, and "Put it in my week" (a reminder at 18:00 on the day, unless changed). */
-export function ThisWeekStrip({ road }: { road: WishScroll }) {
+/**
+ * This week: one deed under an hour, and "Put it in my week" (a reminder at 18:00 on the day, unless changed).
+ * `readOnly` (a crew member reading it): the deed only; the reminder is the Lorer's own.
+ */
+export function ThisWeekStrip({ road, readOnly = false }: { road: WishScroll; readOnly?: boolean }) {
   const tw = road.thisWeek;
   const [setting, setSetting] = useState(false);
   const [day, setDay] = useState(() => (tw?.day && tw.day >= todayISO() ? tw.day : todayISO()));
@@ -1758,7 +1824,7 @@ export function ThisWeekStrip({ road }: { road: WishScroll }) {
           {tw.text} <MarkDot mark={tw.mark} />
         </p>
         <p className="this-week-minutes">{fillLine(MORE.minutes, { minutes: tw.minutes })}</p>
-        {tw.reminderId ? (
+        {readOnly ? null : tw.reminderId ? (
           <p className="this-week-set">
             <Check size={15} strokeWidth={3} aria-hidden /> {MORE.inWeek} <Link to="/notes">{MORE.seeNotes}</Link>
           </p>
@@ -1818,8 +1884,8 @@ export function FogList({ road, onOpen }: { road: WishScroll; onOpen: (id: strin
   );
 }
 
-/** Where the stone looked: folded; numbered, with the host, the date and whether it was opened. */
-export function SourcesFold({ road }: { road: WishScroll }) {
+/** Where the stone looked: folded; numbered, with the host, the date and whether it was opened. (Also a deeper ask's own.) */
+export function SourcesFold({ road }: { road: Pick<WishScroll, 'sources'> }) {
   if (!road.sources.length) return null;
   return (
     <details className="quest-sources">
@@ -1917,7 +1983,28 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefe
  * The scroll: the quest's name carved, the Calling set large, the true-shape map and its waypoints
  * (two open, the rest under wax), Provisions, This week, Left in the fog, Where the stone looked.
  */
-export function ScrollView({ wish, existing = false }: { wish: Wish; existing?: boolean }) {
+export function ScrollView({
+  wish,
+  existing = false,
+  readOnly = false,
+  only,
+  after,
+  sheetExtra,
+  rowExtra,
+}: {
+  wish: Wish;
+  existing?: boolean;
+  /** A crew member reading someone's quest: no deeds, no seals to break, no reminder. */
+  readOnly?: boolean;
+  /** Replaces the words of "Only you can see this scroll." (a quest shown to a crew). */
+  only?: ReactNode;
+  /** After that line, inside the scroll (Show to a crew, Report). */
+  after?: ReactNode;
+  /** Added at the end of a waypoint's sheet (Ask the stone, who walks it). */
+  sheetExtra?: (wp: Waypoint) => ReactNode;
+  /** Added to a waypoint's row in the list (who walks it). */
+  rowExtra?: (wp: Waypoint) => ReactNode;
+}) {
   const road = wish.road;
   const [openId, setOpenId] = useState<string | null>(null);
   const openIndex = road.map.findIndex((w) => w.id === openId);
@@ -1960,28 +2047,39 @@ export function ScrollView({ wish, existing = false }: { wish: Wish; existing?: 
             </h3>
             <TrueMap road={road} nextSealed={nextSealed} onOpen={setOpenId} />
             <div ref={listRef}>
-              <WaypointList road={road} nextSealed={nextSealed} onOpen={setOpenId} />
+              <WaypointList road={road} nextSealed={nextSealed} onOpen={setOpenId} extra={rowExtra} />
             </div>
           </section>
         )}
 
         <ProvisionsTable road={road} />
-        <ThisWeekStrip road={road} />
+        <ThisWeekStrip road={road} readOnly={readOnly} />
         <FogList road={road} onOpen={setOpenId} />
         <SourcesFold road={road} />
-        <QuestDeeds wish={wish} />
+        {!readOnly && <QuestDeeds wish={wish} />}
         <p className="quest-only">
-          <Lock size={14} aria-hidden /> {L.onlyYou}
+          {only ?? (
+            <>
+              <Lock size={14} aria-hidden /> {L.onlyYou}
+            </>
+          )}
         </p>
+        {after}
       </Scroll>
-      {open && <WaypointSheet key={open.id} wp={open} index={openIndex} onClose={() => setOpenId(null)} />}
+      {open && (
+        <WaypointSheet key={open.id} wp={open} index={openIndex} onClose={() => setOpenId(null)} readOnly={readOnly} extra={sheetExtra?.(open)} />
+      )}
     </>
   );
 }
 
 // ---------------------------------------------------------------------------------- the quest log
 
+/** A wish written down for the dawn lane (phase B), not yet read. */
+export const atDawn = (w: WishSummary) => w.status === 'listening' && w.lane === 'dawn';
+
 export function questLine(w: WishSummary): string {
+  if (atDawn(w)) return L.logDawn;
   switch (w.status) {
     case 'listening':
       return MORE.logListening;
@@ -1998,16 +2096,18 @@ export function questLine(w: WishSummary): string {
   }
 }
 
-function QuestRoll({ w }: { w: WishSummary }) {
+/** A rolled scroll in the log. `sub` replaces its second line (a quest shown to you: whose, and in which crew). */
+export function QuestRoll({ w, sub }: { w: WishSummary; sub?: string }) {
   const tone: SealTone = w.status === 'fulfilled' ? 'gold' : w.status === 'released' ? 'stone' : 'wax';
+  const moon = w.status === 'moon' || atDawn(w);
   return (
     <Link to={`/oracle/quest/${w.id}`} className={`quest-roll ${w.status}`}>
       <WaxSeal emblem={w.seal} tone={tone} />
       <span className="roll-text">
         <span className="roll-title">{w.title ?? w.text}</span>
-        <span className="roll-sub">{questLine(w)}</span>
+        <span className="roll-sub">{sub ?? questLine(w)}</span>
       </span>
-      {w.status === 'moon' && <Moon size={16} aria-hidden className="roll-moon" />}
+      {moon && <Moon size={16} aria-hidden className="roll-moon" />}
     </Link>
   );
 }

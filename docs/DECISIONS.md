@@ -310,7 +310,93 @@ a deed for this week). The deterministic Futures (D26) are gone from the app; th
   with canned quests and no network or cost, so the UI and the flow can be built and checked without a
   key. Tests inject their own minds.
 - **Phase A only:** one road per wish, private to the Lorer. Ask deeper, Ask again, a dawn lane, batches
-  and crew quests are not built.
+  and crew quests are not built. *(Built since: see the note on phases B and C below.)*
+- **Note, 2026-11-19: phases B and C are built** (spec v3 §1.7, §1.9, §2.5–2.8, §3.1, §3.5–3.7; where the
+  shipped phase A code differed from the spec, the code won). **Nothing of it has been seen in a browser or on
+  a phone, and no real Claude call was made for it** (tests and the smoke run use stub and fake minds and a
+  fake batches client). One migration, `0011_loracle_b_c.sql`.
+  - **Ask again ("Two roads").** Another road for the same wish, drawn from the ledger the first road found
+    (no new scouts; the whole ledger is now kept on the wish, and a phase A ledger is rebuilt from its
+    dossiers and the pages its road cites, or the scouts go out again if too little survives). It counts as
+    a cast toward the hidden limits. Roads sit as carved tabs ("Two roads", "First road", "Second road"…).
+    There is no "keep this road" button: the road inked furthest (ties: the first) is the one the quest keeps,
+    for its "3 of 6 inked", the quest log and the Epic. "Try again" retries the newest faded road, whichever
+    it is, always at once.
+  - **Ask the stone about this.** A deeper ask on an open (or inked) waypoint with an optional question (200
+    characters): an answer, a new sign, three real steps, a keeper, words to say, one new unknown and its own
+    sources, pinned to the waypoint as a small scroll. One at a time per waypoint (409 `in_progress`); a
+    hidden cap of 30 a day (409 `rest`, like casts); past the owner's monthly ceiling it answers 409 `moon`
+    rather than waiting for the new moon ("Ask again" too). Its findings stay with the ask
+    (`wish_asks.found`), never merged into the wish's ledger, so two asks finishing together can't clash.
+    `SCOUT_PROMPT` is unchanged byte for byte (phase A's cache and eval hold); the deeper role is written into
+    the scout's user turn. Only the Lorer who cast the wish asks, and only they ever see asks.
+  - **The dawn lane.** Past the stone's soft budget for a day (`LORACLE_CASTS_NOW` 3 casts and
+    `LORACLE_DEEPER_NOW` 10 asks per Lorer per local day, or `LORACLE_DAILY_BUDGET_USD` US$10 across everyone
+    per UTC day), work is written down and read before the Lorer's next 06:00 through Message Batches at half
+    price. The client sees only the lane and the moon ("It will be read before dawn"), never a count or a
+    budget; nothing is refused for it (D30). The soft budget only moves work to dawn: phase A's hidden limits
+    and the new-moon ceiling are unchanged. There is no `dawn` wish status: the wish stays `listening` and its
+    road has `lane: 'dawn'` (the quest log reads the first road's `lane`); asks do have a `dawn` status.
+    **The lane is on only with `LORACLE_TICK_SECRET`, the key and a mind**; until the owner sets the secret,
+    everything is drawn at once, as in phase A.
+  - **The hourly tick.** GitHub Actions (`.github/workflows/loracle-tick.yml`, :17 every hour; quiet without
+    its secrets) calls `POST /api/loracle/tick` with `Authorization: Bearer <secret>`, compared in constant
+    time; no secret, or a wrong one, is a 404. Boot and `GET /loracle` tick lazily. A tick collects ended
+    batches (one batch per stage), keeps promises (anything due within 3 hours goes to the live lane), and
+    sends what waits, at most 5 begun dawn items per Lorer (the rest roll a day). A refused or invalid batch
+    request, or three failed tries, hands the whole item to the live lane at once, which picks up from the
+    ledger already built. No cron in the server: Render's free instance sleeps.
+  - **Show to a crew.** One crew at a time, one the Lorer is an active member of (404 otherwise); "Keep it
+    to myself again" undoes it. Visibility lives in `lib/access.ts` (`wishVisible`): the Lorer, plus active
+    members of that crew while the Lorer is still in it, never across a block. Crew members read the scroll
+    read-only: never the Lorer's realm, notes, links, reminders or asks. Every deed stays the Lorer's: a crew
+    member gets 403 `not_yours`, a stranger 404 (D8). They also never get what the stone drew from the
+    Lorer's own answers and life: the road's signs (the scouts' searches), its dawn promise, This week and the
+    provisions; and they get the map points only while the Lorer's "Show my places on maps" is on (D35).
+  - **Walk with you.** A crew member can walk any open waypoint (409 `own`, `sealed`, `inked` otherwise).
+    When the Lorer makes that waypoint a plan, its walkers are invited (`event_invite`, the one notification:
+    a real invitation, D17); making it a plan again invites those who joined since. Changing the crew or
+    going back to "Only me" lets every walker go. No notification for being shown a quest or for a walk.
+  - **The Epic** (`/oracle/quest/:id/epic`, `GET /loracle/wishes/:id/epic`, 409 `not_fulfilled` before): the
+    road walked furthest as a map, every inked line leading to its chapter (only chapters the viewer may
+    see), who walked each waypoint. For the Lorer and the crew it is shown to.
+  - **Reports (D29).** `quest` is a report target; the snapshot keeps each road's title, calling and waypoint
+    names, and, when a crew member reports it, starts with the wish in the Lorer's own words (what the crew
+    reads first; spec §2.8 lists only the title, calling and names). A moderator's "remove" un-shares the quest
+    (and lets its walkers go) and it can never be shown to a crew again (`wishes.sharing_removed_at`; 409
+    `removed`); it is never burned. A Lorer reporting their own quest is reporting the stone's words, so no
+    account is its subject.
+  - **Words (D33).** Every new word is in `LORACLE_LINES` (81 new keys, none removed). Two existing lines
+    became less true and were left as they are for the owner to reword: "Only you can see your wishes and
+    your scrolls." on `/oracle` (a new line after it now says "Show one to a crew, and that crew can read
+    it.") and the consent sheet's "private to you". The Privacy Policy got new paragraphs only (what crews
+    see, deeper questions and batches at Anthropic, keeping a quest to yourself again); its "Last updated"
+    date was not changed.
+  - **Hardened after review (2026-11-19, the same day; tests only, nothing seen in a browser, no real Claude
+    call).**
+    - Care first for asks too: a question at the care floor gets the care screen (200 `{ route: 'care' }`),
+      and nothing is stored or sent; both minds and the dawn lane refuse one as well.
+    - A deeper answer keeps the road's safety rules: X4 (no solo travel abroad before 18), X5 and X6 are
+      safety faults that earn the repair, and an answer that keeps one is never shown (the ask fails: the live
+      lane retries or fades it).
+    - "Ask again" is told each earlier road's waypoints in order, and a road that repeats an earlier title,
+      or its places in the same order, is sent back for repair (H18).
+    - Walkers are asked along only to a plan the Lorer organizes and that is still open, through the same
+      invitation rule as any plan (friends or a shared crew, never across a block). A waypoint linked to
+      someone else's event stays theirs.
+    - A block between the Lorer and a walker hides the walker from everyone and ends their walks (either
+      way). Leaving or being removed from a crew lets go for good: the leaver's quests shown to it are theirs
+      alone again (a rejoin shows nothing), and their walks on its quests end. The download lists walks only
+      on quests still shown to you.
+    - The dawn lane: nothing is sent for a Lorer who took consent back, even mid-tick; an item within 5 hours
+      of its promise is left to the promise keeper (drawn live once, never paid for twice); new items are
+      begun only while the month's room under the ceiling, less what batches still out may cost (the 30-day
+      mean of a dawn item, else US$0.50), holds another; batches and items are claimed in the database, so
+      two processes ticking at once (a deploy) send and count everything once; a burned wish's batch still
+      counts toward its Lorer's hidden limit; a batch create is sent without SDK retries (no stray paid
+      batch); and every batch read is deleted at Anthropic (`client.beta.messages.batches.delete`).
+      Whether deleting also ends what Anthropic keeps under its own retention is **not verified**.
+    - One open ask per waypoint is a unique index (`wish_asks_one_open`): a double tap is a 409.
 
 **D30 · No limits on adventure.** The owner: "We only get one chance at life... putting a limit on
 adventure is not the way to go." The Oracle's realm goes to **No limit** (anywhere on Earth). Technical

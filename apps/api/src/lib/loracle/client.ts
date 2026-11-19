@@ -3,7 +3,8 @@
 // client.beta.messages.create / .stream, `betas`, `fallbacks: 'default'`, output_config.{effort,format},
 // web_search_20260209 / web_fetch_20260209 (max_uses, blocked_domains, user_location,
 // max_content_tokens), metadata.user_id, cache_control, typed error classes and APIError.type,
-// and the stream's `currentMessage` (the partial message of a stream that was cut off).
+// the stream's `currentMessage` (the partial message of a stream that was cut off), and (phase B)
+// client.beta.messages.batches.create / .retrieve / .results (typescript/claude-api/batches.md).
 //
 // Claude Opus 5.5 facts this relies on: thinking is always on (omit `thinking`; never `disabled` or a
 // budget); effort is the control and its default is `medium`, so every call sets it; forced
@@ -23,8 +24,8 @@ import type { z } from 'zod';
 import type { WishFailure } from '#shared';
 import type { Effort } from '../../config.ts';
 import { MIRROR_DOMAINS } from './ledger.ts';
-import { COMPOSE_PROMPT, SCOUT_PROMPT, WEIGH_PROMPT, townOf, type ScoutRole } from './prompts.ts';
-import { QUEST_FORMAT, WEIGH_FORMAT } from './schema.ts';
+import { COMPOSE_PROMPT, DEEPER_ADDENDUM, SCOUT_PROMPT, WEIGH_PROMPT, townOf, type ScoutRole } from './prompts.ts';
+import { DEEPER_FORMAT, QUEST_FORMAT, WEIGH_FORMAT } from './schema.ts';
 import type { MindContext } from './types.ts';
 
 export type Params = Anthropic.Beta.MessageCreateParamsNonStreaming;
@@ -151,6 +152,8 @@ export function weighParams(cfg: RequestConfig, turn: string, anonId: string, ma
 const SCOUT_BUDGET: Record<ScoutRole, { search: number; fetch: number }> = {
   ROAD: { search: 6, fetch: 3 },
   KEEPERS: { search: 6, fetch: 4 },
+  // Phase B: one waypoint only, effort low.
+  DEEPER: { search: 3, fetch: 1 },
 };
 
 export function scoutParams(cfg: RequestConfig, role: ScoutRole, turn: string, ctx: MindContext): Params {
@@ -159,11 +162,11 @@ export function scoutParams(cfg: RequestConfig, role: ScoutRole, turn: string, c
     ...LIVE,
     betas: [...LIVE.betas],
     model: cfg.model,
-    max_tokens: 32_000,
+    max_tokens: role === 'DEEPER' ? 16_000 : 32_000,
     system: sys(SCOUT_PROMPT),
     // Automatic caching of the growing turn across paused continuations.
     cache_control: { type: 'ephemeral' },
-    output_config: { effort: cfg.effort.scout },
+    output_config: { effort: role === 'DEEPER' ? 'low' : cfg.effort.scout },
     metadata: { user_id: ctx.anonId },
     tools: [
       {
@@ -194,17 +197,83 @@ export function composeParams(
   cfg: RequestConfig,
   turn: string,
   anonId: string,
-  { effort, maxTokens }: { effort: Effort; maxTokens: number },
+  { effort, maxTokens, addendum = null }: { effort: Effort; maxTokens: number; addendum?: string | null },
 ): Params {
   return {
     ...LIVE,
     betas: [...LIVE.betas],
     model: cfg.model,
     max_tokens: maxTokens,
-    system: sys(COMPOSE_PROMPT),
+    // "Ask again" (phase B) adds its task as a second static block; COMPOSE_PROMPT stays the cached prefix.
+    system: addendum ? sys(COMPOSE_PROMPT, addendum) : sys(COMPOSE_PROMPT),
     output_config: { effort, format: QUEST_FORMAT },
     metadata: { user_id: anonId },
     messages: [{ role: 'user', content: turn }],
+  };
+}
+
+/** A deeper ask's answer (phase B): the compose prompt with the deeper task, effort medium, no tools. */
+export function deeperParams(cfg: RequestConfig, turn: string, anonId: string, { maxTokens }: { maxTokens: number }): Params {
+  return {
+    ...LIVE,
+    betas: [...LIVE.betas],
+    model: cfg.model,
+    max_tokens: maxTokens,
+    system: sys(COMPOSE_PROMPT, DEEPER_ADDENDUM),
+    output_config: { effort: 'medium', format: DEEPER_FORMAT },
+    metadata: { user_id: anonId },
+    messages: [{ role: 'user', content: turn }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The dawn lane (phase B): the same requests through the Message Batches API, at half the token
+// price. A batch request can't set `stream`, `speed`, `fallbacks` or `max_tokens: 0` (bundled docs,
+// typescript/claude-api/batches.md), so those go; without `fallbacks` the fallback beta goes too.
+// Everything else (tools, structured output, caching, effort, metadata) is the same request.
+
+/** One request in a batch (the SDK's `client.beta.messages.batches.create` request params). */
+export type BatchParams = Anthropic.Beta.Messages.BatchCreateParams.Request['params'];
+/** One line of a batch's results. */
+export type BatchResultLine = Anthropic.Beta.Messages.BetaMessageBatchIndividualResponse;
+
+/** A live request turned into a batch request: no betas, no fallbacks, no stream. */
+export function batchParams(params: Params): BatchParams {
+  const { betas: _betas, fallbacks: _fallbacks, stream: _stream, ...rest } = params as Params & { stream?: unknown };
+  return rest as BatchParams;
+}
+
+/** The narrow surface of the Batches API the dawn lane uses; tests inject a fake (no network). */
+export interface BatchClient {
+  create(requests: { custom_id: string; params: BatchParams }[]): Promise<{ id: string }>;
+  retrieve(id: string): Promise<{ id: string; processing_status: 'in_progress' | 'canceling' | 'ended' }>;
+  results(id: string): Promise<AsyncIterable<BatchResultLine>>;
+  /** Delete a batch whose results were read (only an ended batch can be deleted). */
+  delete(id: string): Promise<void>;
+}
+
+/**
+ * The real one: `client.beta.messages.batches` (create, retrieve, results, delete), made lazily from
+ * the key. A create is sent without the SDK's retries: a retry after a timeout could make a second
+ * batch that is paid for and never collected; a create that fails is simply sent at the next tick.
+ */
+export function anthropicBatches(apiKey: string): BatchClient {
+  const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 120_000 });
+  return {
+    async create(requests) {
+      const batch = await client.beta.messages.batches.create({ requests }, { maxRetries: 0 });
+      return { id: batch.id };
+    },
+    async retrieve(id) {
+      const batch = await client.beta.messages.batches.retrieve(id);
+      return { id: batch.id, processing_status: batch.processing_status };
+    },
+    async results(id) {
+      return client.beta.messages.batches.results(id);
+    },
+    async delete(id) {
+      await client.beta.messages.batches.delete(id);
+    },
   };
 }
 

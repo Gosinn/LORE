@@ -10,6 +10,9 @@ import { countryName, townOf } from './prompts.ts';
 import {
   MindError,
   type CastDraft,
+  type DeeperAsk,
+  type DeeperDraft,
+  type DrawFrom,
   type DraftRoad,
   type DraftWaypoint,
   type LedgerRecord,
@@ -416,6 +419,59 @@ export function fakeMind(opts: FakeMindOptions = {}): LoracleMind {
         forge: { fake: true },
         ledger,
         spend: [fakeSpend('road', 'ok'), fakeSpend('keepers', 'ok'), fakeSpend('compose', 'ok')],
+      };
+    },
+
+    /** "Ask again": the same canned road under another name, as if from the same ledger. */
+    async draw(wish: WeighedWish, ctx: MindContext, from: DrawFrom, onSign: SignSink, signal: AbortSignal): Promise<CastDraft> {
+      for (const s of [{ kind: 'compose' }, { kind: 'seal' }] as LoracleSign[]) {
+        await sleep(stepMs, signal);
+        onSign(s);
+      }
+      const { road, ledger } = LETHWEI.test(wish.text) ? lethweiRoad(ctx) : genericRoad(wish, ctx);
+      const n = from.earlier.length + 1;
+      road.title = n > 1 ? `${road.title}, Road ${n}` : road.title;
+      return {
+        kind: 'road',
+        road,
+        rough: false,
+        faults: [],
+        forge: { fake: true },
+        ledger: from.ledger.notes.length ? from.ledger : ledger,
+        spend: [fakeSpend(from.task === 'again' ? 'again' : 'compose', 'ok')],
+      };
+    },
+
+    /** A canned light on one waypoint. */
+    async deeper(ask: DeeperAsk, _ctx: MindContext, onSign: SignSink, signal: AbortSignal): Promise<DeeperDraft> {
+      if (ask.focus.question && careFloor(ask.focus.question)) return { kind: 'silent', spend: [] };
+      const w = ask.focus.waypoint;
+      for (const s of [{ kind: 'search', query: `${w.place} ${w.country}` }, { kind: 'compose' }, { kind: 'seal' }] as LoracleSign[]) {
+        await sleep(stepMs, signal);
+        onSign(s);
+      }
+      const m = r(1);
+      return {
+        kind: 'answer',
+        answer: {
+          answer: {
+            answer: ask.focus.question ? 'Others came later than you and stayed. Ask at the door who they were.' : null,
+            clue: 'Old boots by the door, worn to the shape of the road.',
+            steps: [
+              { kind: 'do', text: `Go to ${w.place} on a weekday evening.`, mark: m },
+              { kind: 'do', text: 'Ask for the one who keeps the place.', mark: m },
+              { kind: 'do', text: 'Say plainly what you wish, and what you can give.', mark: m },
+            ],
+            keeper: w.person ? { name: w.person.name, role: w.person.role, verb: 'tell you who came before you', mark: null } : null,
+            words: 'I came for the road, not the view.',
+            unknown: 'Who walked in here first, and what they left behind.',
+          },
+          sources: [{ n: 1, title: w.place, url: 'https://en.wikipedia.org/wiki/Main_Page', host: 'en.wikipedia.org', date: null, opened: false }],
+        },
+        found: [],
+        rough: false,
+        faults: [],
+        spend: [fakeSpend('deeper-scout', 'ok'), fakeSpend('deeper', 'ok')],
       };
     },
   };

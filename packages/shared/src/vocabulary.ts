@@ -190,8 +190,9 @@ export const CREW_ROLE_LABELS: Record<CrewRole, string> = {
   member: 'Member',
 };
 
-// Safety
-export const REPORT_TARGETS = ['user', 'event', 'idea', 'chapter', 'contribution', 'comment'] as const;
+// Safety. `quest`: a Loracle quest someone showed to a crew (its wish id); the snapshot keeps its
+// title, calling and waypoint names.
+export const REPORT_TARGETS = ['user', 'event', 'idea', 'chapter', 'contribution', 'comment', 'quest'] as const;
 export type ReportTarget = (typeof REPORT_TARGETS)[number];
 
 export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'self_harm', 'illegal', 'other'] as const;
@@ -271,9 +272,10 @@ export const MAP_CAP = 400;
 
 // ---------------------------------------------------------------------------
 // The Loracle: wishes. A Lorer speaks a wish; the stones answer with a road (a quest).
-// The stone's mind is Claude (Anthropic), called only by the server. Phase A: one road
-// per wish, no deeper asks, no dawn lane, no crews. Everything here is private to the
-// Lorer. Copy must sound like docs/OWNER_VOICE.md: ancient, simple, true.
+// The stone's mind is Claude (Anthropic), called only by the server. Phase B adds more roads
+// per wish ("Ask again"), deeper asks and the dawn lane; phase C lets the Lorer show a quest
+// to one crew. Everything else stays private to the Lorer. Copy must sound like
+// docs/OWNER_VOICE.md: ancient, simple, true.
 
 /** What /api/health and GET /loracle say about the stone's mind. `fake` = LORACLE_MIND=fake (dev only). */
 export const LORACLE_MIND_STATES = ['awake', 'asleep', 'fake'] as const;
@@ -308,6 +310,27 @@ export const ROAD_IN_PROGRESS = ['queued', 'searching', 'drawing', 'sealing'] as
 export const WISH_FAILURES = ['interrupted', 'overloaded', 'timeout', 'error'] as const;
 export type WishFailure = (typeof WISH_FAILURES)[number];
 
+/**
+ * Which lane a road or a deeper ask runs in (phase B). `now`: drawn at once, in the server. `dawn`:
+ * past the stone's soft budget for the day it is written down and read before the Lorer's next
+ * dawn (06:00 in their zone), at half the price (Message Batches). The client sees only the lane and
+ * when it is due (LORACLE_LINES.dawn), never a count or a budget.
+ */
+export const ROAD_LANES = ['now', 'dawn'] as const;
+export type RoadLane = (typeof ROAD_LANES)[number];
+
+/**
+ * A deeper ask's life ("Ask the stone about this", phase B): listening (being answered, or waiting
+ * its turn) → answered; dawn (written down for dawn); faded (the fog won twice: ask again);
+ * silent (the mind declined).
+ */
+export const DEEPER_STATUSES = ['listening', 'dawn', 'answered', 'faded', 'silent'] as const;
+export type DeeperStatus = (typeof DEEPER_STATUSES)[number];
+
+/** Who sees a quest (phase C): only the Lorer, or one crew they belong to ("Show to a crew"). */
+export const WISH_AUDIENCES = ['only_me', 'crew'] as const satisfies readonly Audience[];
+export type WishAudience = (typeof WISH_AUDIENCES)[number];
+
 /** The four ink phases of the wait. Never a percentage. */
 export const WAIT_PHASES = ['listening', 'searching', 'drawing', 'sealing'] as const;
 export type WaitPhase = (typeof WAIT_PHASES)[number];
@@ -340,6 +363,8 @@ export function roadPhase(status: RoadStatus): WaitPhase | null {
 export type LoracleSign =
   | { kind: 'listening' }
   | { kind: 'moon' }
+  /** A wish written down for dawn begins to be read (phase B). */
+  | { kind: 'dawn' }
   | { kind: 'search'; query: string }
   | { kind: 'fetch'; host: string }
   | { kind: 'name' }
@@ -354,6 +379,7 @@ export function signPhase(sign: LoracleSign): WaitPhase | null {
   switch (sign.kind) {
     case 'listening':
     case 'moon':
+    case 'dawn':
       return 'listening';
     case 'search':
     case 'fetch':
@@ -410,6 +436,8 @@ export function signLine(sign: LoracleSign): string {
       return copy('The stone listens…');
     case 'moon':
       return copy('The new moon rises. The stone reads your wish.');
+    case 'dawn':
+      return copy('The night is quiet. The stone reads your wish before dawn.');
     case 'search': {
       const words = searchWords(sign.query);
       return words ? copy('It asks the roads about {words}', { words: clip(words, 60) }) : copy('It asks the roads.');
@@ -734,6 +762,92 @@ export const LORACLE_LINES = {
   letGo: 'Let go',
   inked: '{inked} of {total} inked',
   lore: 'Lore',
+
+  // Phase B: the dawn lane, Ask again ("Two roads"), Ask the stone (deeper asks)
+  dawn: 'The stone is warm from many wishes. Yours is written down. It will be read before dawn.',
+  askAgain: 'Ask again',
+  askAgainHint: 'The stone draws another road and keeps every road it drew.',
+  roadTab: 'Road {n}',
+  roadsCount: '{n} roads',
+  moonAsk: 'The stone sleeps until the new moon. Ask it again when the moon rises.',
+  askStone: 'Ask the stone about this',
+  askPlaceholder: "I'm 34. Too late?",
+  askHint: 'Ask what you will, or nothing at all. The stone lights this waypoint.',
+  askDawn: 'The stone is warm from many questions. Yours is written down. It will be answered before dawn.',
+  askBusy: 'The stone is still answering your last question here.',
+  askFaded: 'The fog won. Ask the stone once more when you like.',
+  askSilent: 'The stone is silent on this one. Ask it another way.',
+  askAnswer: 'The stone answers',
+  askClue: 'A new sign',
+  askWords: 'Say this when you arrive',
+  askUnknown: 'Still in the fog',
+
+  // Phase C: Show to a crew, Walk with you, the Epic
+  shareCrew: 'Show to a crew',
+  shareOnlyMe: 'Only me',
+  sharedWith: '{crew} can see this scroll.',
+  shareStop: 'Keep it to myself again',
+  notYours: 'Only the one who cast this wish can do that.',
+  walk: 'Walk with you',
+  unwalk: 'Walk no more',
+  walkers: 'Walking with you',
+  walkOwn: 'This road is already yours to walk.',
+  walkDone: 'This waypoint is already inked.',
+  crewQuests: 'Quests your crews were shown',
+  epic: 'The Epic',
+  epicNotYet: 'This wish has not come true yet.',
+
+  // Phase B, the screens' own words. "Two roads" carved above the scroll, one tab per road (roadsCount
+  // and roadTab take over past five).
+  twoRoads: 'Two roads',
+  threeRoads: 'Three roads',
+  fourRoads: 'Four roads',
+  fiveRoads: 'Five roads',
+  road1: 'First road',
+  road2: 'Second road',
+  road3: 'Third road',
+  road4: 'Fourth road',
+  road5: 'Fifth road',
+  roadDrawing: 'Drawing',
+  roadAtDawn: 'Before dawn',
+  roadYours: 'Your road',
+  roadsHint: 'Walk the one that calls you. The road you ink furthest is the one your quest keeps.',
+  logDawn: 'Written down. It will be read before dawn.',
+  askYou: 'You asked',
+  askNotNow: 'Not now',
+  askConsent: 'The stone no longer reads your words. Let it read again, and it will answer.',
+
+  // Phase C, the screens' own words
+  shareHint:
+    'Choose one crew. They can read this scroll and walk beside you. It was drawn for you, so its waypoints and steps can show the town you start from, your passport and what it costs. Your notes, links and questions to the stone stay yours.',
+  shareNone: 'You are in no crew yet.',
+  shareGather: 'Gather a crew',
+  shownBy: '{name} showed you this scroll.',
+  shownLine: '{name}, in {crew}',
+  shownToo: 'Show one to a crew, and that crew can read it.',
+  walkersCrew: 'Who walks it',
+  walkingToo: 'You walk this one too.',
+  walkHint: 'If it becomes a plan, you will be asked along.',
+  walkersPlan: 'Make it a plan and they will be asked along.',
+  walkersAsked: 'They were asked along to the plan.',
+  walkersLabel: 'Walking: {names}',
+  nobodyYet: 'No one yet.',
+  epicLine: 'Every inked line is a chapter of your lore. Touch one to read it.',
+  epicLineCrew: 'Every inked line is a chapter of {name}’s lore.',
+  epicUnwalked: 'Not walked.',
+  epicWalkedWith: 'Walked with {names}.',
+  epicBack: 'Back to the scroll',
+
+  // Phase C, a crew member reading someone else's quest (the owner's own lines speak to the owner)
+  roadKept: 'The road walked',
+  roadsHintCrew: '{name} keeps the road inked furthest.',
+  dawnCrew: 'This road is written down. It will be drawn before dawn.',
+  fogTwiceCrew: 'The fog won twice on this road.',
+  theirWish: '{name}’s wish',
+  walkWith: 'Walk with {name}',
+  roadFaded: 'Lost in fog',
+  roadSilent: 'Silent',
+  shareRemoved: 'This scroll was taken down after a report. It stays yours alone.',
 } as const;
 export type LoracleLine = keyof typeof LORACLE_LINES;
 

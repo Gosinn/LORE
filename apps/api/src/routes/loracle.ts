@@ -1,9 +1,18 @@
 // The Loracle: a Lorer tells the stones what they wish for, and the stones draw a road (a quest).
 //
-// Everything here is private to the Lorer who cast it: every wish, road and waypoint is loaded
-// through an owner check that answers 404 for anyone else (there is no sharing in phase A).
-// The weighing, the ledger, the forge, note ids and dossiers never leave the server; sealed
-// waypoints are sent without their trial, keeper, earns, steps, ink and links.
+// A wish is private to the Lorer who cast it, unless they show it to one crew (phase C): then that
+// crew's members may open it (lib/access.ts wishVisible; 404 for everyone else), without the Lorer's
+// realm, notes, links, reminders or deeper asks, without what the stone drew from the Lorer's own
+// answers (the road's signs, dawn promise, This week, provisions), without the map points while the
+// Lorer hides their places (D35), and may walk its open waypoints with them. Every
+// deed on a quest is the Lorer's alone (403 `not_yours` for a crew member). The weighing, the
+// ledger, the forge, note ids and dossiers never leave the server; sealed waypoints are sent
+// without their trial, keeper, earns, steps, ink and links.
+//
+// Phase B: "Ask again" draws another road from the same ledger (no scouts); "Ask the stone about
+// this" lights one waypoint. Past the stone's soft budget for the Lorer's day (or everyone's), a
+// cast, an Ask again or an ask is written down for dawn and read at half price by the hourly tick
+// (lib/loracle/dawn.ts, POST /loracle/tick); never a refusal, never a number.
 //
 // A cast (POST /loracle/wishes) weighs the wish while the Lorer waits:
 //   care    → the care screen (a checked crisis line for the realm's country); nothing stored
@@ -18,10 +27,12 @@
 // Care comes first and needs nothing: the care floor (lib/loracle/care.ts) answers before the mind,
 // consent, realm or any limit is asked.
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  AskDeeperInput,
   CastWishInput,
+  copy,
   CRISIS_LINES,
   EMERGENCY_NUMBERS,
   FIND_A_HELPLINE,
@@ -34,21 +45,29 @@ import {
   NO_LIMIT_KM,
   PlanWaypointInput,
   PROVISION_GROUPS,
+  ROAD_IN_PROGRESS,
   roadPhase,
+  ShareWishInput,
   signLine,
   UpdateWishInput,
   WaypointNoteInput,
   WeekInput,
+  type AskResult,
   type CareView,
   type CastResult,
+  type CrewRef,
+  type DeeperView,
+  type EpicView,
   type EventCategory,
   type Keeper,
   type LoracleMindState,
   type LoracleSettings,
   type LoracleState,
+  type LoracleTickResult,
   type Mark,
   type Provisions,
   type RoadStep,
+  type UserSummary,
   type Waypoint,
   type WaypointKind,
   type WaypointState,
@@ -57,35 +76,61 @@ import {
   type WishStatus,
 } from '#shared';
 import { requireUser, type AppContext } from '../context.ts';
-import { eventParticipants, events, ideas, notes, oracleSettings, wishes, wishRoads, wishWaypoints } from '../db/schema.ts';
 import {
+  chapters,
+  crews,
+  eventParticipants,
+  events,
+  ideas,
+  notes,
+  oracleSettings,
+  users,
+  wishAsks,
+  wishes,
+  wishRoads,
+  wishWalkers,
+  wishWaypoints,
+} from '../db/schema.ts';
+import {
+  chapterVisible,
+  eventParticipant,
   idParam,
+  isActiveCrewMember,
   loadVisibleChapter,
   loadVisibleEvent,
   loadVisibleIdea,
   loadVisibleRoad,
   loadVisibleWaypoint,
   loadVisibleWish,
+  placeAccessFor,
+  walkerShown,
 } from '../lib/access.ts';
 import { HttpError, notFound } from '../lib/errors.ts';
 import { careFloor } from '../lib/loracle/care.ts';
 import { waypointState } from '../lib/loracle/draw.ts';
 import {
+  asksInLast24h,
   castsInLast24h,
   fadeUnsent,
   farPastTheMoon,
   fullContext,
   lateSpend,
+  laneFor,
   localDay,
   mindContextFor,
   pastTheMoon,
   recordSpend,
   weighsInLast24h,
 } from '../lib/loracle/jobs.ts';
+import { addDays, nextDawn, zonedInstant } from '../lib/loracle/time.ts';
 import { MindError, type LoracleMind, type MindContext, type MindWish, type SpendEntry, type WeighVerdict } from '../lib/loracle/types.ts';
-import { iso, isoOrNull, wishSummaries } from '../lib/queries.ts';
+import { notify } from '../lib/notify.ts';
+import { crewQuestSummaries, iso, isoOrNull, userSummaries, wishSummaries } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 import { distanceKm } from '../lib/world.ts';
+import { inviteToEvent } from './events.ts';
+
+export { zonedInstant } from '../lib/loracle/time.ts';
 
 type WishRow = typeof wishes.$inferSelect;
 type RoadRow = typeof wishRoads.$inferSelect;
@@ -148,39 +193,7 @@ export function wishKey(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Dates in the Lorer's zone
-
-const tzOffsetMs = (at: Date, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(at);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
-  return asUtc - Math.floor(at.getTime() / 1000) * 1000;
-};
-
-/** The instant of a wall-clock time on a day in a zone ("2026-11-21", "18:00", "Atlantic/Reykjavik"). */
-export function zonedInstant(day: string, time: string, timeZone: string): Date {
-  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
-  const [hh, mm] = time.split(':').map(Number) as [number, number];
-  const wall = Date.UTC(y, m - 1, d, hh, mm);
-  const first = wall - tzOffsetMs(new Date(wall), timeZone);
-  const second = wall - tzOffsetMs(new Date(first), timeZone);
-  return new Date(second);
-}
-
-const addDays = (day: string, n: number) => {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
+// Dates in the Lorer's zone (lib/loracle/time.ts)
 
 /** A waypoint's `at` as a day: 'YYYY-MM-DD' as it is, 'YYYY-MM' as its first day. */
 const dayFromAt = (at: string | null) =>
@@ -219,7 +232,51 @@ const toProvisions = (p: Partial<Provisions>): Provisions =>
 const stateOf = (w: WaypointRow, previous: Pick<WaypointRow, 'inkedAt'> | undefined): WaypointState =>
   waypointState(w.position, !!w.inkedAt, !!previous?.inkedAt, !!w.sealBrokenAt);
 
-function toWaypoint(w: WaypointRow, state: WaypointState): Waypoint {
+type AskRow = typeof wishAsks.$inferSelect;
+
+/** What the viewer adds to a waypoint: the Lorer's own asks, and the crew members who walk it. */
+interface WaypointExtras {
+  /** The viewer cast the wish (else: a crew member it was shown to). */
+  mine: boolean;
+  asks: DeeperView[];
+  walkers: UserSummary[];
+  walking: boolean;
+  /**
+   * The waypoint's map point goes out: always to the Lorer; to a crew member only while the Lorer's
+   * "Show my places on maps" is on (D35: nobody else gets the point of anything you made). The
+   * place, town and country names stay, as D35 keeps names.
+   */
+  point: boolean;
+}
+
+const NO_EXTRAS: WaypointExtras = { mine: true, asks: [], walkers: [], walking: false, point: true };
+
+export function toDeeperView(a: AskRow): DeeperView {
+  const stored = a.answer;
+  return {
+    id: a.id,
+    question: a.question,
+    status: a.status,
+    lane: a.lane,
+    dueBy: isoOrNull(a.dueBy),
+    signs: a.signs,
+    answer: stored
+      ? {
+          answer: stored.answer.answer ?? null,
+          clue: stored.answer.clue,
+          steps: (stored.answer.steps ?? []).map(toStep),
+          keeper: toKeeper(stored.answer.keeper),
+          words: stored.answer.words ?? null,
+          unknown: stored.answer.unknown,
+        }
+      : null,
+    sources: (stored?.sources ?? []).map((s) => ({ n: s.n, title: s.title, url: s.url, host: s.host, date: s.date ?? null, opened: !!s.opened })),
+    createdAt: iso(a.createdAt),
+  };
+}
+
+function toWaypoint(w: WaypointRow, state: WaypointState, extras: WaypointExtras = NO_EXTRAS): Waypoint {
+  const { point } = extras;
   const base = {
     id: w.id,
     position: w.position,
@@ -228,12 +285,13 @@ function toWaypoint(w: WaypointRow, state: WaypointState): Waypoint {
     name: w.name,
     when: w.when,
     at: w.at,
-    where: { place: w.place, town: w.town, country: w.country, lat: w.lat, lon: w.lon, precision: w.precision },
+    where: { place: w.place, town: w.town, country: w.country, lat: point ? w.lat : null, lon: point ? w.lon : null, precision: w.precision },
     clue: w.clue,
     lore: w.lore,
     mystery: w.mystery,
   };
   if (state === 'sealed') return { ...base, state };
+  const { mine } = extras;
   return {
     ...base,
     state,
@@ -242,21 +300,32 @@ function toWaypoint(w: WaypointRow, state: WaypointState): Waypoint {
     earns: w.earns,
     steps: (w.steps ?? []).map(toStep),
     inkedOn: w.inkedOn,
-    note: w.note,
-    links: { eventId: w.eventId, ideaId: w.ideaId, chapterId: w.chapterId, reminderId: w.reminderId },
+    // The Lorer's own note, links and reminder stay theirs.
+    note: mine ? w.note : null,
+    links: mine
+      ? { eventId: w.eventId, ideaId: w.ideaId, chapterId: w.chapterId, reminderId: w.reminderId }
+      : { eventId: null, ideaId: null, chapterId: null, reminderId: null },
+    asks: mine ? extras.asks : [],
+    walkers: extras.walkers,
+    walking: extras.walking,
   };
 }
 
-function toScroll(road: RoadRow, rows: WaypointRow[]): WishScroll {
+function toScroll(road: RoadRow, rows: WaypointRow[], extrasFor: (w: WaypointRow) => WaypointExtras = () => NO_EXTRAS, mine = true): WishScroll {
   const q = road.quest;
   const byPosition = new Map(rows.map((w) => [w.position, w]));
-  const map = rows.map((w) => toWaypoint(w, stateOf(w, byPosition.get(w.position - 1))));
+  const map = rows.map((w) => toWaypoint(w, stateOf(w, byPosition.get(w.position - 1)), extrasFor(w)));
+  // A crew member reads the scroll as the stone drew it, without what was drawn from the Lorer's own
+  // answers and life: the signs (the scouts' searches name their passport and home), the dawn
+  // promise (their zone), This week (a door near home) and the provisions (coin, papers, body, tongue).
   return {
     id: road.id,
     n: road.n,
     status: road.status,
+    lane: road.lane,
+    dueBy: mine ? isoOrNull(road.dueBy) : null,
     phase: roadPhase(road.status),
-    signs: road.signs,
+    signs: mine ? road.signs : [],
     attempts: road.attempts,
     readyAt: isoOrNull(road.readyAt),
     title: q?.title ?? null,
@@ -264,7 +333,7 @@ function toScroll(road: RoadRow, rows: WaypointRow[]): WishScroll {
     truth: q?.truth ?? null,
     span: q?.span ? { amount: q.span.amount, unit: q.span.unit } : null,
     map,
-    thisWeek: q?.thisWeek
+    thisWeek: mine && q?.thisWeek
       ? {
           text: q.thisWeek.text,
           mark: toMark(q.thisWeek.mark),
@@ -273,7 +342,7 @@ function toScroll(road: RoadRow, rows: WaypointRow[]): WishScroll {
           reminderId: road.thisWeekReminderId,
         }
       : null,
-    provisions: q?.provisions ? toProvisions(q.provisions) : null,
+    provisions: mine && q?.provisions ? toProvisions(q.provisions) : null,
     rule: q?.rule ?? null,
     fog: map.filter((w) => w.mystery).map((w) => ({ position: w.position, text: w.mystery! })),
     sources: (q?.sources ?? []).map((s) => ({
@@ -287,17 +356,39 @@ function toScroll(road: RoadRow, rows: WaypointRow[]): WishScroll {
   };
 }
 
-function toWish(wish: WishRow, road: RoadRow, rows: WaypointRow[]): Wish {
+/** The road walked furthest (most waypoints inked; ties: the first). */
+function walkedOf<T extends { road: RoadRow; rows: WaypointRow[] }>(roads: T[]): T | undefined {
+  let best: T | undefined;
+  for (const r of roads) {
+    const inked = r.rows.filter((w) => w.inkedAt).length;
+    if (!best || inked > best.rows.filter((w) => w.inkedAt).length) best = r;
+  }
+  return best;
+}
+
+function toWish(
+  wish: WishRow,
+  roads: { road: RoadRow; rows: WaypointRow[] }[],
+  view: { mine: boolean; owner: UserSummary; crew: CrewRef | null; extrasFor: (w: WaypointRow) => WaypointExtras },
+): Wish {
+  const scrolls = roads.map((r) => toScroll(r.road, r.rows, view.extrasFor, view.mine));
+  const walked = walkedOf(roads);
   return {
     id: wish.id,
     text: wish.text,
     status: wish.status,
     createdAt: iso(wish.createdAt),
-    realm: wish.realm.label,
+    // Where the Lorer stands stays theirs.
+    realm: view.mine ? wish.realm.label : '',
     beyond: (wish.weighing?.tags ?? []).includes('beyond'),
-    road: toScroll(road, rows),
-    inked: rows.filter((w) => w.inkedAt).length,
-    total: rows.length,
+    road: scrolls[0]!,
+    roads: scrolls,
+    inked: walked ? walked.rows.filter((w) => w.inkedAt).length : 0,
+    total: walked ? walked.rows.length : 0,
+    mine: view.mine,
+    owner: view.owner,
+    audience: wish.audience,
+    crew: view.crew,
   };
 }
 
@@ -320,9 +411,28 @@ const realmNeeded = () => new HttpError(400, 'realm', LORACLE_LINES.realmAsk, { 
 const sealedError = () => new HttpError(409, 'sealed', LORACLE_LINES.sealed);
 const stillWorking = () => new HttpError(409, 'in_progress', 'The stone is still at work on this one.');
 const notReady = () => new HttpError(409, 'not_ready', 'The ink is not dry yet.');
+const notYours = () => new HttpError(403, 'not_yours', LORACLE_LINES.notYours);
+const consentNeeded = () => new HttpError(403, 'consent', LORACLE_LINES.consentTitle);
+
+/** A unique index said no (23505), however deep the driver wrapped it. */
+const uniqueViolation = (err: unknown) => {
+  for (let e = err as { code?: string; cause?: unknown } | undefined; e; e = e.cause as typeof e) {
+    if (e.code === '23505') return true;
+  }
+  return false;
+};
+
+/** The bearer secret, compared in constant time (both sides hashed to one length first). */
+export function tickAllowed(secret: string | undefined, header: string | undefined): boolean {
+  if (!secret || !header?.startsWith('Bearer ')) return false;
+  const want = createHash('sha256').update(secret).digest();
+  const got = createHash('sha256').update(header.slice(7).trim()).digest();
+  return timingSafeEqual(want, got);
+}
 
 export async function loracleRoutes(app: FastifyInstance, { db, world, config, mind }: AppContext) {
   const jobs = app.wishJobs;
+  const dawn = app.dawn;
 
   // Weighings asked for per Lorer in this process (attempts, not completions): a weighing cut off by
   // a closed connection, or a care verdict (kept without a Lorer), still counts toward the cap.
@@ -378,28 +488,84 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
     return { label: nearest.label, country };
   }
 
-  // --- Loaders (visibility lives in lib/access.ts: the Lorer's own, 404 for anyone else) ----
+  // --- Loaders. Visibility lives in lib/access.ts (the Lorer's own, or shown to a crew they share;
+  // 404 for anyone else); every deed is the Lorer's alone (403 for a crew member who can see it).
 
-  const loadOwnWish = (me: string, id: string): Promise<WishRow> => loadVisibleWish(db, me, id);
-
-  async function roadOf(wishId: string): Promise<RoadRow> {
-    const [road] = await db.select().from(wishRoads).where(eq(wishRoads.wishId, wishId)).orderBy(asc(wishRoads.n)).limit(1);
-    if (!road) throw notFound('That wish');
-    return road;
+  async function loadOwnWish(me: string, id: string): Promise<WishRow> {
+    const wish = await loadVisibleWish(db, me, id);
+    if (wish.userId !== me) throw notYours();
+    return wish;
   }
 
+  async function roadsOf(wishId: string): Promise<RoadRow[]> {
+    return db.select().from(wishRoads).where(eq(wishRoads.wishId, wishId)).orderBy(asc(wishRoads.n));
+  }
+
+  /** The wish as this viewer may see it: every road, the Lorer's asks (theirs only), the walkers. */
   async function wishView(me: string, wishId: string): Promise<Wish> {
-    const wish = await loadOwnWish(me, wishId);
-    const road = await roadOf(wish.id);
+    const wish = await loadVisibleWish(db, me, wishId);
+    const mine = wish.userId === me;
+    const roads = await roadsOf(wish.id);
+    if (!roads.length) throw notFound('That wish');
     const rows = await db
       .select()
       .from(wishWaypoints)
-      .where(eq(wishWaypoints.roadId, road.id))
-      .orderBy(asc(wishWaypoints.position));
-    return toWish(wish, road, rows);
+      .where(eq(wishWaypoints.wishId, wish.id))
+      .orderBy(asc(wishWaypoints.roadId), asc(wishWaypoints.position));
+    const ids = rows.map((w) => w.id);
+    // Deeper asks: the Lorer's alone, oldest first, at most 10 a waypoint.
+    const askRows = mine && ids.length ? await db.select().from(wishAsks).where(inArray(wishAsks.waypointId, ids)).orderBy(asc(wishAsks.createdAt)) : [];
+    const walkers = await walkersOf(wish, ids, me);
+    const people = await userSummaries(db, [wish.userId, ...[...walkers.values()].flat()]);
+    const crew = await crewOf(wish);
+    const point = await pointShown(wish, me);
+    const extrasFor = (w: WaypointRow): WaypointExtras => {
+      const walking = walkers.get(w.id) ?? [];
+      return {
+        mine,
+        point,
+        asks: askRows.filter((a) => a.waypointId === w.id).slice(-10).map(toDeeperView),
+        walkers: walking.map((id) => people.get(id)).filter((u): u is UserSummary => !!u),
+        walking: walking.includes(me),
+      };
+    };
+    return toWish(
+      wish,
+      roads.map((road) => ({ road, rows: rows.filter((w) => w.roadId === road.id) })),
+      { mine, owner: people.get(wish.userId)!, crew, extrasFor },
+    );
   }
 
-  async function loadOwnWaypoint(me: string, id: string) {
+  /** The crew a quest is shown to, while it is. */
+  async function crewOf(wish: WishRow): Promise<CrewRef | null> {
+    if (wish.audience !== 'crew' || !wish.crewId) return null;
+    const [c] = await db.select({ id: crews.id, name: crews.name, emoji: crews.emoji }).from(crews).where(eq(crews.id, wish.crewId)).limit(1);
+    return c ?? null;
+  }
+
+  /** Whether the viewer gets the quest's map points (lib/access.ts placeAccessFor: the Lorer's place switch, D35). */
+  async function pointShown(wish: WishRow, me: string): Promise<boolean> {
+    return wish.userId === me || (await placeAccessFor(db, wish.userId, me)) !== 'none';
+  }
+
+  /**
+   * Who walks which waypoint (phase C): still in the crew it is shown to, and no block with the viewer
+   * or the Lorer.
+   */
+  async function walkersOf(wish: WishRow, waypointIds: string[], viewer: string): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    if (wish.audience !== 'crew' || !wish.crewId || !waypointIds.length) return out;
+    const rows = await db
+      .select({ waypointId: wishWalkers.waypointId, userId: wishWalkers.userId })
+      .from(wishWalkers)
+      .where(and(inArray(wishWalkers.waypointId, waypointIds), walkerShown(wishWalkers.userId, sql`${wish.crewId}::uuid`, viewer, sql`${wish.userId}::uuid`)))
+      .orderBy(asc(wishWalkers.createdAt));
+    for (const r of rows) out.set(r.waypointId, [...(out.get(r.waypointId) ?? []), r.userId]);
+    return out;
+  }
+
+  /** A waypoint the viewer can see, with its seal state. */
+  async function loadSeenWaypoint(me: string, id: string) {
     const found = await loadVisibleWaypoint(db, me, id);
     const [previous] = await db
       .select({ inkedAt: wishWaypoints.inkedAt })
@@ -409,6 +575,13 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
     return { ...found, state: stateOf(found.waypoint, previous) };
   }
 
+  /** A waypoint of the Lorer's own wish. */
+  async function loadOwnWaypoint(me: string, id: string) {
+    const found = await loadSeenWaypoint(me, id);
+    if (found.wish.userId !== me) throw notYours();
+    return found;
+  }
+
   /** A waypoint the Lorer may act on: sealed ones answer 409 until their seal is broken. */
   async function loadOpenWaypoint(me: string, params: unknown) {
     const found = await loadOwnWaypoint(me, idParam(params));
@@ -416,7 +589,21 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
     return found;
   }
 
-  const loadOwnRoad = (me: string, id: string) => loadVisibleRoad(db, me, id);
+  async function loadOwnRoad(me: string, id: string) {
+    const found = await loadVisibleRoad(db, me, id);
+    if (found.wish.userId !== me) throw notYours();
+    return found;
+  }
+
+  /** The stone's per-Lorer rate (casts, retries, again, asks): only scripts ever meet it. */
+  const userKey = (req: FastifyRequest) => req.userId ?? req.ip;
+
+  /** Consent for anything that sends the Lorer's words to Anthropic. */
+  async function requireConsent(me: string) {
+    const settings = await settingsRow(me);
+    if (!settings?.loracleConsentAt) throw consentNeeded();
+    return settings;
+  }
 
   // --- The weighing ----------------------------------------------------------
 
@@ -479,10 +666,12 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
   app.get('/loracle', async (req): Promise<LoracleState> => {
     const me = requireUser(req);
     jobs.sweepSoon();
+    dawn.tickSoon();
     const row = await settingsRow(me);
-    const [active, letGo] = await Promise.all([
+    const [active, letGo, crewQuests] = await Promise.all([
       wishSummaries(db, me, { letGo: false, limit: 30 }),
       wishSummaries(db, me, { letGo: true, limit: 10 }),
+      crewQuestSummaries(db, me, 30),
     ]);
     return {
       mind: mindState(mind),
@@ -491,6 +680,7 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
       examples: loracleExamples(isoWeek(new Date())),
       wishes: active,
       letGo,
+      crewQuests,
     };
   });
 
@@ -631,8 +821,10 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
           break;
       }
 
-      // Past the owner's ceiling the wish is written and waits for the new moon.
+      // Past the owner's ceiling the wish is written and waits for the new moon. Past the stone's
+      // soft budget (phase B) it is written down for dawn and read at half price before 06:00.
       const moon = await pastTheMoon(db, config.loracle);
+      const lane = moon ? 'now' : await laneFor(db, config.loracle, { kind: 'cast', userId: me, day, dawn: dawn.on, now });
       const { wishId, roadId } = await db.transaction(async (tx) => {
         const [wish] = await tx
           .insert(wishes)
@@ -650,12 +842,20 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
           .returning({ id: wishes.id });
         const [road] = await tx
           .insert(wishRoads)
-          .values({ wishId: wish!.id, n: 1, status: 'queued', signs: [signLine({ kind: 'listening' })] })
+          .values({
+            wishId: wish!.id,
+            n: 1,
+            status: 'queued',
+            lane,
+            day,
+            dueBy: lane === 'dawn' ? nextDawn(now, timeZone) : null,
+            signs: [signLine({ kind: 'listening' })],
+          })
           .returning({ id: wishRoads.id });
         return { wishId: wish!.id, roadId: road!.id };
       });
       await recordSpend(db, spend, { userId: me, wishId, day });
-      if (!moon) jobs.start({ roadId, wishId, userId: me });
+      if (!moon && lane === 'now') jobs.start({ roadId, wishId, userId: me });
       reply.status(202);
       return { route: 'quest', wish: await wishView(me, wishId), existing: false };
     },
@@ -675,18 +875,21 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
     const wish = await loadOwnWish(me, idParam(req.params));
     const input = parse(UpdateWishInput, req.body);
     if (wish.status === 'listening' || wish.status === 'moon') throw stillWorking();
-    const road = await roadOf(wish.id);
+    const roads = await roadsOf(wish.id);
+    const road = roads[0];
+    if (!road) throw notFound('That wish');
+    const drawn = roads.some((r) => r.quest);
     let set: { status: WishStatus; fulfilledAt?: Date | null; releasedAt?: Date | null };
     switch (input.status) {
       case 'fulfilled':
-        if (!road.quest) throw notReady();
+        if (!drawn) throw notReady();
         set = { status: 'fulfilled', fulfilledAt: wish.fulfilledAt ?? new Date(), releasedAt: null };
         break;
       case 'released':
         set = { status: 'released', releasedAt: new Date() };
         break;
       case 'revealed':
-        set = { status: road.quest ? 'revealed' : road.status === 'silent' ? 'silent' : 'faded', fulfilledAt: null, releasedAt: null };
+        set = { status: drawn ? 'revealed' : road.status === 'silent' ? 'silent' : 'faded', fulfilledAt: null, releasedAt: null };
         break;
     }
     await db
@@ -706,29 +909,34 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
   });
 
   /**
-   * "Try again" on a faded road: once a day per road, only while the Lorer lets the stone read and
-   * is under the hidden limit (the road itself already counts toward it while its spend is recent).
+   * "Try again" on a faded road (the newest one: the cast's, or an "Ask again" road): once a day per
+   * road, only while the Lorer lets the stone read and is under the hidden limit (the road itself
+   * already counts toward it while its spend is recent). Always in the now lane: it is free.
    */
   app.post(
     '/loracle/wishes/:id/retry',
-    { config: { rateLimit: { ...CAST_RATE, keyGenerator: (req) => req.userId ?? req.ip } } },
+    { config: { rateLimit: { ...CAST_RATE, keyGenerator: userKey } } },
     async (req, reply): Promise<Wish> => {
       const me = requireUser(req);
       const wish = await loadOwnWish(me, idParam(req.params));
       if (!mind) throw asleep();
-      const settings = await settingsRow(me);
-      if (!settings?.loracleConsentAt) throw new HttpError(403, 'consent', LORACLE_LINES.consentTitle);
-      const road = await roadOf(wish.id);
-      if (road.status !== 'faded') throw new HttpError(409, 'not_faded', 'The fog has not won this one.');
+      await requireConsent(me);
+      const road = (await roadsOf(wish.id)).filter((r) => r.status === 'faded').at(-1);
+      if (!road) throw new HttpError(409, 'not_faded', 'The fog has not won this one.');
       const today = localDay(new Date(), wish.timeZone);
       if (road.retriedOn === today) throw new HttpError(409, 'retried', LORACLE_LINES.retried);
       if ((await castsInLast24h(db, me)) >= config.loracle.castsPer24h) throw new HttpError(409, 'rest', LORACLE_LINES.rest);
       const moon = await pastTheMoon(db, config.loracle);
+      // Past the ceiling only the cast's own road waits for the new moon; another road waits to be asked again.
+      if (moon && road.n > 1) throw new HttpError(409, 'moon', LORACLE_LINES.moonAsk);
       const retried = await db.transaction(async (tx) => {
         const rows = await tx
           .update(wishRoads)
           .set({
             status: 'queued',
+            lane: 'now',
+            dueBy: null,
+            batch: null,
             attempts: 0,
             failure: null,
             runId: null,
@@ -739,13 +947,61 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
           .where(and(eq(wishRoads.id, road.id), eq(wishRoads.status, 'faded')))
           .returning({ id: wishRoads.id });
         if (!rows.length) return false;
-        await tx
-          .update(wishes)
-          .set({ status: moon ? 'moon' : 'listening', releasedAt: null, updatedAt: new Date() })
-          .where(eq(wishes.id, wish.id));
+        if (road.n === 1)
+          await tx
+            .update(wishes)
+            .set({ status: moon ? 'moon' : 'listening', releasedAt: null, updatedAt: new Date() })
+            .where(eq(wishes.id, wish.id));
         return true;
       });
       if (retried && !moon) jobs.start({ roadId: road.id, wishId: wish.id, userId: me });
+      reply.status(202);
+      return wishView(me, wish.id);
+    },
+  );
+
+  /**
+   * "Ask again" (phase B): another road for the same wish, drawn from the ledger its first road found
+   * (no scouts), different in shape and keepers. It counts as a cast; past the soft budget it waits
+   * for dawn. Only once a road is drawn and none is still being drawn.
+   */
+  app.post(
+    '/loracle/wishes/:id/again',
+    { config: { rateLimit: { ...CAST_RATE, keyGenerator: userKey } } },
+    async (req, reply): Promise<Wish> => {
+      const me = requireUser(req);
+      const wish = await loadOwnWish(me, idParam(req.params));
+      if (!mind) throw asleep();
+      await requireConsent(me);
+      const roads = await roadsOf(wish.id);
+      if (roads.some((r) => (ROAD_IN_PROGRESS as readonly string[]).includes(r.status) || r.status === 'ready') || wish.status === 'moon')
+        throw stillWorking();
+      if (!wish.ledger || !roads.some((r) => r.quest)) throw notReady();
+      const now = new Date();
+      if ((await castsInLast24h(db, me, now)) >= config.loracle.castsPer24h) throw new HttpError(409, 'rest', LORACLE_LINES.rest);
+      if (await pastTheMoon(db, config.loracle)) throw new HttpError(409, 'moon', LORACLE_LINES.moonAsk);
+      const day = localDay(now, wish.timeZone);
+      const lane = await laneFor(db, config.loracle, { kind: 'cast', userId: me, day, dawn: dawn.on, now });
+      const n = Math.max(...roads.map((r) => r.n)) + 1;
+      let roadId: string;
+      try {
+        const [road] = await db
+          .insert(wishRoads)
+          .values({
+            wishId: wish.id,
+            n,
+            status: 'queued',
+            lane,
+            day,
+            dueBy: lane === 'dawn' ? nextDawn(now, wish.timeZone) : null,
+            signs: [signLine({ kind: 'listening' })],
+          })
+          .returning({ id: wishRoads.id });
+        roadId = road!.id;
+      } catch {
+        throw stillWorking(); // another "Ask again" for this wish won the race
+      }
+      if (lane === 'now') jobs.start({ roadId, wishId: wish.id, userId: me });
       reply.status(202);
       return wishView(me, wish.id);
     },
@@ -818,22 +1074,68 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
     return wishView(me, wish.id);
   });
 
+  /**
+   * Walkers (phase C) are invited to the waypoint's plan when the Lorer makes it (or makes it again):
+   * crew members who still walk it, are still in the crew, and are not blocked either way. Only to a
+   * plan the Lorer organizes and that is still open, and only people they may reach (routes/events.ts
+   * inviteToEvent: friends or a shared crew, never across a block). A real invitation, so it is
+   * notified like any other.
+   */
+  async function inviteWalkers(me: string, wish: WishRow, waypointId: string, eventId: string, title: string) {
+    if (wish.audience !== 'crew' || !wish.crewId) return;
+    const walking = await db
+      .select({ userId: wishWalkers.userId })
+      .from(wishWalkers)
+      .where(
+        and(
+          eq(wishWalkers.waypointId, waypointId),
+          walkerShown(wishWalkers.userId, sql`${wish.crewId}::uuid`, me, sql`${wish.userId}::uuid`),
+        ),
+      );
+    const invited = await inviteToEvent(
+      db,
+      eventId,
+      me,
+      walking.map((w) => w.userId),
+      { skipUnreachable: true },
+    );
+    if (!invited.length) return;
+    const [actor] = await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, me)).limit(1);
+    await notify(db, invited, {
+      type: 'event_invite',
+      actorId: me,
+      title: copy('{actor} invited you to {title}', { actor: actor?.displayName ?? 'Someone', title }),
+      href: `/events/${eventId}`,
+    });
+  }
+
   /** "Make it a plan": a private event with the Lorer as organizer, linked back to the waypoint. */
   app.post('/loracle/waypoints/:id/plan', async (req, reply): Promise<Wish> => {
     const me = requireUser(req);
     const { waypoint: w, wish } = await loadOpenWaypoint(me, req.params);
     const input = parse(PlanWaypointInput, req.body ?? {});
-    if (w.eventId) return wishView(me, wish.id);
-    const road = await roadOf(wish.id);
+    if (w.eventId) {
+      // Already a plan: walkers who joined since are invited now, only to a plan the Lorer organizes
+      // that is still open (a waypoint may be linked to someone else's event: that stays theirs).
+      const [event] = await db
+        .select({ id: events.id, title: events.title, status: events.status })
+        .from(events)
+        .where(eq(events.id, w.eventId))
+        .limit(1);
+      const open = !!event && event.status !== 'completed' && event.status !== 'canceled';
+      if (event && open && (await eventParticipant(db, event.id, me))?.role === 'organizer') await inviteWalkers(me, wish, w.id, event.id, event.title);
+      return wishView(me, wish.id);
+    }
+    const [road] = await db.select({ quest: wishRoads.quest }).from(wishRoads).where(eq(wishRoads.id, w.roadId)).limit(1);
     const today = localDay(new Date(), wish.timeZone);
     const fromAt = dayFromAt(w.at);
     const day = input.day ?? (fromAt && fromAt >= today ? fromAt : addDays(today, 7));
-    await db.transaction(async (tx) => {
+    const eventId = await db.transaction(async (tx) => {
       const [event] = await tx
         .insert(events)
         .values({
           title: w.name.slice(0, 120),
-          description: [w.trial, w.clue, road.quest?.title ? `A waypoint on ${road.quest.title}, drawn by The Loracle.` : null]
+          description: [w.trial, w.clue, road?.quest?.title ? `A waypoint on ${road.quest.title}, drawn by The Loracle.` : null]
             .filter(Boolean)
             .join('\n\n'),
           category: KIND_CATEGORY[w.kind] ?? 'custom',
@@ -856,7 +1158,9 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
         respondedAt: new Date(),
       });
       await tx.update(wishWaypoints).set({ eventId: event!.id }).where(eq(wishWaypoints.id, w.id));
+      return event!.id;
     });
+    await inviteWalkers(me, wish, w.id, eventId, w.name.slice(0, 120));
     reply.status(201);
     return wishView(me, wish.id);
   });
@@ -948,5 +1252,188 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
       })
       .where(eq(wishWaypoints.id, w.id));
     return wishView(me, wish.id);
+  });
+
+  // --- Phase B: Ask the stone ---------------------------------------------------
+
+  /**
+   * "Ask the stone about this": a deeper ask on an open waypoint, with an optional question. The
+   * stone answers in the background (poll the wish); past the soft budget the ask waits for dawn.
+   * One ask at a time per waypoint. Only the Lorer who cast the wish asks, and only they see asks.
+   */
+  app.post(
+    '/loracle/waypoints/:id/ask',
+    { config: { rateLimit: { ...CAST_RATE, keyGenerator: userKey } } },
+    async (req, reply): Promise<AskResult> => {
+      const me = requireUser(req);
+      const { waypoint: w, wish } = await loadOpenWaypoint(me, req.params);
+      const input = parse(AskDeeperInput, req.body ?? {});
+      // Care comes first, as for a cast: nothing is stored, nothing is sent (lib/loracle/care.ts).
+      if (input.question && careFloor(input.question)) {
+        const row = await settingsRow(me);
+        return { route: 'care', care: careFor(row?.homeCountry ?? wish.realm.country) };
+      }
+      if (!mind) throw asleep();
+      await requireConsent(me);
+      if (!wish.ledger) throw notReady();
+      const [busy] = await db
+        .select({ id: wishAsks.id })
+        .from(wishAsks)
+        .where(and(eq(wishAsks.waypointId, w.id), inArray(wishAsks.status, ['listening', 'dawn'])))
+        .limit(1);
+      if (busy) throw new HttpError(409, 'in_progress', LORACLE_LINES.askBusy);
+      const now = new Date();
+      if ((await asksInLast24h(db, me, now)) >= config.loracle.asksPer24h) throw new HttpError(409, 'rest', LORACLE_LINES.rest);
+      if (await pastTheMoon(db, config.loracle)) throw new HttpError(409, 'moon', LORACLE_LINES.moonAsk);
+      const day = localDay(now, wish.timeZone);
+      const lane = await laneFor(db, config.loracle, { kind: 'ask', userId: me, day, dawn: dawn.on, now });
+      let ask: AskRow | undefined;
+      try {
+        [ask] = await db
+          .insert(wishAsks)
+          .values({
+            waypointId: w.id,
+            wishId: wish.id,
+            userId: me,
+            day,
+            lane,
+            dueBy: lane === 'dawn' ? nextDawn(now, wish.timeZone) : null,
+            question: input.question,
+            status: lane === 'dawn' ? 'dawn' : 'listening',
+            signs: [signLine({ kind: 'listening' })],
+          })
+          .returning();
+      } catch (err) {
+        // wish_asks_one_open: another ask on this waypoint won the race (a double tap).
+        if (uniqueViolation(err)) throw new HttpError(409, 'in_progress', LORACLE_LINES.askBusy);
+        throw err;
+      }
+      if (lane === 'now') jobs.startAsk({ askId: ask!.id, wishId: wish.id, userId: me });
+      reply.status(202);
+      return toDeeperView(ask!);
+    },
+  );
+
+  // --- Phase C: Show to a crew, Walk with you, the Epic -----------------------------
+
+  /**
+   * "Show to a crew" (or keep it to yourself again). One crew at a time, one the Lorer is an active
+   * member of (404 otherwise). Only the Lorer who cast it. Changing the crew, or keeping it again,
+   * lets go of everyone who walked with them.
+   */
+  app.put('/loracle/wishes/:id/share', async (req): Promise<Wish> => {
+    const me = requireUser(req);
+    const wish = await loadOwnWish(me, idParam(req.params));
+    const input = parse(ShareWishInput, req.body);
+    const crewId = input.audience === 'crew' ? input.crewId : null;
+    // Taken down after a report (D29): it stays the Lorer's alone.
+    if (crewId && wish.sharingRemovedAt) throw new HttpError(409, 'removed', LORACLE_LINES.shareRemoved);
+    if (crewId && !(await isActiveCrewMember(db, crewId, me))) throw notFound('That crew');
+    const same = input.audience === wish.audience && crewId === wish.crewId;
+    await db.transaction(async (tx) => {
+      if (!same) {
+        await tx
+          .delete(wishWalkers)
+          .where(inArray(wishWalkers.waypointId, tx.select({ id: wishWaypoints.id }).from(wishWaypoints).where(eq(wishWaypoints.wishId, wish.id))));
+      }
+      await tx
+        .update(wishes)
+        .set({
+          audience: input.audience,
+          crewId,
+          sharedAt: crewId ? (same ? wish.sharedAt : new Date()) : null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(wishes.id, wish.id), eq(wishes.userId, me)));
+    });
+    return wishView(me, wish.id);
+  });
+
+  /**
+   * "Walk with you": a crew member the quest was shown to walks one of its open waypoints with the
+   * Lorer. When the Lorer makes that waypoint a plan, the walkers are invited to it. No notification
+   * otherwise.
+   */
+  app.post('/loracle/waypoints/:id/walk', async (req, reply): Promise<Wish> => {
+    const me = requireUser(req);
+    const { waypoint: w, wish, state } = await loadSeenWaypoint(me, idParam(req.params));
+    if (wish.userId === me) throw new HttpError(409, 'own', LORACLE_LINES.walkOwn);
+    if (state === 'sealed') throw sealedError();
+    if (state === 'inked') throw new HttpError(409, 'inked', LORACLE_LINES.walkDone);
+    await db.insert(wishWalkers).values({ waypointId: w.id, userId: me }).onConflictDoNothing();
+    reply.status(201);
+    return wishView(me, wish.id);
+  });
+
+  /** Walk no more. */
+  app.delete('/loracle/waypoints/:id/walk', async (req): Promise<Wish> => {
+    const me = requireUser(req);
+    const { waypoint: w, wish } = await loadSeenWaypoint(me, idParam(req.params));
+    await db.delete(wishWalkers).where(and(eq(wishWalkers.waypointId, w.id), eq(wishWalkers.userId, me)));
+    return wishView(me, wish.id);
+  });
+
+  /**
+   * The Epic: a fulfilled quest as lore. The road walked furthest, each waypoint with the day it was
+   * inked and its chapter (only one the viewer may see), and who walked it. For the Lorer and, when
+   * it is shown to a crew, its members.
+   */
+  app.get('/loracle/wishes/:id/epic', async (req): Promise<EpicView> => {
+    const me = requireUser(req);
+    const wish = await loadVisibleWish(db, me, idParam(req.params));
+    if (wish.status !== 'fulfilled') throw new HttpError(409, 'not_fulfilled', LORACLE_LINES.epicNotYet);
+    const roads = await roadsOf(wish.id);
+    const rows = await db.select().from(wishWaypoints).where(eq(wishWaypoints.wishId, wish.id)).orderBy(asc(wishWaypoints.position));
+    const walked = walkedOf(roads.map((road) => ({ road, rows: rows.filter((w) => w.roadId === road.id) })));
+    if (!walked) throw notFound('That wish');
+    const map = walked.rows;
+    const chapterIds = map.map((w) => w.chapterId).filter((id): id is string => !!id);
+    const seenChapters = chapterIds.length
+      ? await db
+          .select({ id: chapters.id, title: chapters.title })
+          .from(chapters)
+          .where(and(inArray(chapters.id, chapterIds), chapterVisible(me)))
+      : [];
+    const byChapter = new Map(seenChapters.map((c) => [c.id, c]));
+    const walkers = await walkersOf(wish, map.map((w) => w.id), me);
+    const people = await userSummaries(db, [wish.userId, ...[...walkers.values()].flat()]);
+    const point = await pointShown(wish, me);
+    const q = walked.road.quest;
+    return {
+      id: wish.id,
+      text: wish.text,
+      title: q?.title ?? null,
+      calling: q?.calling ?? null,
+      truth: q?.truth ?? null,
+      span: q?.span ? { amount: q.span.amount, unit: q.span.unit } : null,
+      fulfilledAt: isoOrNull(wish.fulfilledAt),
+      roadN: walked.road.n,
+      map: map.map((w) => ({
+        id: w.id,
+        position: w.position,
+        kind: w.kind,
+        emblem: w.emblem,
+        name: w.name,
+        where: { place: w.place, town: w.town, country: w.country, lat: point ? w.lat : null, lon: point ? w.lon : null, precision: w.precision },
+        inkedOn: w.inkedOn,
+        chapter: w.chapterId ? (byChapter.get(w.chapterId) ?? null) : null,
+        walkers: (walkers.get(w.id) ?? []).map((id) => people.get(id)).filter((u): u is UserSummary => !!u),
+      })),
+      mine: wish.userId === me,
+      owner: people.get(wish.userId)!,
+      crew: await crewOf(wish),
+    };
+  });
+
+  // --- The dawn tick ----------------------------------------------------------------
+
+  /**
+   * The hourly dawn tick (GitHub Actions, .github/workflows/loracle-tick.yml): collect ended batches,
+   * keep the promises due within three hours, send what waits. No Lorer: `Authorization: Bearer
+   * LORACLE_TICK_SECRET`, compared in constant time. 404 when the secret is unset or doesn't match.
+   */
+  app.post('/loracle/tick', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req): Promise<LoracleTickResult> => {
+    if (!tickAllowed(config.loracle.tickSecret, req.headers.authorization)) throw notFound();
+    return dawn.tick();
   });
 }

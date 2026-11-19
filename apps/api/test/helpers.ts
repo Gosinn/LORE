@@ -6,6 +6,7 @@ import type { Me } from '#shared';
 import { buildApp } from '../src/app.ts';
 import { testConfig, type Config } from '../src/config.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
+import type { BatchClient } from '../src/lib/loracle/client.ts';
 import type { LoracleMind } from '../src/lib/loracle/types.ts';
 import { DatabaseStorage, LocalDiskStorage } from '../src/lib/storage.ts';
 import type { WorldData } from '../src/lib/world.ts';
@@ -57,6 +58,8 @@ export async function createTestApp(
     world?: WorldData;
     /** The Loracle's mind (tests pass their own fake); none = the stone sleeps. */
     mind?: LoracleMind;
+    /** The dawn lane's Message Batches client (tests pass a fake; never the network). */
+    batches?: BatchClient;
   } = {},
 ): Promise<TestApp & { db: Db }> {
   // TEST_DATABASE_URL runs a file against a real Postgres server (fresh, empty
@@ -71,6 +74,7 @@ export async function createTestApp(
     storage,
     world: opts.world ?? quietWorld,
     mind: opts.mind,
+    batches: opts.batches,
   });
   await app.ready();
 

@@ -123,14 +123,65 @@ rounded to two decimals) names the town at the device's location for "Where do y
   (`lib/safeLog.ts`) never logs a failed query's bound values.
 - What reaches Anthropic is listed in D31. The weighing, the ledger's dossiers, the forge and note ids stay
   on the server; views are built field by field in `routes/loracle.ts`, and **sealed waypoints are sent
-  without their trial, keeper, earns, steps, ink and links**. Visibility is owner-only
-  (`wishVisible`, `loadVisibleWish/Road/Waypoint` in `lib/access.ts`; the quest log is
-  `wishSummaries` in `lib/queries.ts`).
+  without their trial, keeper, earns, steps, ink and links**. Visibility: the Lorer, plus (phase C) the
+  active members of the one crew they showed a quest to (`wishVisible`, `walkerShown`,
+  `loadVisibleWish/Road/Waypoint` in `lib/access.ts`); every deed loads through those and then checks the
+  Lorer (403 `not_yours` for a crew member, 404 for anyone else). The quest log is `wishSummaries`, the
+  crews' quests `crewQuestSummaries` (both in `lib/queries.ts`); the Lore Map shows only the Lorer's own
+  (`wishOwned`).
 - Deeds reuse the existing models: a plan is a private all-day `events` row with the Lorer as organizer, the
   vault is an `only_me` idea, "my week" is a `notes` reminder, "write the chapter" is a private chapter
   linked back through `PUT /loracle/waypoints/:id/link`.
 - **Not verified against the live API** (no key has been used): the prompts, structured output with
   fallbacks, the `_20260209` web tools' options and the real cost. See `tools/loracle-eval.mjs`.
+  *(Phase A has since run live with the owner's key on the server; phases B and C have made no real call.)*
+
+Phases B and C (D31 note, 2026-11-19) add more roads, deeper asks, a dawn lane and crew quests:
+
+```
+ POST /wishes/:id/again ─┐  (counts as a cast)      soft budget left today? (LORACLE_CASTS_NOW / _DEEPER_NOW,
+ POST /waypoints/:id/ask ┴─> laneFor (jobs.ts)       LORACLE_DAILY_BUDGET_USD; the dawn lane is on only with
+                                 │                   LORACLE_TICK_SECRET + the key + a mind)
+                     now ────────┼──────────── dawn: road/ask lane `dawn`, due_by = the Lorer's next 06:00
+                                 ▼                                   │
+ jobs.ts start / startAsk: flow.ts (compose → checks →    POST /api/loracle/tick (GitHub Actions hourly,
+ repair; deeper answer → checks → repair), from the       bearer secret) + lazy ticks (boot, GET /loracle)
+ wish's whole ledger, no new scouts                           └─ dawn.ts: collect ended batches → keep
+                                                                 promises (due < 3 h → live) → submit one
+                                                                 batch per stage (≤5 begun per Lorer, none
+                                                                 due < 5 h, within the month's room);
+                                                                 refused/invalid/3 failures → live lane
+```
+
+- **Roads**: `wish_roads.n` 1, 2, 3…; `Wish.roads` carries every road, `Wish.road` stays the first. The road
+  walked furthest (most inked, ties: the first) gives the quest log's count, the seal and the Epic
+  (`walkedRoads` in `lib/queries.ts`). `POST /retry` retries the newest faded road. `WishSummary.lane` is the
+  first road's lane (the quest log's "read before dawn").
+- **Deeper asks** (`wish_asks`): the same job runner (`startAsk`), one at a time per waypoint (the unique index
+  `wish_asks_one_open`), findings kept on the ask (`found`), never merged into the wish's ledger. Sent only to
+  the Lorer, as `OpenWaypoint.asks`. A question at the care floor answers `AskResult` `{ route: 'care' }`
+  (nothing stored or sent). Its answer is checked like a road's (`checkDeeper`: X4, X5, X6 are safety faults;
+  one that survives the repair fails the ask).
+- **The dawn lane** (`lib/loracle/dawn.ts`, `lib/loracle/flow.ts`): a dawn road or ask keeps its machine state in
+  its `batch` column; each batch request is the live request minus `betas`, `fallbacks` and `stream`
+  (`batchParams` in `client.ts`; `client.beta.messages.batches`). `loracle_batches` records each batch sent and
+  when it was read. Spend rows carry `lane` and `ask_id`, at batch prices. `lib/loracle/time.ts` holds the
+  Lorer's day and dawn. Safe across processes: a batch is claimed (`ended_at`) before its results are taken,
+  and an item (its `run_id` swapped for a new one) before its next request is built. A batch read is deleted
+  at Anthropic.
+- **Crew quests** (phase C): `wishes.audience` / `crew_id` / `shared_at` (`PUT /wishes/:id/share`),
+  `wish_walkers` (`POST`/`DELETE /waypoints/:id/walk`). `POST /waypoints/:id/plan` invites the waypoint's
+  walkers (`event_invite`, through `inviteToEvent`; only to a plan the Lorer organizes and that is open).
+  `GET /wishes/:id/epic` builds the Epic. A crew member's view leaves out the road's signs, dawn promise,
+  This week and provisions, and the map points while the Lorer hides their places (`placeAccessFor`, D35).
+  Reports take `quest` (D29); a moderator's remove un-shares it for good (`sharing_removed_at`).
+  `lib/loracle/sharing.ts` undoes sharing when a bond breaks: leaving or being removed from a crew
+  (`letGoOfCrew`) and a block (`letGoOnBlock`), in the same transaction.
+- **Web**: `components/loracle-b.tsx` (road tabs, Ask again, Ask the stone and its pinned scrolls, the dawn
+  wait, Show to a crew, the crew member's view, walkers, the Epic), `lib/loracle.ts` (roads, asks, walkers),
+  the hooks in `lib/queries.ts` (`useAskAgain`, `useAskStone`, `useShareWish`, `useWalk`, `useEpic`; a wish
+  is polled every 2 s while a road or ask is drawn now, once a minute while something waits for dawn or the
+  moon), `styles/loracle-b.css` (imported by the Loracle page only).
 
 ### Live text: the copy layer (D33)
 
@@ -316,10 +367,13 @@ Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` ar
 | `notifications` | In-app notifications | title rendered at creation, `href` to open |
 | `notes` | Notes to self and reminders | private to the owner; `remind_at` makes it a reminder; optional `event_id` |
 | `oracle_settings` | The Oracle / Loracle: the stone's questions | private; home label (town-level) + rounded coordinates + `home_country` (ISO-2), `loracle_reach_km` (the Loracle's reach; null = ANYWHERE), `time_zone`, `loracle_context` (age band, money, time, body, tongues, passport, callings), `loracle_consent_at`, `home_set_at` (when the home was last said, for the daily sign); `radius_km` and `interests[]` are the old Futures' |
-| `wishes` | The Loracle: a Lorer's wish | private to the Lorer, cascades with the account; `text`, `text_key` (same wish today), snapshot of `context` and `realm`, local `day`, status `listening` / `moon` / `revealed` / `faded` / `silent` / `fulfilled` / `released`; `weighing` and `ledger` are server-only |
-| `wish_roads` | The quest drawn for a wish (one per wish in phase A) | status `queued` → `searching` → `drawing` → `sealing` → `ready` → `drawn` (or `faded` / `silent`); `signs[]` for the wait; `quest` (JSON scroll); `run_id` + `heartbeat_at` guard the job; `attempts`, `failure`, `retried_on` (one "Try again" a day), `this_week_reminder_id` |
+| `wishes` | The Loracle: a Lorer's wish | private to the Lorer unless shown to one crew (`audience` `only_me` / `crew`, `crew_id` set null when the crew goes, `shared_at`), cascades with the account; `text`, `text_key` (same wish today), snapshot of `context` and `realm`, local `day`, status `listening` / `moon` / `revealed` / `faded` / `silent` / `fulfilled` / `released`; `weighing` and `ledger` (the whole ledger, phase B) are server-only |
+| `wish_roads` | A road drawn for a wish (`n` 1, 2, 3…: "Ask again" adds one) | status `queued` → `searching` → `drawing` → `sealing` → `ready` → `drawn` (or `faded` / `silent`); `lane` `now` / `dawn`, `due_by` (the Lorer's next 06:00), `day`, `batch` (the dawn lane's machine state); `signs[]` for the wait; `quest` (JSON scroll); `run_id` + `heartbeat_at` guard the job; `attempts`, `failure`, `retried_on` (one "Try again" a day), `this_week_reminder_id` |
+| `wish_asks` | "Ask the stone about this" (phase B) | the Lorer's only, cascades with the waypoint, wish and account; `question`, status `listening` / `dawn` / `answered` / `faded` / `silent`, `lane`, `due_by`, `day`, `signs[]`, `answer` (JSON), `found` (its own findings, server-only), `faults`, `rough`, `batch`, `run_id` + `heartbeat_at` |
+| `wish_walkers` | "Walk with you" (phase C) | primary key (`waypoint_id`, `user_id`); cascades with either; shown only while the walker is still in the crew and no block stands with the viewer or the Lorer; deleted when the walker leaves the crew or a block comes between them and the Lorer |
+| `loracle_batches` | The dawn lane's Message Batches (phase B) | Anthropic's batch id, `stage`, `items` (road and ask ids, whose and their day, JSON), `submitted_at`, `ended_at` (claimed once, before the results are taken); **no text** |
 | `wish_waypoints` | The waypoints of a road | position, kind, emblem, when/at, place/town/country + pin (`precision`), clue, trial, keeper, earns, steps, mystery; `seal_broken_at`, `inked_at`/`inked_on`/`note`; links to the event, idea, chapter and reminder that came of it (set null when those go) |
-| `loracle_spend` | One row per model request | stage, outcome, model, tokens, searches, fetches, `cost_micros`, `road_id` (no foreign key: a burn never refunds the hidden limit); **no text**; user and wish set null on delete so the month's spend survives burns and account deletion |
+| `loracle_spend` | One row per model request | stage, outcome, model, tokens, searches, fetches, `cost_micros`, `road_id` and `ask_id` (no foreign keys: a burn never refunds the hidden limit), `lane` (`dawn` at batch prices); **no text**; user and wish set null on delete so the month's spend survives burns and account deletion |
 | `oracle_readings` | The Oracle: what the stones showed | private; local `day` (for the 3-a-day limit), `mode`, `futures` (JSON, with each future's status and resulting event/idea). `mode = 'sign'` is Home's daily sign (D32): never counted, never returned by `GET /oracle` |
 | `copy_overrides` | Live text: the owner's published words (D33) | key `<scope>#<hash>` (primary key), `text` (1 to 8,000 characters), `original` (the default it replaces), `context`, `followed_from` (set when a deploy moved the words), `updated_by` (set null when the account goes). Public through `GET /api/copy`; never personal data |
 | `copy_revisions` | Every publish, undo and automatic follow | `kind` `publish` / `undo` / `follow`, `published_by` (null = automatic or deleted account), `undo_of`, `changes` (JSON: key, before, after, original, context) |
@@ -454,6 +508,7 @@ LORE APP/
 ├─ capacitor.config.json   Android app settings (app id, web build location)
 ├─ CLAUDE.md               working rules for this repo
 ├─ deploy/oracle/          free hosting: compose (Caddy + app + Postgres + backups), setup script, guide
+├─ .github/workflows/      ios.yml (the iPhone build), loracle-tick.yml (the Loracle's hourly dawn tick)
 ├─ docs/                   MASTER_BRIEF, ARCHITECTURE, DECISIONS, ROADMAP, DEVELOPMENT_LOG
 ├─ tools/                  env.ps1 / env.sh, dev.mjs (runs API + web), android.mjs (builds the app), make-icons.mjs, loracle-eval.mjs (live eval; costs money, owner only), copy-check.mjs (live edits a change would orphan)
 ├─ apps/android/           Capacitor Android project (generated, plus icons, splash and signing setup)
@@ -467,7 +522,7 @@ LORE APP/
 │  │  ├─ auth/             password.ts (scrypt), sessions.ts
 │  │  ├─ db/               schema.ts, index.ts (Postgres or PGlite), migrate-cli.ts
 │  │  ├─ lib/              access.ts (privacy, the owner), queries.ts (read models), notify.ts, storage.ts, images.ts, world.ts, oracle.ts, copy.ts (live text), …
-│  │  │  └─ loracle/       the Loracle's mind and jobs: types, client, mind, prompts, schema, ledger, checks, draw, cost, fake, jobs
+│  │  │  └─ loracle/       the Loracle's mind and jobs: types, client, mind, prompts, schema, ledger, checks, draw, cost, fake, jobs, flow (the drawing as a resumable machine), dawn (the dawn lane and its tick), time (the Lorer's day and dawn), sharing (what showing a quest to a crew leaves behind, let go when someone leaves the crew or blocks)
 │  │  ├─ routes/           auth, users, friends, crews, events, personal, ideas, chapters, media, comments, notifications, home, oracle, loracle, copy
 │  │  └─ seed.ts           demo data through the HTTP API
 │  ├─ drizzle/             generated SQL migrations
@@ -478,7 +533,7 @@ LORE APP/
    ├─ public/              favicon and app icons
    └─ src/
       ├─ main.tsx, router.tsx
-      ├─ lib/              api.ts, queries.ts (data hooks), dates.ts, images.ts, theme.ts (the look, worlds, day and night, the sun)
+      ├─ lib/              api.ts, queries.ts (data hooks), dates.ts, images.ts, theme.ts (the look, worlds, day and night, the sun), loracle.ts (a wish's roads, asks and walkers)
       │  └─ copy/          live text runtime: runtime.ts, sync.ts, cache.ts, gate.tsx (owner + switch), guard.tsx (crash guard)
       ├─ components/       AppShell, World (keeps the world in step; renders nothing), ui, cards, pickers, CommentThread, compass (CompassRose)
       │  └─ copyEditor/    the owner's editor (own chunk): quill, outlines, edit sheet, publish bar, Edited texts, Copy for Claude
@@ -491,5 +546,6 @@ LORE APP/
          │                 rose, trail, Welcome and Home door pieces are still shared
          ├─ worlds.css     the worlds' art, the one fixed backdrop, Profile → Your world (D34)
          ├─ lore.css       the one base: the Loracle's kit on every screen, world tokens, day ink (D34; last)
-         └─ sign.css       Home's daily sign on the Loracle door, and "Where do you stand?"
+         ├─ sign.css       Home's daily sign on the Loracle door, and "Where do you stand?"
+         └─ loracle-b.css  the Loracle's phases B and C (road tabs, asks, crews, walkers, the Epic); the Loracle page only
 ```

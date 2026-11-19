@@ -10,6 +10,8 @@ import { resolveSession, SESSION_COOKIE } from './auth/sessions.ts';
 import type { AppContext } from './context.ts';
 import { createLiveCopy, readCatalog, type LiveCopy } from './lib/copy.ts';
 import { forbidden, HttpError } from './lib/errors.ts';
+import { anthropicBatches } from './lib/loracle/client.ts';
+import { createDawnLane, type DawnLane } from './lib/loracle/dawn.ts';
 import { createWishJobs, type WishJobs } from './lib/loracle/jobs.ts';
 import { mindFor } from './lib/loracle/mind.ts';
 import { setMediaUrlSecret } from './lib/mediaUrls.ts';
@@ -41,6 +43,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     /** The Loracle's background jobs (tests: `await app.wishJobs.idle()`). */
     wishJobs: WishJobs;
+    /** The Loracle's dawn lane (phase B): Message Batches read by the hourly tick. */
+    dawn: DawnLane;
     /** Live text: the owner's published words (lib/copy.ts). */
     liveCopy: LiveCopy;
   }
@@ -100,6 +104,20 @@ export async function buildApp(appCtx: AppContext) {
   app.addHook('onClose', async () => {
     await wishJobs.close();
   });
+
+  // The dawn lane (phase B): on only with LORACLE_TICK_SECRET, a batches client (the real one from
+  // the key; tests pass their own) and a mind. Off, every cast and ask is drawn at once.
+  const key = config.loracle.mode === 'awake' ? config.loracle.apiKey : undefined;
+  const batches = appCtx.batches ?? (key ? anthropicBatches(key) : undefined);
+  const dawn = createDawnLane({
+    db,
+    config: config.loracle,
+    batches,
+    jobs: wishJobs,
+    log: app.log.child({ module: 'loracle-dawn' }),
+    awake: !!ctx.mind,
+  });
+  app.decorate('dawn', dawn);
 
   const sameOrigin = (req: FastifyRequest, origin: string) =>
     config.webOrigins.includes(origin) ||

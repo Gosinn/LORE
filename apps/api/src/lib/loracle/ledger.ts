@@ -531,9 +531,117 @@ export function ledgerText(ledger: Pick<Ledger, 'notes' | 'gaps' | 'sources' | '
   return out.join('\n');
 }
 
-/** What is kept on the wish (`wishes.ledger`): notes, gaps and the raw dossiers. Export drops the dossiers. */
-export function ledgerRecord(ledger: Ledger, dossiers: readonly string[]): LedgerRecord {
-  return { notes: ledger.notes, gaps: ledger.gaps, dossiers: [...dossiers] };
+/**
+ * What is kept on the wish (`wishes.ledger`): notes, gaps and the raw dossiers, and (since phase B,
+ * when `seen` is given) the rest of the ledger and every URL the tools returned, so another road or
+ * a deeper ask can be drawn from it without the scouts. Export keeps only notes and gaps.
+ */
+export function ledgerRecord(ledger: Ledger, dossiers: readonly string[], seen?: SeenUrls): LedgerRecord {
+  const record: LedgerRecord = { notes: ledger.notes, gaps: ledger.gaps, dossiers: [...dossiers] };
+  if (seen) {
+    record.sources = ledger.sources;
+    record.coords = ledger.coords;
+    record.aka = ledger.aka;
+    record.noNames = ledger.noNames;
+    record.seen = seen.list();
+  }
+  return record;
+}
+
+/** SeenUrls back from a stored list. */
+export function seenFrom(list: readonly SeenUrl[]): SeenUrls {
+  const seen = new SeenUrls();
+  for (const s of list) seen.add(s.url, { title: s.title, date: s.date, opened: s.opened });
+  return seen;
+}
+
+/** The fewest notes worth drawing a road from (the mind's MIN_NOTES). */
+const ENOUGH_NOTES = 3;
+
+/**
+ * The ledger back from what the wish keeps. A phase B record holds everything. A phase A record holds
+ * notes, gaps and dossiers but not the URLs the tools returned: it is settled again from its
+ * dossiers, trusting only the pages its roads cite (`cited`, every source they show), so no URL the
+ * tools never returned can come back. Null when too little survives (then the scouts go out again).
+ */
+export function restoreLedger(
+  record: LedgerRecord | null | undefined,
+  cited: readonly QuestSource[],
+  todayIso: string,
+): { ledger: Ledger; seen: SeenUrls; dossiers: string[] } | null {
+  if (!record) return null;
+  if (record.sources && record.seen) {
+    const seen = seenFrom(record.seen);
+    const ledger: Ledger = {
+      notes: record.notes,
+      gaps: record.gaps,
+      sources: record.sources,
+      coords: record.coords ?? {},
+      aka: record.aka ?? {},
+      noNames: record.noNames ?? [],
+      text: '',
+    };
+    ledger.text = ledgerText(ledger);
+    return { ledger, seen, dossiers: [...(record.dossiers ?? [])] };
+  }
+  const dossiers = record.dossiers ?? [];
+  if (!dossiers.length || !cited.length) return null;
+  const seen = new SeenUrls();
+  for (const s of cited) seen.add(s.url, { title: s.title, date: s.date, opened: s.opened });
+  const ledger = buildLedger(dossiers, seen, todayIso);
+  if (ledger.notes.length < ENOUGH_NOTES) return null;
+  return { ledger, seen, dossiers: [...dossiers] };
+}
+
+/**
+ * A deeper scout's dossier added to a ledger (phase B): its lines settled on their own (only URLs the
+ * tools returned), then numbered after the ledger's own: sources S(n+1)… (a page already in the
+ * ledger keeps its number), notes N(m+1)…. Returns the joined ledger and the notes it gained.
+ */
+export function mergeDossier(
+  base: Ledger,
+  dossier: string,
+  seen: SeenUrls,
+  todayIso: string,
+): { ledger: Ledger; added: LedgerNote[] } {
+  const found = buildLedger([dossier], seen, todayIso);
+  const sources = base.sources.map((s) => ({ ...s }));
+  const byKey = new Map(sources.map((s) => [canonicalUrl(s.url) ?? s.url, s.n]));
+  const renumber = new Map<number, number>();
+  for (const s of found.sources) {
+    const key = canonicalUrl(s.url) ?? s.url;
+    let n = byKey.get(key);
+    if (n === undefined) {
+      n = sources.length + 1;
+      sources.push({ ...s, n });
+      byKey.set(key, n);
+    }
+    renumber.set(s.n, n);
+  }
+  const offset = base.notes.length;
+  const ids = new Map(found.notes.map((note, i) => [note.id, `N${offset + i + 1}`]));
+  const added: LedgerNote[] = found.notes.map((note) => ({
+    ...note,
+    id: ids.get(note.id)!,
+    sources: [...new Set(note.sources.map((n) => renumber.get(n)!).filter((n) => n !== undefined))].sort((a, b) => a - b),
+  }));
+  const coords = { ...base.coords };
+  for (const [id, c] of Object.entries(found.coords)) coords[ids.get(id) ?? id] = c;
+  const aka = { ...base.aka };
+  for (const [place, variants] of Object.entries(found.aka)) aka[place] = [...new Set([...(aka[place] ?? []), ...variants])];
+  const gaps = [...base.gaps];
+  for (const g of found.gaps) if (!gaps.some((x) => foldName(x) === foldName(g))) gaps.push(g);
+  const ledger: Ledger = {
+    notes: [...base.notes, ...added],
+    gaps,
+    sources,
+    coords,
+    aka,
+    noNames: [...new Set([...base.noNames, ...found.noNames])],
+    text: '',
+  };
+  ledger.text = ledgerText(ledger);
+  return { ledger, added };
 }
 
 // ---------------------------------------------------------------------------

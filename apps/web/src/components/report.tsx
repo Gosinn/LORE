@@ -13,6 +13,7 @@ const WHAT: Record<ReportTarget, string> = {
   chapter: 'this chapter',
   contribution: 'this',
   comment: 'this message',
+  quest: 'this quest',
 };
 
 /**

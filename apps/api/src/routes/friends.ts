@@ -7,6 +7,7 @@ import { blocks, friendships, users } from '../db/schema.ts';
 import { relationship, idParam } from '../lib/access.ts';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.ts';
 import { friendIds } from '../lib/friends.ts';
+import { letGoOnBlock } from '../lib/loracle/sharing.ts';
 import { notify } from '../lib/notify.ts';
 import { iso, toUserSummary, userColumns, userSummaries, userSummary } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
@@ -139,6 +140,8 @@ export async function friendRoutes(app: FastifyInstance, { db }: AppContext) {
     await db.transaction(async (tx) => {
       await tx.insert(blocks).values({ blockerId: me, blockedId: userId }).onConflictDoNothing();
       await tx.delete(friendships).where(pairWhere(me, userId));
+      // Neither walks a quest of the other's any more (lib/loracle/sharing.ts).
+      await letGoOnBlock(tx, me, userId);
     });
     return { ok: true };
   });

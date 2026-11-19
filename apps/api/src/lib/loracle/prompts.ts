@@ -16,7 +16,7 @@ import {
   NO_LIMIT_KM,
   TIME_BAND_LABELS,
 } from '#shared';
-import type { MindContext, MindWish, Weighing } from './types.ts';
+import type { DeeperFocus, EarlierRoad, MindContext, MindWish, Weighing } from './types.ts';
 
 // ---------------------------------------------------------------------------
 // Words the stone never writes
@@ -388,6 +388,28 @@ LENGTHS in words: title 1 to 5, no colon. Calling 40. Truth 14. Clue 14. Trial 3
 
 export const COMPOSE_PROMPT = COMPOSE_PROMPT_TEMPLATE.replace('{BANNED}', BANNED.map((b) => `"${b}"`).join(', '));
 
+// Phase B. Each addendum is a second system block after COMPOSE_PROMPT (static, so the cache holds:
+// COMPOSE_PROMPT stays the cached prefix, the addendum carries the last breakpoint).
+
+/** "Ask again": another road from the same ledger. */
+export const AGAIN_ADDENDUM = `TASK NOW: the Lorer asked for another road. The input holds the roads already drawn: each with its title, calling, keepers and waypoints in order. Draw a different road from the same ledger: a different calling shape, and a different keeper or crucible where the ledger allows. Never contradict a fact in an earlier road. If the ledger holds only one true road, change the shape of the calling and the order of the trials, never the facts. Never repeat an earlier title, or an earlier road's places in the same order.`;
+
+/** "Ask the stone about this": light one waypoint, never draw a map. */
+export const DEEPER_ADDENDUM = `TASK NOW: you light one waypoint of a quest already drawn; you do not draw a map. The input holds the quest, the waypoint, the Lorer's question if any, and the ledger, now with the deeper scout's findings. Reveal the road, never the door: the waypoint's mystery stays closed. Fill the Deeper schema:
+- answer: when the Lorer asked a question, answer it first, plainly and truly from the ledger, in 40 words or fewer. A "too late", "too old", "too poor" or "too weak" question gets a true person or fact from the ledger who did it anyway, if the ledger holds one, and never a comforting lie. Null when there is no question.
+- clue: one new sign of the place, true per a VERIFIED note.
+- steps: exactly three, under the rules of the real road, each citing its noteIds.
+- keeper: the person to find there, from the ledger, with their verb and noteId; or null.
+- words: one sentence the Lorer says on arrival, in English, with a greeting in the local language only if a note gives it; or null.
+- unknown: one new unknown that the place will answer, 18 words or fewer, in a new sentence shape.
+The voice, truth and safety rules stand.`;
+
+/**
+ * The DEEPER scout's role, in its user turn. SCOUT_PROMPT (the ROAD and KEEPERS scouts' system prompt)
+ * stays as phase A shipped it, byte for byte, so its cache and its eval hold.
+ */
+const DEEPER_ROLE = `ROLE DEEPER: ROAD and KEEPERS for one waypoint only, named below, plus the Lorer's question if there is one: the route there, the keeper, the gates, the strangeness, and the facts that answer the question. Find what the ledger does not hold yet. Write the dossier in the same form, numbering your lines D1, D2, … instead of R or K. First line: ROLE: DEEPER.`;
+
 // ---------------------------------------------------------------------------
 // User turns
 
@@ -442,7 +464,7 @@ export function headOf(wish: MindWish, ctx: MindContext): string {
 
 export const weighTurn = (wish: MindWish, ctx: MindContext) => headOf(wish, ctx);
 
-export type ScoutRole = 'ROAD' | 'KEEPERS';
+export type ScoutRole = 'ROAD' | 'KEEPERS' | 'DEEPER';
 
 export function scoutTurn(wish: MindWish, ctx: MindContext, weighing: Weighing, role: ScoutRole): string {
   const plan = role === 'KEEPERS' ? weighing.keeperPlan : weighing.roadPlan;
@@ -469,5 +491,81 @@ export function repairTurn(composeInput: string, draftJson: string, faults: stri
     ...faults.map((f) => `- ${f}`),
     '</faults>',
     'Return the whole quest with these faults fixed. Change nothing else.',
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Phase B turns
+
+/** "Ask again": the compose input, then the roads already drawn (their shapes and keepers only). */
+export function againTurn(composeInput: string, earlier: EarlierRoad[]): string {
+  const roads = earlier.map((r) => ({
+    title: clean(r.title),
+    calling: clean(r.calling),
+    keepers: r.keepers.map(clean),
+    waypoints: (r.waypoints ?? []).map((w) => ({ name: clean(w.name), place: clean(w.place) })),
+  }));
+  return [composeInput, `<earlier_roads>${JSON.stringify(roads)}</earlier_roads>`].join('\n');
+}
+
+/** The DEEPER scout's turn: the head, the weighing, its role, the waypoint and the question. */
+export function deeperScoutTurn(wish: MindWish, ctx: MindContext, weighing: Weighing, focus: DeeperFocus): string {
+  const w = focus.waypoint;
+  const where = [w.place, w.town, w.country].filter((s): s is string => !!s?.trim()).map(clean);
+  const first = [
+    where.join(', '),
+    w.person?.name ? `${clean(w.person.name)} ${clean(w.place)}` : `${clean(w.place)} ${clean(w.country)} who teaches`,
+    focus.question ? `${clean(focus.question)} ${clean(w.place)}` : `${clean(w.place)} ${clean(w.country)} how to get there`,
+  ];
+  return [
+    headOf(wish, ctx),
+    `<weighing>${JSON.stringify(weighing)}</weighing>`,
+    'ROLE: DEEPER',
+    DEEPER_ROLE,
+    `<waypoint>${JSON.stringify(waypointOf(focus))}</waypoint>`,
+    `<question>${focus.question ? clean(focus.question) : '-'}</question>`,
+    `First searches: ${first.join(' · ')}`,
+  ].join('\n');
+}
+
+const waypointOf = (focus: DeeperFocus) => {
+  const w = focus.waypoint;
+  return {
+    position: w.position,
+    name: clean(w.name),
+    when: clean(w.when),
+    where: [w.place, w.town, w.country].filter(Boolean).map((s) => clean(s!)).join(', '),
+    clue: clean(w.clue),
+    trial: clean(w.trial),
+    person: w.person ? { name: w.person.name ? clean(w.person.name) : null, role: clean(w.person.role) } : null,
+    mystery: w.mystery ? clean(w.mystery) : null,
+    steps: w.steps.map(clean),
+  };
+};
+
+/** The deeper answer's turn: the compose input (its ledger holding the D findings), the quest, the waypoint, the question. */
+export function deeperTurn(composeInput: string, focus: DeeperFocus): string {
+  const quest = {
+    title: clean(focus.quest.title),
+    calling: clean(focus.quest.calling),
+    waypoints: focus.quest.waypoints.map((w) => ({ position: w.position, name: clean(w.name), place: clean(w.place), when: clean(w.when) })),
+  };
+  return [
+    composeInput,
+    `<quest>${JSON.stringify(quest)}</quest>`,
+    `<waypoint position="${focus.waypoint.position}">${JSON.stringify(waypointOf(focus))}</waypoint>`,
+    `<question>${focus.question ? clean(focus.question) : '-'}</question>`,
+  ].join('\n');
+}
+
+/** A deeper repair: a fresh request with the answer and its faults. */
+export function deeperRepairTurn(input: string, draftJson: string, faults: string[]): string {
+  return [
+    input,
+    `<draft>${draftJson}</draft>`,
+    '<faults>',
+    ...faults.map((f) => `- ${f}`),
+    '</faults>',
+    'Return the whole answer with these faults fixed. Change nothing else.',
   ].join('\n');
 }

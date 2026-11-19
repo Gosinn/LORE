@@ -12,6 +12,8 @@ import { safeErr } from '../src/lib/safeLog.ts';
 import {
   MindError,
   type CastDraft,
+  type DeeperDraft,
+  type DrawFrom,
   type DraftRoad,
   type DraftWaypoint,
   type LoracleMind,
@@ -184,6 +186,15 @@ class StubMind implements LoracleMind {
       },
       spend: [spend('road'), spend('compose')],
     };
+  }
+
+  // Phase B (its own tests live in loracle-b.test.ts): drawn like a cast here.
+  async draw(wish: WeighedWish, context: MindContext, _from: DrawFrom, onSign: SignSink, signal: AbortSignal): Promise<CastDraft> {
+    return this.cast(wish, context, onSign, signal);
+  }
+
+  async deeper(): Promise<DeeperDraft> {
+    return { kind: 'silent', spend: [spend('deeper', 'refusal')] };
   }
 }
 

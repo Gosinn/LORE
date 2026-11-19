@@ -30,3 +30,11 @@ services:
         value: '3'
       - key: LOG_LEVEL
         value: warn
+      # The Loracle's mind (Claude, by Anthropic). Without it the stone sleeps. A secret: never in the repo.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # The Loracle's dawn tick (phase B): a long random secret, the same as the GitHub repository
+      # secret the hourly workflow sends (.github/workflows/loracle-tick.yml). Without it the dawn
+      # lane is off and every wish is drawn at once.
+      - key: LORACLE_TICK_SECRET
+        sync: false

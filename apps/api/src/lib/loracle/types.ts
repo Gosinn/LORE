@@ -8,6 +8,7 @@
 // Nothing here is ever logged with its text (log only ids, stages, timings, tokens and cost).
 import type {
   Calling,
+  DeeperAnswer,
   Emblem,
   Keeper,
   LoracleContext,
@@ -25,6 +26,8 @@ import type {
   WaypointKind,
   WishFailure,
 } from '#shared';
+import type { DeeperFlow, DrawFlow } from './flow.ts';
+import type { SeenUrl } from './ledger.ts';
 
 export type { LoracleSign, WaitPhase } from '#shared';
 
@@ -183,11 +186,156 @@ export interface LedgerNote {
 /**
  * What the stone found, stored on `wishes.ledger` (deleted with the wish). The export includes
  * `notes` and `gaps`; `dossiers` are raw working notes and are never exported or sent to the client.
+ * Since phase B the whole ledger is kept (its sources, the coordinates and spellings it settled, the
+ * places that named nobody, and every URL the tools returned), so "Ask again" and deeper asks draw
+ * from it without sending the scouts out again. Phase A records lack those parts.
  */
 export interface LedgerRecord {
   notes: LedgerNote[];
   gaps: string[];
   dossiers?: string[];
+  sources?: QuestSource[];
+  coords?: Record<string, { lat: number; lon: number }>;
+  aka?: Record<string, string[]>;
+  noNames?: string[];
+  seen?: SeenUrl[];
+}
+
+/**
+ * A road already drawn, as the AGAIN addendum is told of it (its shape, keepers and trials in order,
+ * so the next differs; checks.ts faults a road that repeats one).
+ */
+export interface EarlierRoad {
+  title: string;
+  calling: string;
+  keepers: string[];
+  /** Its waypoints in order: name and place. */
+  waypoints: { name: string; place: string }[];
+}
+
+/**
+ * Where `draw` starts (phase B): a ledger already found. `task` again: "Ask again" (another road, told
+ * of the roads already drawn); quest: a dawn road resumed in the live lane after its scouts.
+ * `sources`: every source the wish's roads cite (a phase A ledger is rebuilt from its dossiers and these).
+ */
+export interface DrawFrom {
+  task: 'quest' | 'again';
+  ledger: LedgerRecord;
+  earlier: EarlierRoad[];
+  sources: QuestSource[];
+}
+
+/** The waypoint a deeper ask lights, and the quest around it (no sources, no note ids). */
+export interface DeeperFocus {
+  /** The road as the Lorer sees it, compact: title, calling, waypoint names and places. */
+  quest: { title: string; calling: string; waypoints: { position: number; name: string; place: string; when: string }[] };
+  waypoint: {
+    position: number;
+    name: string;
+    when: string;
+    place: string;
+    town: string | null;
+    country: string;
+    clue: string;
+    trial: string;
+    person: { name: string | null; role: string } | null;
+    mystery: string | null;
+    steps: string[];
+  };
+  question: string | null;
+}
+
+/** A deeper ask for the mind: the wish, its ledger, and the waypoint to light. */
+export interface DeeperAsk {
+  wish: WeighedWish;
+  ledger: LedgerRecord;
+  /** Every source the wish's roads cite (for a phase A ledger). */
+  sources: QuestSource[];
+  focus: DeeperFocus;
+}
+
+/** A deeper answer as stored on `wish_asks.answer`: marks refer to its own `sources`. */
+export interface StoredDeeper {
+  answer: DeeperAnswer;
+  sources: QuestSource[];
+}
+
+/**
+ * What a deeper ask gives back. `found`: the new notes the deeper scout brought (kept with the ask).
+ * Failures are thrown as MindError, like a cast.
+ */
+export type DeeperDraft =
+  | { kind: 'answer'; answer: StoredDeeper; found: LedgerNote[]; rough: boolean; faults: string[]; spend: SpendEntry[] }
+  | { kind: 'silent'; spend: SpendEntry[] };
+
+// ---------------------------------------------------------------------------
+// The dawn lane's stored state (wish_roads.batch, wish_asks.batch): plain JSON, resumable by any
+// process at any tick.
+
+/** One scout's conversation so far: the user turn, then each paused assistant turn echoed back. */
+export interface ScoutPart {
+  role: 'ROAD' | 'KEEPERS' | 'DEEPER';
+  /** Anthropic.Beta.BetaMessageParam[] (kept as JSON). */
+  messages: unknown[];
+  /** Continuations sent after pause_turn. */
+  resends: number;
+  /** The dossier text from every reply so far. */
+  texts: string[];
+  done: boolean;
+  refused: boolean;
+}
+
+/** A request out in a batch: which batch, and the custom ids of this item's requests in it. */
+export interface DawnPending {
+  batchId: string;
+  customIds: string[];
+}
+
+interface DawnCommon {
+  pending: DawnPending | null;
+  /** Batch failures (errored, expired, canceled) in a row for the current request; at 3 it goes live. */
+  tries: number;
+  /** The dawn sign was written and the item took its share of the night (fair dawn). */
+  begun: boolean;
+}
+
+/** A road in the dawn lane: its scouts, then (with the ledger built) the compose/repair flow. */
+export interface RoadDawnState extends DawnCommon {
+  stage: 'scouts' | 'draw';
+  parts: ScoutPart[];
+  seen: SeenUrl[];
+  /** Built once the scouts are done; the live lane resumes from it ("draw"). */
+  ledger: LedgerRecord | null;
+  flow: DrawFlow | null;
+}
+
+/** A deeper ask in the dawn lane: its DEEPER scout, then the answer flow. */
+export interface AskDawnState extends DawnCommon {
+  stage: 'scout' | 'answer';
+  part: ScoutPart | null;
+  seen: SeenUrl[];
+  /** The deeper scout's dossier, once done. */
+  dossier: string | null;
+  /** The wish's ledger joined with the deeper scout's findings, once the scout is done. */
+  ledger: LedgerRecord | null;
+  /** The notes the deeper scout added. */
+  found: LedgerNote[];
+  flow: DeeperFlow | null;
+}
+
+/** One request in a loracle_batches row: whose it is. */
+export interface BatchItem {
+  customId: string;
+  roadId?: string;
+  askId?: string;
+  /** ROAD | KEEPERS | DEEPER for scouts; compose | repair | again | deeper for the rest. */
+  part: string;
+  /**
+   * Whose it is and their local day, so a batch still counts toward its Lorer's hidden limit after
+   * the wish is burned (absent on items sent before this was kept).
+   */
+  userId?: string;
+  day?: string | null;
 }
 
 /**
@@ -237,6 +385,14 @@ export interface LoracleMind {
    * Claude, ~8 s for the fake.
    */
   cast(wish: WeighedWish, context: MindContext, onSign: SignSink, signal: AbortSignal, opts?: CastOptions): Promise<CastDraft>;
+  /**
+   * Draws a road from a ledger already found (phase B): "Ask again", or a dawn road resumed live
+   * after its scouts. No scouts when the ledger can be read back (a phase A ledger that can't be
+   * rebuilt sends them out again, as a cast). Compose, checks and repair as in `cast`.
+   */
+  draw(wish: WeighedWish, context: MindContext, from: DrawFrom, onSign: SignSink, signal: AbortSignal, opts?: CastOptions): Promise<CastDraft>;
+  /** Lights one waypoint (phase B): a short DEEPER scout, then a small checked answer. */
+  deeper(ask: DeeperAsk, context: MindContext, onSign: SignSink, signal: AbortSignal): Promise<DeeperDraft>;
 }
 
 /** Thrown by the mind for overloaded | timeout | error | interrupted. Its message never holds wish text. */
@@ -259,8 +415,13 @@ export class MindError extends Error {
 // ---------------------------------------------------------------------------
 // Spend: one row per model request (table loracle_spend). Stores no text.
 
-/** The pipeline stage a request belonged to (phase A). */
-export const LORACLE_STAGES = ['weigh', 'road', 'keepers', 'compose', 'repair'] as const;
+/**
+ * The pipeline stage a request belonged to. Phase A: weigh, road, keepers, compose, repair. Phase B:
+ * again (an "Ask again" compose), deeper-scout and deeper (a deeper ask).
+ */
+export const LORACLE_STAGES = ['weigh', 'road', 'keepers', 'compose', 'repair', 'again', 'deeper-scout', 'deeper'] as const;
+/** The stages that draw a road: every road the stone spent money on counts once toward the hidden limit. */
+export const ROAD_STAGES = ['road', 'keepers', 'compose', 'repair', 'again'] as const satisfies readonly LoracleStage[];
 export type LoracleStage = (typeof LORACLE_STAGES)[number];
 
 export const SPEND_OUTCOMES = ['ok', 'refusal', 'max_tokens', 'error', 'care', 'riddle', 'reroute', 'silent'] as const;

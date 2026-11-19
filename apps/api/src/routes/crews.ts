@@ -14,6 +14,7 @@ import type { Db } from '../db/index.ts';
 import { crewMembers, crews, users } from '../db/schema.ts';
 import { canReach, crewMembership, idParam } from '../lib/access.ts';
 import { badRequest, forbidden, notFound } from '../lib/errors.ts';
+import { letGoOfCrew } from '../lib/loracle/sharing.ts';
 import { notify } from '../lib/notify.ts';
 import { crewSummaries, isoOrNull, iso, toUserSummary, userColumns } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
@@ -148,7 +149,11 @@ export async function crewRoutes(app: FastifyInstance, { db }: AppContext) {
     const m = await crewMembership(db, crewId, me);
     if (!m) throw notFound('That crew');
     if (m.role === 'owner') throw forbidden('The owner can’t leave the crew. Hand over ownership first.');
-    await db.delete(crewMembers).where(and(eq(crewMembers.crewId, crewId), eq(crewMembers.userId, me)));
+    await db.transaction(async (tx) => {
+      await tx.delete(crewMembers).where(and(eq(crewMembers.crewId, crewId), eq(crewMembers.userId, me)));
+      // Quests shown to this crew stay hidden after a rejoin, and walks with it end (lib/loracle/sharing.ts).
+      await letGoOfCrew(tx, crewId, me);
+    });
     return { ok: true };
   });
 
@@ -178,7 +183,10 @@ export async function crewRoutes(app: FastifyInstance, { db }: AppContext) {
     if (theirs.role === 'owner' || (theirs.role === 'admin' && mine.role !== 'owner')) {
       throw forbidden('Only the owner can remove an admin.');
     }
-    await db.delete(crewMembers).where(and(eq(crewMembers.crewId, crewId), eq(crewMembers.userId, target)));
+    await db.transaction(async (tx) => {
+      await tx.delete(crewMembers).where(and(eq(crewMembers.crewId, crewId), eq(crewMembers.userId, target)));
+      await letGoOfCrew(tx, crewId, target);
+    });
     return loadCrewDetail(db, me, crewId);
   });
 }

@@ -24,8 +24,8 @@ import {
   type WaypointState,
 } from '#shared';
 import { foldName, markOf, samePlace, type Ledger } from './ledger.ts';
-import type { QuestDraftT, WaypointDraftT } from './schema.ts';
-import type { DraftRoad, DraftWaypoint, DraftWhere, LedgerNote } from './types.ts';
+import type { DeeperDraftT, QuestDraftT, WaypointDraftT } from './schema.ts';
+import type { DraftRoad, DraftWaypoint, DraftWhere, LedgerNote, StoredDeeper } from './types.ts';
 
 const OPEN_WATER = /\b(ocean|sea|strait|channel|gulf|passage|bight|open water|at sea|mid-?atlantic|offshore)\b/i;
 /** How close (degrees) the mind's point must be to a note's point to count as that point. */
@@ -155,6 +155,39 @@ export function compactSources(road: DraftRoad, all: readonly QuestSource[]): Dr
   return road;
 }
 
+/**
+ * A checked deeper answer as it is kept (phase B): marks from the ledger's notes (the deeper scout's
+ * included), and only the sources those marks cite, renumbered 1…n for this answer alone.
+ */
+export function toDeeper(draft: DeeperDraftT, ledger: Ledger): StoredDeeper {
+  const mark = (ids: readonly string[]) => markOf(ids, ledger.notes);
+  const steps: RoadStep[] = draft.steps.map((s) => ({ kind: s.kind, text: s.text.trim(), mark: mark(s.noteIds) }));
+  const keeper: Keeper | null = draft.keeper
+    ? {
+        name: draft.keeper.name?.trim() || null,
+        role: draft.keeper.role.trim(),
+        verb: draft.keeper.verb.trim(),
+        mark: draft.keeper.noteId ? mark([draft.keeper.noteId]) : null,
+      }
+    : null;
+  const marks = [...steps.map((s) => s.mark), keeper?.mark ?? null].filter((m): m is Mark => !!m);
+  const used = new Set(marks.flatMap((m) => m.sources));
+  const kept = ledger.sources.filter((s) => used.has(s.n));
+  const renumber = new Map(kept.map((s, i) => [s.n, i + 1]));
+  for (const m of marks) m.sources = [...new Set(m.sources.map((n) => renumber.get(n)).filter((n): n is number => !!n))].sort((a, b) => a - b);
+  return {
+    answer: {
+      answer: draft.answer?.trim() || null,
+      clue: draft.clue.trim(),
+      steps,
+      keeper,
+      words: draft.words?.trim() || null,
+      unknown: draft.unknown.trim(),
+    },
+    sources: kept.map((s) => ({ ...s, n: renumber.get(s.n)! })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pins (run by the job after the text is ready)
 
@@ -229,8 +262,8 @@ export function waypointState(position: number, inked: boolean, previousInked: b
   return 'sealed';
 }
 
-/** A waypoint as stored, before sealing (every field, as an open waypoint would show it). */
-export type FullWaypoint = Omit<OpenWaypoint, 'state'>;
+/** A waypoint as stored, before sealing (every field, as an open waypoint would show it; asks and walkers are added by the route). */
+export type FullWaypoint = Omit<OpenWaypoint, 'state' | 'asks' | 'walkers' | 'walking'>;
 
 /**
  * What the Lorer is sent. A sealed waypoint is built field by field from the base, so nothing
@@ -254,7 +287,20 @@ export function shapeWaypoint(full: FullWaypoint, state: WaypointState): Waypoin
     const sealed: SealedWaypoint = { ...base, state: 'sealed' };
     return sealed;
   }
-  return { ...base, state, trial: full.trial, person: full.person, earns: full.earns, steps: full.steps, inkedOn: full.inkedOn, note: full.note, links: full.links };
+  return {
+    ...base,
+    state,
+    trial: full.trial,
+    person: full.person,
+    earns: full.earns,
+    steps: full.steps,
+    inkedOn: full.inkedOn,
+    note: full.note,
+    links: full.links,
+    asks: [],
+    walkers: [],
+    walking: false,
+  };
 }
 
 /** Whether two waypoint places are one venue (for links and the log). */
