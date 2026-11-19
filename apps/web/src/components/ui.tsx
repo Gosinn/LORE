@@ -1,5 +1,5 @@
 import { ArrowLeft, Bell, Lock, Users, UsersRound, X } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router';
 import {
@@ -180,21 +180,56 @@ export function PageError({ error }: { error: unknown }) {
   );
 }
 
-/** Bottom sheet on phones, dialog on wider screens. */
+/** What Tab may land on inside a dialog (Sheet, and the Loracle's ScrollSheet). */
+// copy:ignore (a CSS selector)
+export const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Bottom sheet on phones, dialog on wider screens. Focus moves in (unless something inside already took
+ * it, like an autofocused field), Tab stays inside, and focus goes back to what opened it on close.
+ */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Callers often pass a new onClose each render: the effect below runs once and reads the latest.
+  const close = useRef(onClose);
+  close.current = onClose;
+  // What had focus when the sheet opened (read on the first render, before anything inside autofocuses).
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const node = ref.current;
+    if (node && !node.contains(document.activeElement)) node.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !node) return;
+      const items = [...node.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.getClientRects().length > 0);
+      if (!items.length) return;
+      const a = items[0]!;
+      const z = items[items.length - 1]!;
+      if (e.shiftKey && (document.activeElement === a || document.activeElement === node)) {
+        e.preventDefault();
+        z.focus();
+      } else if (!e.shiftKey && (document.activeElement === z || !node.contains(document.activeElement))) {
+        e.preventDefault();
+        a.focus();
+      }
+    };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
+      if (opener?.isConnected) opener.focus();
     };
-  }, [onClose]);
+  }, [opener]);
   return createPortal(
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close.current()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}>
         <div className="sheet-head">
           <h2>{title}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="Close">

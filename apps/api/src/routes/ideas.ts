@@ -5,6 +5,7 @@ import {
   ConvertIdeaInput,
   CreateIdeaInput,
   IdeaListQuery,
+  PLACE_PRECISION_DEFAULTS,
   UpdateIdeaInput,
   type Audience,
   type IdeaDetail,
@@ -12,9 +13,10 @@ import {
 import { requireUser, type AppContext } from '../context.ts';
 import type { Db } from '../db/index.ts';
 import { eventParticipants, events, ideaInterest, ideas, users } from '../db/schema.ts';
-import { idParam, isActiveCrewMember, isCrewAdmin, loadVisibleIdea } from '../lib/access.ts';
+import { idParam, isActiveCrewMember, isCrewAdmin, loadVisibleIdea, placeAccessFor, placeFor } from '../lib/access.ts';
 import { badRequest, forbidden, notFound } from '../lib/errors.ts';
 import { notify } from '../lib/notify.ts';
+import { carriedPlace, placeColumns } from '../lib/places.ts';
 import { eventSummaries, ideaSummaries, toUserSummary, userColumns, userSummary } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 import { inviteToEvent } from './events.ts';
@@ -95,6 +97,7 @@ export async function ideaRoutes(app: FastifyInstance, { db }: AppContext) {
         whereNote: input.whereNote ?? null,
         whenNote: input.whenNote ?? null,
         budgetNote: input.budgetNote ?? null,
+        ...placeColumns(input.place ?? undefined),
         createdBy: me,
       })
       .returning({ id: ideas.id });
@@ -116,9 +119,10 @@ export async function ideaRoutes(app: FastifyInstance, { db }: AppContext) {
     if (input.crewId && input.crewId !== idea.crewId && !(await isActiveCrewMember(db, input.crewId, me))) {
       throw badRequest("You're not in that crew.", { crewId: 'Not your crew' });
     }
+    const { place, ...fields } = input;
     await db
       .update(ideas)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...fields, ...placeColumns(place), updatedAt: new Date() })
       .where(eq(ideas.id, ideaId));
     return loadIdeaDetail(db, me, ideaId);
   });
@@ -163,6 +167,15 @@ export async function ideaRoutes(app: FastifyInstance, { db }: AppContext) {
     const crewId = idea.crewId && (await isActiveCrewMember(db, idea.crewId, me)) ? idea.crewId : null;
     const audience = input.audience ?? eventAudienceFor(idea.audience);
     if (audience === 'crew' && !crewId) throw badRequest('This idea has no crew to share the event with.');
+    // The idea's point travels only when its author plans it (not when the plan names another place): a
+    // copy owned by someone else would escape the author's blocks, their "Show my places on maps" and the
+    // idea's audience (placeAccess keys on the item's created_by). Its precision travels with it. The
+    // place's name travels when the planner may see it (ideaSummaries), else the idea's "where" note.
+    const access = await placeAccessFor(db, idea.createdBy, me);
+    const samePlace = input.locationName === undefined || input.locationName === idea.locationName;
+    const point =
+      samePlace && access === 'own' ? placeFor(access, { lat: idea.lat, lon: idea.lon, precision: idea.placePrecision }) : null;
+    const nameShown = access === 'own' || !!placeFor(access, { lat: idea.lat, lon: idea.lon, precision: idea.placePrecision });
 
     const eventId = await db.transaction(async (tx) => {
       const [event] = await tx
@@ -176,7 +189,9 @@ export async function ideaRoutes(app: FastifyInstance, { db }: AppContext) {
           endsAt: input.endsAt ? new Date(input.endsAt) : null,
           allDay: input.allDay ?? false,
           timeZone: input.timeZone,
-          locationName: input.locationName === undefined ? idea.whereNote : input.locationName,
+          locationName:
+            input.locationName === undefined ? ((nameShown ? idea.locationName : null) ?? idea.whereNote) : input.locationName,
+          ...carriedPlace(point, PLACE_PRECISION_DEFAULTS.event),
           crewId,
           audience,
           ideaId,

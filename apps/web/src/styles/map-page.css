@@ -1,0 +1,241 @@
+/* ------------------------------------------------------------------ THE LORE MAP (pages/LoreMap.tsx)
+   Loaded by the map page only (its own chunk, with MapLibre's stylesheet before it). The map is a slab-edged
+   window in the page column: inside it, the map's own night or day (lib/mapStyle.ts), never the world behind
+   the page. Around it, the base kit (styles/lore.css) as everywhere: chips, slabs, the sheet, stone buttons.
+   MapLibre's zoom buttons are restyled as the kit's stone block with glow marks. Reduced motion: app.css's
+   global rule stops transitions; the page itself jumps instead of gliding. */
+
+.lore-map-frame {
+  position: relative;
+  /* svh: the small viewport, which stays put while a phone's address bar slides in and out (dvh would jump
+     the frame, and MapLibre's canvas with it, mid-scroll); vh first for browsers without it. */
+  height: clamp(300px, 62vh, 720px);
+  height: clamp(300px, 62svh, 720px);
+  margin: 2px 0 14px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--slab-edge, #0a0806);
+  border-radius: var(--r-slab, 12px);
+  /* The map's own land colour while it draws (mapStyle.ts NIGHT.land / DAY.land). */
+  background: #231b14;
+  box-shadow: var(--slab-depth, 0 10px 22px -12px #000);
+  text-shadow: none;
+}
+:where(html[data-daylight='day']) .lore-map-frame {
+  background: #efe5cd;
+}
+.lore-map-frame > .lore-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+.lore-map-frame .maplibregl-canvas:focus-visible {
+  outline: 2px solid var(--glow, #ffb36b);
+  outline-offset: -3px;
+}
+
+/* Loading, offline (with Try again), or no map on this device: in the middle of the frame. */
+.lore-map-state {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+.lore-map-state .btn {
+  pointer-events: auto;
+}
+/* No WebGL2 here (MapLibre needs it): no tall empty window, just the word that the list below has it all. */
+.lore-map-frame:has(.lore-map-state.failed) {
+  height: auto;
+  min-height: 120px;
+}
+.lore-map-state p {
+  max-width: 30ch;
+  color: var(--carve, #e9e1d3);
+}
+:where(html[data-daylight='day']) .lore-map-state p {
+  color: var(--day-ink, #14202c);
+}
+
+/* The blank map's invitation: the kit's empty state, on the map near the bottom. */
+.lore-map-blank {
+  position: absolute;
+  inset: auto 12px 34px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.lore-map-blank .empty {
+  max-width: 420px;
+  pointer-events: auto;
+}
+:where(html:not([data-daylight='day'])) .lore-map-blank .empty {
+  border-color: rgb(233 225 211 / 0.35);
+  background: rgb(14 11 8 / 0.84);
+  text-shadow: var(--on-world);
+}
+
+/* The tiles' credit (required by their terms): small, always there, bottom right. */
+.lore-map-credit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px 9px 3px 10px;
+  border-top-left-radius: 8px;
+  background: rgb(12 10 8 / 0.76);
+  color: var(--carve-2, #cfc5b4);
+  font: 12.5px/1.35 var(--font-voice, Georgia, serif);
+  text-shadow: none;
+}
+.lore-map-credit a {
+  color: inherit;
+  text-decoration: underline 1px rgb(207 197 180 / 0.45);
+  text-underline-offset: 2px;
+}
+.lore-map-credit a:hover {
+  color: var(--glow-text, #ffd2a1);
+}
+:where(html[data-daylight='day']) .lore-map-credit {
+  background: rgb(248 240 220 / 0.88);
+  color: #2a1d10;
+}
+:where(html[data-daylight='day']) .lore-map-credit a {
+  text-decoration-color: rgb(42 29 16 / 0.45);
+}
+:where(html[data-daylight='day']) .lore-map-credit a:hover {
+  color: #a3301a;
+}
+
+/* MapLibre's zoom buttons as the kit's stone block: carved face, near-black edge, glow marks. */
+.lore-map-frame .maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin: 12px 12px 0 0;
+}
+.lore-map-frame .maplibregl-ctrl-group,
+.lore-map-frame .maplibregl-ctrl-group:not(:empty) {
+  overflow: hidden;
+  border: 1px solid var(--edge, #141210);
+  border-radius: var(--r-block, 10px);
+  background: var(--block-face, linear-gradient(#605a52, #3a3632));
+  box-shadow: var(--block-depth, 0 4px 0 #141210);
+}
+.lore-map-frame .maplibregl-ctrl-group button {
+  width: 42px;
+  height: 42px;
+  background-color: transparent;
+}
+.lore-map-frame .maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgb(0 0 0 / 0.55);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+.lore-map-frame .maplibregl-ctrl button:not(:disabled):hover {
+  background-color: rgb(255 255 255 / 0.07);
+}
+.lore-map-frame .maplibregl-ctrl button:not(:disabled):active {
+  background-color: rgb(0 0 0 / 0.2);
+}
+.lore-map-frame .maplibregl-ctrl-group button:focus,
+.lore-map-frame .maplibregl-ctrl-group button:focus:focus-visible {
+  box-shadow: none;
+}
+.lore-map-frame .maplibregl-ctrl-group button:focus-visible {
+  outline: 2px solid var(--glow, #ffb36b);
+  outline-offset: -3px;
+}
+.lore-map-frame .maplibregl-ctrl button.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 29 29'%3E%3Cpath d='M14.5 8.5v12M8.5 14.5h12' fill='none' stroke='%23ffd2a1' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  filter: drop-shadow(0 0 3px rgb(255 120 60 / 0.55));
+}
+.lore-map-frame .maplibregl-ctrl button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 29 29'%3E%3Cpath d='M8.5 14.5h12' fill='none' stroke='%23ffd2a1' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  filter: drop-shadow(0 0 3px rgb(255 120 60 / 0.55));
+}
+
+/* Notes under the map ("N more aren't shown"): text on the world (by day lore.css gives `.main > p` a plate). */
+.lore-map-note {
+  margin: 0 0 12px;
+}
+
+/* Places on this map: the accessible twin of the pins, one slab of rows. */
+.lore-map-list {
+  margin: 0;
+  list-style: none;
+}
+.lore-map-list .list-item {
+  padding: 0;
+}
+.lore-map-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 0;
+  color: inherit;
+}
+.lore-map-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--well-edge, rgb(0 0 0 / 0.55));
+  border-radius: 8px;
+  background: var(--well-bg, #181614);
+  box-shadow: var(--well, inset 0 2px 5px #000b);
+  color: var(--glow, #ffb36b);
+  font-size: 18px;
+  line-height: 1;
+}
+.lore-map-row-text {
+  min-width: 0;
+}
+.lore-map-title {
+  display: block;
+  overflow-wrap: anywhere;
+  font: 400 17px/1.3 var(--font-voice, Georgia, serif);
+  color: var(--ink);
+}
+.lore-map-row-text .meta {
+  display: block;
+  margin-top: 1px;
+}
+.lore-map-row:hover .lore-map-title {
+  color: var(--glow-text, #ffd2a1);
+}
+.lore-map-row:focus-visible {
+  outline-offset: -2px;
+}
+
+/* "Show my places on maps": one slab, the kit's tick-box. */
+.lore-map-switch {
+  gap: 8px;
+}
+.lore-map-switch p {
+  margin: 0;
+}
+
+/* The place's sheet. */
+.lore-map-sheet {
+  gap: 8px;
+}
+.lore-map-sheet .meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.lore-map-sheet .meta svg {
+  flex: none;
+  color: var(--glow, #ffb36b);
+}
+.lore-map-sheet .btn {
+  margin-top: 8px;
+}

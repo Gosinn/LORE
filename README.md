@@ -21,6 +21,13 @@ Loracle alone, and the older looks (the Treasure Map too) are retired, not delet
 the door to the Loracle carries one small sign a day: something worth doing near where you stand, if you told
 the stones where that is (a new account is asked right after sign-up; location is recommended, never required).
 
+**The Lore Map** (Lorebook → Map) shows your chapters, plans, ideas and Loracle waypoints where they happened or
+will happen, in LORE's own night and day look over free OpenStreetMap tiles (OpenFreeMap). Modes: Mine, Crew,
+Memories, Adventures. Give a chapter, plan or idea a place from its form and choose how exactly others see it:
+**Exact**, **About here** (a circle about 8 km across, rounded on the server) or **Only me**; "Show my places on
+maps" hides all of yours from everyone else at once. The map never asks where your phone is. *Not yet looked at
+in a browser or on a phone.*
+
 - Product spec: [docs/MASTER_BRIEF.md](docs/MASTER_BRIEF.md)
 - How it's built: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Why it's built that way, and open questions: [docs/DECISIONS.md](docs/DECISIONS.md)

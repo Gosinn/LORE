@@ -104,6 +104,16 @@ Environment Variable**: key `ADMIN_USERNAMES`, value = the LORE usernames, separ
   - Identifiers: **User ID**
 - Not collected: payment info (Apple handles it), contacts, browsing history, precise location,
   diagnostics, advertising data.
+- **The Lore Map** (D35) changes no answer above, as far as we can tell (owner to confirm at submission):
+  - The places people give chapters, plans and ideas are **Other User Content**: a town or spot picked from a
+    search, never the device's position. The map never reads the device's location, so precise location
+    stays "not collected".
+  - The map's tiles come from **OpenFreeMap** (`tiles.openfreemap.org`), loaded by the device directly: like
+    any website, it sees the device's IP address and which part of the world is on screen, but none of the
+    person's places, plans or account. OpenFreeMap needs no key and sets no cookies (its site, read
+    2026-11-19); this is not tracking. The Privacy policy says so under "Who helps us run LORE".
+  - MapLibre runs its worker from a `blob:` URL. **Not verified in the iOS web view yet**; if it fails there,
+    the list of places under the map still works.
 - **App Review notes** (paste at submission): "The Loracle sends a wish to Claude (Anthropic) only
   after the consent sheet. The demo account has not consented, so the reviewer sees the sheet." Keep the
   demo account un-consented. If the server has no ANTHROPIC_API_KEY, The Loracle shows the stone asleep

@@ -26,6 +26,7 @@ import { friendRoutes } from './routes/friends.ts';
 import { homeRoutes } from './routes/home.ts';
 import { ideaRoutes } from './routes/ideas.ts';
 import { loracleRoutes, mindState } from './routes/loracle.ts';
+import { mapRoutes } from './routes/map.ts';
 import { mediaRoutes } from './routes/media.ts';
 import { noteRoutes } from './routes/notes.ts';
 import { notificationRoutes } from './routes/notifications.ts';
@@ -209,6 +210,7 @@ export async function buildApp(appCtx: AppContext) {
         loracleRoutes,
         safetyRoutes,
         homeRoutes,
+        mapRoutes,
         copyRoutes,
       ]) {
         await routes(api, ctx);

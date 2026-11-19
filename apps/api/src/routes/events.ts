@@ -14,13 +14,15 @@ import {
   UpdateEventInput,
   type EventDetail,
   type EventSummary,
+  type PlacePrecision,
 } from '#shared';
 import { requireUser, type AppContext } from '../context.ts';
 import type { Db } from '../db/index.ts';
 import { eventChecklistItems, eventParticipants, events, ideas, users } from '../db/schema.ts';
-import { canReach, eventParticipant, idParam, isActiveCrewMember, loadVisibleEvent } from '../lib/access.ts';
+import { canReach, eventParticipant, idParam, isActiveCrewMember, loadVisibleEvent, placeFor, sharesPlaces } from '../lib/access.ts';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.ts';
 import { notify } from '../lib/notify.ts';
+import { placeColumns } from '../lib/places.ts';
 import { eventSummaries, isoOrNull, toUserSummary, userColumns, userSummary } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
@@ -183,6 +185,7 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
           allDay: input.allDay ?? false,
           timeZone: input.timeZone,
           locationName: input.locationName ?? null,
+          ...placeColumns(input.place ?? undefined),
           crewId: input.crewId ?? null,
           audience: input.audience ?? (input.crewId ? 'crew' : 'participants'),
           capacity: input.capacity ?? null,
@@ -229,6 +232,7 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
       throw badRequest("You're not in that crew.", { crewId: 'Not your crew' });
     }
 
+    const place = placeColumns(input.place, input.locationName);
     await db
       .update(events)
       .set({
@@ -238,16 +242,29 @@ export async function eventRoutes(app: FastifyInstance, { db }: AppContext) {
         allDay: input.allDay,
         timeZone: input.timeZone,
         locationName: input.locationName,
+        ...place,
         capacity: input.capacity,
         ...next,
         updatedAt: new Date(),
       })
       .where(eq(events.id, eventId));
 
+    const locationName = place.locationName !== undefined ? place.locationName : input.locationName;
+    // The point "moved" for the others only if what they get of it changed (an "Only me" point, an
+    // "About here" one that stays in its circle, or any point while its author's "Show my places on
+    // maps" is off, moves silently).
+    const shared = place.lat !== undefined && (await sharesPlaces(db, event.createdBy));
+    const othersGet = (lat: number | null, lon: number | null, precision: PlacePrecision) =>
+      shared ? JSON.stringify(placeFor('shared', { lat, lon, precision })) : 'null';
+    const pointMoved =
+      place.lat !== undefined &&
+      othersGet(event.lat, event.lon, event.placePrecision) !==
+        othersGet(place.lat, place.lon ?? null, place.placePrecision ?? event.placePrecision);
     const moved =
       next.startsAt.getTime() !== event.startsAt.getTime() ||
       (next.endsAt?.getTime() ?? null) !== (event.endsAt?.getTime() ?? null) ||
-      (input.locationName !== undefined && input.locationName !== event.locationName);
+      (locationName !== undefined && locationName !== event.locationName) ||
+      pointMoved;
     if (moved) {
       await notify(db, await activeRecipients(eventId), {
         type: 'event_changed',

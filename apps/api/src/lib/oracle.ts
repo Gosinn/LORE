@@ -111,6 +111,21 @@ const JOURNEYS: { template: string; kinds: Set<PlaceKind>; emoji: string; score:
 const roadHours = (km: number) => Math.max(1, Math.round((km * 1.3) / 80));
 /** Rough hours in the air, about 800 km an hour. */
 const flyHours = (km: number) => Math.max(1, Math.round(km / 800));
+
+/** A sentence or sign that says how far a place is from home: km, or hours each way. */
+const SAYS_HOW_FAR = /\d\s*km\b|each way/i;
+/**
+ * A sign's story without the sentences that say how far its place is from home, for a plan or idea
+ * that carries the place's point (docs/DECISIONS.md D35). Beside a point, a distance from home draws a
+ * ring around where the Lorer lives, and two or three rings find it; the distance stays on the reading.
+ */
+export const withoutDistance = (story: string) =>
+  story
+    .split(/(?<=[.!?])\s+/)
+    .filter((s) => !SAYS_HOW_FAR.test(s))
+    .join(' ');
+/** The signs, without the ones that say how far (see withoutDistance). */
+export const signsWithoutDistance = (signs: string[]) => signs.filter((s) => !SAYS_HOW_FAR.test(s));
 const FAR_SHORE_KINDS: Set<PlaceKind> = new Set([...WILD, 'beach', 'lighthouse', 'hot_spring', ...ANCIENT, ...MUSES]);
 
 // ---------------------------------------------------------------------------

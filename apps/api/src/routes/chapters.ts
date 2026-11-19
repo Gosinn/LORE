@@ -7,6 +7,7 @@ import {
   CreateChapterInput,
   CreateContributionInput,
   InviteUsersInput,
+  PLACE_PRECISION_DEFAULTS,
   UpdateChapterInput,
   UpdateContributionInput,
   type ChapterDetail,
@@ -22,9 +23,12 @@ import {
   isActiveCrewMember,
   loadVisibleChapter,
   loadVisibleEvent,
+  placeAccessFor,
+  placeFor,
 } from '../lib/access.ts';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.ts';
 import { notify } from '../lib/notify.ts';
+import { carriedPlace, placeColumns } from '../lib/places.ts';
 import { chapterSummaries, iso, toMediaRef, toUserSummary, userColumns, userSummary } from '../lib/queries.ts';
 import type { MediaStorage } from '../lib/storage.ts';
 import { parse } from '../lib/validate.ts';
@@ -240,6 +244,7 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
         occurredOn: input.occurredOn,
         endedOn: input.endedOn ?? null,
         locationName: input.locationName ?? null,
+        ...placeColumns(input.place ?? undefined),
         crewId: input.crewId ?? null,
         audience: input.audience ?? (input.crewId ? 'crew' : 'participants'),
         createdBy: me,
@@ -273,6 +278,11 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
 
     const occurredOn = localDate(event.startsAt, event.timeZone);
     const endDate = event.endsAt ? localDate(event.endsAt, event.timeZone) : null;
+    // The plan's point travels only when the chapter's starter placed it: a copy owned by someone else would
+    // escape the placer's blocks, their "Show my places on maps" and the plan's audience (placeAccess keys on
+    // the item's created_by). Never shared more widely than a chapter's default. The name travels either way.
+    const access = await placeAccessFor(db, event.createdBy, me);
+    const point = access === 'own' ? placeFor(access, { lat: event.lat, lon: event.lon, precision: event.placePrecision }) : null;
     const people = await db
       .select({ userId: eventParticipants.userId, role: eventParticipants.role })
       .from(eventParticipants)
@@ -291,6 +301,7 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
           occurredOn,
           endedOn: endDate && endDate !== occurredOn ? endDate : null,
           locationName: event.locationName,
+          ...carriedPlace(point, PLACE_PRECISION_DEFAULTS.chapter),
           crewId: event.crewId,
           eventId,
           audience: event.audience === 'crew' && event.crewId ? 'crew' : 'participants',
@@ -344,9 +355,10 @@ export async function chapterRoutes(app: FastifyInstance, { db, storage }: AppCo
         .limit(1);
       if (!m) throw badRequest('Pick a photo from this chapter as the cover.');
     }
+    const { place, ...fields } = input;
     await db
       .update(chapters)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...fields, ...placeColumns(place, fields.locationName), updatedAt: new Date() })
       .where(eq(chapters.id, chapterId));
     return loadChapterDetail(db, me, chapterId);
   });

@@ -69,8 +69,9 @@ export default defineConfig({
         // The app shell works offline; API data always comes from the server.
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        // Only the owner loads the text editor.
-        globIgnores: ['**/node_modules/**/*', '**/copy-editor-*'],
+        // Only the owner loads the text editor. The Lore Map's MapLibre (about 1.1 MB) needs a
+        // connection for its tiles anyway, so installed apps don't keep a copy (D35); tiles are never cached.
+        globIgnores: ['**/node_modules/**/*', '**/copy-editor-*', '**/maplibre-gl-*'],
       },
     }),
   ],

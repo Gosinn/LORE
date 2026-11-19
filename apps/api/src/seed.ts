@@ -147,6 +147,7 @@ const roadTrip = await call(gunna, 'POST', '/events', {
   endsAt: at(11, 20),
   timeZone: tz,
   locationName: 'Meet at the Ísafjörður turnoff',
+  place: { name: 'Meet at the Ísafjörður turnoff', lat: 66.0749, lon: -23.135, precision: 'exact' },
   crewId: crew.id,
   description: 'Two nights, one car, every hot pot we can find.',
   inviteUserIds: [beggi.id, siggi.id],
@@ -171,6 +172,7 @@ await call(anna, 'POST', '/events', {
   startsAt: at(5, 6, 30),
   timeZone: tz,
   locationName: 'Esja parking lot',
+  place: { name: 'Esja parking lot', lat: 64.2085, lon: -21.7128 },
   status: 'proposed',
   inviteUserIds: [gunna.id],
 });
@@ -179,6 +181,7 @@ await call(anna, 'POST', '/events', {
 await call(siggi, 'POST', '/ideas', {
   title: 'Sail to Flatey',
   crewId: crew.id,
+  place: { name: 'Flatey, Breiðafjörður', lat: 65.3747, lon: -22.9164 },
   category: 'expedition',
   whenNote: 'Next summer',
 });
@@ -196,6 +199,7 @@ const lost = await call(gunna, 'POST', '/chapters', {
   title: 'The time we got lost in Seyðisfjörður',
   occurredOn: onThisDay,
   locationName: 'Seyðisfjörður',
+  place: { name: 'Seyðisfjörður', lat: 65.26, lon: -14.01 },
   crewId: crew.id,
   summary: 'The GPS said left. The mountain said otherwise.',
   peopleIds: [beggi.id, siggi.id],
@@ -210,6 +214,7 @@ await call(gunna, 'POST', '/chapters', {
   title: 'First night of the crew',
   occurredOn: '2019-06-21',
   locationName: 'Grótta lighthouse',
+  place: { name: 'Grótta lighthouse', lat: 64.1647, lon: -22.0219, precision: 'exact' },
   crewId: crew.id,
   summary: 'Midsummer, no sunset, and the night the group chat got its name.',
   peopleIds: [beggi.id, siggi.id],

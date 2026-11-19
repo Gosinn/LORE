@@ -25,9 +25,11 @@ import {
   IDEA_STATUSES,
   INTERESTS,
   LORACLE_LINES,
+  MAP_MODES,
   MONEY_BANDS,
   NO_LIMIT_KM,
   ORACLE_MODES,
+  PLACE_PRECISIONS,
   REPORT_REASONS,
   REPORT_TARGETS,
   SUPPORT_TOPICS,
@@ -61,6 +63,32 @@ const timeZone = z
     }
   }, 'Unknown time zone');
 
+/**
+ * A place for a chapter, plan or idea (picked from GET /oracle/geocode). Sets the item's
+ * `locationName` too. `precision` left out: a new place takes the kind's default
+ * (PLACE_PRECISION_DEFAULTS), a changed one keeps the item's current precision. `name` may be empty
+ * (→ null): a point whose "Where" was cleared can still change how exact it is.
+ */
+export const PlaceInput = z.object({
+  name: z
+    .string()
+    .trim()
+    .max(200)
+    .transform((v) => v || null),
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  precision: z.enum(PLACE_PRECISIONS).optional(),
+});
+export type PlaceInput = z.infer<typeof PlaceInput>;
+
+/**
+ * On create and update: an object sets the place, `null` removes it (name and point; a
+ * `locationName` sent with it stays), left out leaves it as it is. Send it only when the Lorer
+ * changed it: someone who isn't the item's author
+ * only ever got the rounded point (or none), and sending that back would replace the author's.
+ */
+const place = PlaceInput.nullable().optional();
+
 // ---------------------------------------------------------------------------
 // Accounts
 
@@ -90,6 +118,8 @@ export const UpdateProfileInput = z.object({
   displayName: text(60).optional(),
   bio: optionalText(500).optional(),
   avatarMediaId: id.nullable().optional(),
+  /** "Show my places on maps". Off: nobody else gets the coordinates of anything you created. */
+  showPlaces: z.boolean().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof UpdateProfileInput>;
 
@@ -140,6 +170,8 @@ const eventFields = {
   allDay: z.boolean().optional(),
   timeZone,
   locationName: optionalText(200).optional(),
+  /** The meeting point on a map (sets locationName too; wins over it). Default precision: exact. */
+  place,
   crewId: id.nullable().optional(),
   audience: z.enum(EVENT_AUDIENCES).optional(),
   capacity: z.number().int().min(1).max(10000).nullable().optional(),
@@ -170,6 +202,7 @@ export const UpdateEventInput = z.object({
   allDay: eventFields.allDay,
   timeZone: timeZone.optional(),
   locationName: eventFields.locationName,
+  place,
   crewId: eventFields.crewId,
   audience: eventFields.audience,
   capacity: eventFields.capacity,
@@ -232,6 +265,8 @@ export const CreateIdeaInput = z
     whereNote: optionalText(200).optional(),
     whenNote: optionalText(200).optional(),
     budgetNote: optionalText(200).optional(),
+    /** Where it would happen, on a map. Default precision: approximate. */
+    place,
   })
   .refine((v) => v.audience !== 'crew' || !!v.crewId, {
     message: 'Pick a crew to share with the crew',
@@ -249,6 +284,7 @@ export const UpdateIdeaInput = z.object({
   whereNote: optionalText(200).optional(),
   whenNote: optionalText(200).optional(),
   budgetNote: optionalText(200).optional(),
+  place,
 });
 export type UpdateIdeaInput = z.infer<typeof UpdateIdeaInput>;
 
@@ -285,6 +321,8 @@ export const CreateChapterInput = z
     occurredOn: isoDate,
     endedOn: isoDate.nullable().optional(),
     locationName: optionalText(200).optional(),
+    /** Where it happened, on a map (sets locationName too; wins over it). Default precision: approximate. */
+    place,
     crewId: id.nullable().optional(),
     audience: z.enum(CHAPTER_AUDIENCES).optional(),
     peopleIds: z.array(id).max(200).optional(),
@@ -305,6 +343,7 @@ export const UpdateChapterInput = z.object({
   occurredOn: isoDate.optional(),
   endedOn: isoDate.nullable().optional(),
   locationName: optionalText(200).optional(),
+  place,
   crewId: id.nullable().optional(),
   audience: z.enum(CHAPTER_AUDIENCES).optional(),
   coverMediaId: id.nullable().optional(),
@@ -349,6 +388,18 @@ export const UpdateContributionInput = z.object({
   speakerName: optionalText(80).optional(),
 });
 export type UpdateContributionInput = z.infer<typeof UpdateContributionInput>;
+
+// ---------------------------------------------------------------------------
+// The Lore Map
+
+/** GET /map?mode=…&crew=<id>. `crew` is required in crew mode (a crew you're an active member of, else 404) and read only there. */
+export const MapQuery = z
+  .object({
+    mode: z.enum(MAP_MODES).default('mine'),
+    crew: id.optional(),
+  })
+  .refine((v) => v.mode !== 'crew' || !!v.crew, { message: 'Pick a crew', path: ['crew'] });
+export type MapQuery = z.infer<typeof MapQuery>;
 
 // ---------------------------------------------------------------------------
 // Notes to self and reminders (always private)

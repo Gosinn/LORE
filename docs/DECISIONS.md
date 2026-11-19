@@ -5,6 +5,67 @@ Newest first within each list.
 
 ## Taken
 
+**D35 · The Lore Map: places with a chosen precision, on OpenFreeMap, and never tracking.** The roadmap's
+"Lore Map ⬜ next" (MASTER_BRIEF PART XVI, "accessible through the Lorebook"; Phase 3 "exact/approximate/hidden
+locations"); the owner: "the journey must go on". Built 2026-11-19 in three parallel tracks (API, map page,
+pickers), then joined.
+- **A place is three columns on the item, not a places table.** Chapters, plans (events) and ideas each get
+  `lat`, `lon` and `place_precision` (ideas also `location_name`; the place's name is the item's
+  `locationName`); `users.show_places`. One migration (`0010_places.sql`), checks that lat and lon are set
+  together. A shared places table (one "Grótta lighthouse" for many chapters) can come later without losing
+  anything; for now a place belongs to what it describes and is deleted with it.
+- **Precision, per item, decided on the server** (`lib/access.ts` `placeFor`, and `placeShown` for the map's
+  SQL, the same rule): `exact` (everyone who can see the item gets the point), `approximate` (the author gets
+  the point; everyone else gets it rounded on the server to 0.05° of latitude and an equal-length longitude
+  step, about 5 km, drawn as a circle about 8 km across so it holds every spot that rounds to its centre; the
+  exact digits never leave the server for them, in no route, map or export), `only_me` (only the author gets
+  coordinates). Defaults: chapters and ideas About here, plans Exact
+  (a meeting point is meant to be found). "Author" means whoever created the item: a co-organiser who edits
+  it gets the shared view, so the picker sends `place` only when it was changed, and only a newly picked
+  place can change an About here point someone else set. The picker's words for such an editor name the
+  author ("Only whoever made this sees the spot"), and Only me isn't offered to them.
+- **A place's name**: a plan's or chapter's is its existing "Where" text, which everyone who sees the item
+  reads whatever the precision (said so in the picker and the Privacy policy). An idea's (new with places, set
+  only with a point) goes only where its point or circle goes: a hamlet's name can say more than the circle.
+- **"Show my places on maps"** (default on; on the map page): off, nobody else gets the coordinates of
+  anything you created, anywhere; your own map still shows them. Blocked people never get each other's points,
+  either way. A place is only ever on the map of someone who can already open the item (the same visibility
+  predicates; no new path).
+- **A point travels with what an item becomes only with its author** (idea → plan, plan → chapter, by the
+  same person; a saved future or a vault waypoint → idea), never more widely shared than before or than the new
+  item's default. Made by someone else, the new item gets the name but no point: who gets a point is decided by
+  the item's `created_by`, so a copy owned by another would slip past the author's blocks, their switch and the
+  first item's audience (found in review: a crew plan's point reached someone its author had blocked).
+- **No distance from home beside a point.** The Oracle's stories and signs say how far a place is from home
+  ("45 km away", "about 3 h each way"); a plan or idea made from one carries the place's point, and a distance
+  beside a point draws a ring around where the Lorer lives (two or three find it). Those sentences and signs
+  stay on the reading only (`lib/oracle.ts` `withoutDistance`). Plans made before places existed keep their
+  text, and their points (never shown to anyone before) start as Only me (`0010_places.sql`); the organiser
+  can share them.
+- **A plan's point moving notifies** its people only when what they get of it changed (an Only me point, an
+  About here one moving inside its circle, or any point while its author's switch is off, moves silently). No other notification is new (no engagement
+  notifications).
+- **Account deletion** keeps no point only that person could have: Only me points are cleared, About here ones
+  are stored rounded, exact ones stay with the shared item; with the switch off, or any block either way (blocks
+  go with the account, and a former member's point reaches everyone who sees the item), every point is cleared.
+  Names stay, like the rest of the shared record.
+- **The map** (`/lorebook/map`, the Lorebook's Book | Map switch): modes Mine, Crew, Memories, Adventures;
+  at most 400 pins, nearest in time first, with "N more aren't shown" (no infinite lists). Memories are
+  chapters and plans that are over (an all-day plan lasts to the end of its last day) or marked done.
+  Places at one spot (the same town picked twice, About here places rounded to one node) are one circle, and
+  a tap lists them all; a cluster that never parts lists its places instead of zooming in on a pile. Loracle waypoints
+  reach only the wish's owner; where you stand only you. The map never uses the device's location.
+- **OpenFreeMap tiles** (`https://tiles.openfreemap.org/planet`, OpenMapTiles schema; glyphs from the same
+  host): free, no key, no sign-up, commercial use allowed, attribution only (checked 2026-11-19 by reading
+  their site; the URLs answered 200). The device loads tiles straight from them, so they see the viewer's IP
+  address and the area viewed; said so in the Privacy policy and the App Privacy notes. Tiles are never
+  cached by the service worker. MapLibre GL (BSD) draws them with LORE's own night and day styles
+  (`lib/mapStyle.ts`); its 300 kB (gzip) chunk loads only with the map and isn't precached either (it needs a
+  connection for the tiles anyway): offline, the map says it needs a connection and tries again when one
+  is back. No Content-Security-Policy exists today; one added later needs `worker-src blob:` and the tile host.
+- **Not verified**: nothing of the map or the pickers has been looked at in a browser or on a phone; tiles in
+  the Android and iOS web views, and iOS starting MapLibre's worker from a `blob:` URL, are untested.
+
 **D34 · One base everywhere, the Loracle's own kit; the variety is the world behind it, by night and by
 day.** Replaces D32's look; D32's retire rule stands. The owner (2026-11-18, docs/OWNER_VOICE.md "The look"):
 "the new base theme doesnt roll with the Loracle vibe at all. when I click Loracle ,my head is sent back like

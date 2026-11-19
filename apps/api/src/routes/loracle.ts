@@ -877,6 +877,10 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
           audience: 'only_me',
           whereNote: placeLine(w).slice(0, 200) || null,
           whenNote: w.when.slice(0, 200) || null,
+          // The waypoint's pin, for the Lore Map (shared approximately by default, like any idea's).
+          locationName: w.lat != null && w.lon != null ? placeLine(w).slice(0, 200) || null : null,
+          lat: w.lat != null && w.lon != null ? w.lat : null,
+          lon: w.lat != null && w.lon != null ? w.lon : null,
           createdBy: me,
         })
         .returning({ id: ideas.id });

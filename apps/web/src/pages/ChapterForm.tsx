@@ -2,10 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { CHAPTER_AUDIENCES, type ChapterDetail } from '#shared';
 import { AudiencePicker, CrewSelect, PeoplePicker } from '../components/pickers.tsx';
+import { PlacePicker, placeError, placeInput, usePlace, type PlaceValue } from '../components/PlacePicker.tsx';
 import { ErrorNote, Field, Loading, TopBar } from '../components/ui.tsx';
 import { api, type ApiError } from '../lib/api.ts';
 import { todayISO } from '../lib/dates.ts';
-import { useAction, useChapter } from '../lib/queries.ts';
+import { useAction, useChapter, useMe } from '../lib/queries.ts';
 
 type ChapterAudience = (typeof CHAPTER_AUDIENCES)[number];
 
@@ -29,6 +30,16 @@ function ChapterFormInner({ existing }: { existing?: ChapterDetail }) {
     (existing?.audience as ChapterAudience) ?? (params.get('crewId') ? 'crew' : 'participants'),
   );
   const [people, setPeople] = useState<string[]>([]);
+  // On the Lore Map: chapters start "About here". The name lives in "Where".
+  const me = useMe();
+  const place = usePlace(existing);
+  const placeIsMine = !existing || existing.createdBy?.id === me.data?.id;
+  const changePlace = (next: PlaceValue | null) => {
+    // "Where" follows the place while it still says what the place said (or nothing).
+    const followed = !locationName.trim() || locationName === place.value?.name;
+    if (followed) setLocation(next?.name ?? '');
+    place.set(next);
+  };
 
   useEffect(() => {
     if (!crewId && audience === 'crew') setAudience('participants');
@@ -42,9 +53,11 @@ function ChapterFormInner({ existing }: { existing?: ChapterDetail }) {
         occurredOn,
         endedOn: endedOn || null,
         locationName: locationName || null,
+        place: placeInput(place, locationName),
         crewId,
         audience,
       };
+      // Removing a place (`place: null`) keeps the "Where" sent with it.
       return existing
         ? api.patch<ChapterDetail>(`/chapters/${existing.id}`, body)
         : api.post<ChapterDetail>('/chapters', { ...body, peopleIds: people });
@@ -88,6 +101,13 @@ function ChapterFormInner({ existing }: { existing?: ChapterDetail }) {
         <Field label="Where" htmlFor="where">
           <input id="where" className="input" value={locationName} onChange={(e) => setLocation(e.target.value)} maxLength={200} />
         </Field>
+        <PlacePicker
+          value={place.value}
+          onChange={changePlace}
+          kind="chapter"
+          mine={placeIsMine}
+          error={placeError(fe)}
+        />
         <Field label="In a few words" hint="Optional. Everyone can add their full story on the chapter page." htmlFor="summary">
           <textarea id="summary" className="textarea" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={4000} />
         </Field>

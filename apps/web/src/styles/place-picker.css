@@ -1,0 +1,138 @@
+/* ------------------------------------------------------------------ THE PLACE ROW
+   components/PlacePicker.tsx: the Place row in the chapter, idea and plan forms (LORE_MAP_SPEC 4). Search a
+   town or a spot, pick it, say how exact everyone else sees it, or take it off the map.
+
+   Kit (D34): the search is a well (.input), the search button second stone (.btn-secondary), the precision
+   the kit's own chips, the row's buttons quiet (.btn-ghost); the picked place and the results sit on a
+   recessed panel, as a card set into a slab does. The layout rules have no guard, so the row keeps its shape
+   in any look; the dress is guarded like every kit rule and adds no specificity. No motion. */
+
+/* ---------------------------------------------------------------- layout */
+
+.place-picker {
+  min-width: 0;
+}
+.place-search {
+  display: flex;
+  gap: 8px;
+}
+.place-search .input {
+  flex: 1;
+  min-width: 0;
+}
+.place-search .btn {
+  flex: none;
+  padding: 0 14px;
+}
+
+.place-results {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.place-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.place-result:last-child {
+  border-bottom: 0;
+}
+.place-result > svg {
+  flex: none;
+  color: var(--ember);
+}
+.place-result .grow {
+  overflow-wrap: anywhere;
+}
+
+.place-picked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+.place-picked:focus {
+  outline: none;
+}
+.place-picked:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--ember));
+  outline-offset: 2px;
+}
+.place-picked-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.place-picked-head > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ember);
+}
+.place-picked-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.place-picked .chips {
+  padding-bottom: 0;
+}
+/* The quiet buttons line up with the panel's text, not with their own padding. */
+.place-picked-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -10px;
+}
+
+/* ------------------------------------------------------------------ dress */
+
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.place-picked, .place-results) {
+  border-color: rgb(0 0 0 / 0.45);
+  background: rgb(0 0 0 / 0.2);
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.55),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+/* Already inside a recessed panel (the plan's and the idea's "Where" group): one step lighter, not two
+   steps down. */
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .card :is(.place-picked, .place-results) {
+  background: rgb(0 0 0 / 0.14);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .place-picked-name {
+  font: 400 18px/1.3 var(--font-voice);
+  color: var(--carve);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) :is(.place-result, .place-picked-head) > svg {
+  color: var(--glow);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .place-result {
+  border-bottom-color: var(--row-rule);
+  color: var(--carve);
+  font: 400 17px/1.3 var(--font-voice);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .place-result:hover {
+  color: var(--glow-text);
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .place-result:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+:where(html[data-theme='lore'] body:not(:has(.oracle-page))) .place-picked:focus-visible {
+  outline-color: var(--focus-ring);
+}

@@ -2,10 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { EVENT_AUDIENCES, type EventCategory, type EventDetail } from '#shared';
 import { AudiencePicker, CategoryPicker, CrewSelect, PeoplePicker } from '../components/pickers.tsx';
+import { PlacePicker, placeError, placeInput, usePlace, type PlaceValue } from '../components/PlacePicker.tsx';
 import { ErrorNote, Field, Loading, TopBar } from '../components/ui.tsx';
 import { api, type ApiError } from '../lib/api.ts';
 import { fromDateInput, fromLocalInput, localTimeZone, toLocalInput } from '../lib/dates.ts';
-import { useAction, useEvent } from '../lib/queries.ts';
+import { useAction, useEvent, useMe } from '../lib/queries.ts';
 
 type EventAudience = (typeof EVENT_AUDIENCES)[number];
 
@@ -42,6 +43,17 @@ function EventFormInner({ existing }: { existing?: EventDetail }) {
   const [invite, setInvite] = useState<string[]>([]);
   const [description, setDescription] = useState(existing?.description ?? '');
   const [capacity, setCapacity] = useState(existing?.capacity ? String(existing.capacity) : '');
+  // On the Lore Map: a plan's meeting point starts "Exact"; one that already has coordinates shows its
+  // precision. The name lives in "Where".
+  const me = useMe();
+  const place = usePlace(existing);
+  const placeIsMine = !existing || existing.createdBy?.id === me.data?.id;
+  const changePlace = (next: PlaceValue | null) => {
+    // "Where" follows the place while it still says what the place said (or nothing).
+    const followed = !locationName.trim() || locationName === place.value?.name;
+    if (followed) setLocationName(next?.name ?? '');
+    place.set(next);
+  };
 
   // Choosing a crew usually means "for the crew"; clearing it can't stay crew-only.
   useEffect(() => {
@@ -59,11 +71,13 @@ function EventFormInner({ existing }: { existing?: EventDetail }) {
         endsAt: showEnd && end ? (allDay ? fromDateInput(end.slice(0, 10)) : fromLocalInput(end)) : null,
         timeZone: existing?.timeZone ?? localTimeZone(),
         locationName: locationName || null,
+        place: placeInput(place, locationName),
         crewId,
         audience,
         description: description || null,
         capacity: capacity ? Number(capacity) : null,
       };
+      // Removing a place (`place: null`) keeps the "Where" sent with it.
       return existing
         ? api.patch<EventDetail>(`/events/${existing.id}`, body)
         : api.post<EventDetail>('/events', { ...body, inviteUserIds: invite });
@@ -123,6 +137,13 @@ function EventFormInner({ existing }: { existing?: EventDetail }) {
           <Field label="Where" hint="A meeting point, an address, or just “the cabin”." htmlFor="where">
             <input id="where" className="input" value={locationName} onChange={(e) => setLocationName(e.target.value)} maxLength={200} />
           </Field>
+          <PlacePicker
+            value={place.value}
+            onChange={changePlace}
+            kind="event"
+            mine={placeIsMine}
+            error={placeError(fe)}
+          />
         </div>
 
         <Field label="Crew" htmlFor="crew" error={fe.crewId}>

@@ -1,4 +1,4 @@
-import { Feather, Search } from 'lucide-react';
+import { BookOpen, Feather, Map as MapIcon, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { ChapterSummary } from '#shared';
@@ -6,6 +6,27 @@ import { ChapterCard } from '../components/cards.tsx';
 import { Empty, Loading, TopBar } from '../components/ui.tsx';
 import { yearOf } from '../lib/dates.ts';
 import { useChapters, useCrews } from '../lib/queries.ts';
+
+/**
+ * Book | Map: the Lorebook as a timeline or as the Lore Map (/lorebook/map, pages/LoreMap.tsx). A crew picked on
+ * one side comes along to the other. Lives here, not in LoreMap.tsx, so the Lorebook never loads the map.
+ */
+export function LorebookSwitch({ value, crewId }: { value: 'book' | 'map'; crewId?: string }) {
+  return (
+    <nav className="chips lorebook-switch" aria-label="Lorebook views">
+      <Link to={`/lorebook${crewId ? `?crewId=${encodeURIComponent(crewId)}` : ''}`} className={`chip${value === 'book' ? ' on' : ''}`} aria-current={value === 'book' ? 'page' : undefined}>
+        <BookOpen size={15} /> Book
+      </Link>
+      <Link
+        to={`/lorebook/map${crewId ? `?mode=crew&crew=${encodeURIComponent(crewId)}` : ''}`}
+        className={`chip${value === 'map' ? ' on' : ''}`}
+        aria-current={value === 'map' ? 'page' : undefined}
+      >
+        <MapIcon size={15} /> Map
+      </Link>
+    </nav>
+  );
+}
 
 export function Lorebook() {
   const [params, setParams] = useSearchParams();
@@ -49,6 +70,7 @@ export function Lorebook() {
           </Link>
         }
       />
+      <LorebookSwitch value="book" crewId={crewId} />
 
       <div className="stack" style={{ marginBottom: 6 }}>
         <label className="row input" style={{ gap: 8, paddingTop: 0, paddingBottom: 0 }}>

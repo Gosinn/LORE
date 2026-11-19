@@ -28,6 +28,7 @@ export async function loadMe(
     createdAt: iso(u.createdAt),
     isAdmin: owner,
     canEditCopy: owner,
+    showPlaces: u.showPlaces,
   };
 }
 

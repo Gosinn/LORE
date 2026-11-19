@@ -94,7 +94,7 @@ import { localTimeZone, todayISO } from '../lib/dates.ts';
 import { useAction } from '../lib/queries.ts';
 import { ensureReminderPermission } from '../lib/reminders.ts';
 import { Embers, RuneRow, Scroll, Sigil, StoneCircle } from './oracle.tsx';
-import { ErrorNote } from './ui.tsx';
+import { ErrorNote, FOCUSABLE } from './ui.tsx';
 
 const L = LORACLE_LINES;
 
@@ -259,9 +259,6 @@ export function AsleepStone() {
 }
 
 // ---------------------------------------------------------------------------------- sheets
-
-// copy:ignore (a CSS selector)
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 /**
  * A parchment sheet rising from the bottom (a dialog on wide screens). Focus is trapped inside and

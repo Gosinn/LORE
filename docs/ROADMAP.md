@@ -82,7 +82,9 @@ exercised in the browser with demo data.
 | **The Treasure Map** (D32): one look across the app (map paper, leather chrome, brass compass Create); the older looks retired, kept; stone only inside the Loracle | Retired the same day (D34, see "The one base and the worlds"); kept in code |
 | **The daily sign on Home** (D32): one small future a day near where you stand, on the Loracle door; Choose it (a private plan) / Not this one; never counts as a reading, stays within 250 km; only moments still ahead; dealt again after a move or once all its moments passed, at most 3 deals a day | 🟡 API tested (`oracle.test.ts`, "the daily sign", incl. local midnight in Honolulu); the door not looked at in a browser |
 | **"Where do you stand?" at sign-up** (D32): location recommended (rounded to ~1 km), or a town by name, or Later; the town at a point from `GET /oracle/reverse` | 🟡 reverse endpoint and the "Near me" realm lookup tested with a fake world. **Not verified:** the page in a browser, Nominatim's live reverse answer, location permission on Android/iOS (needs a new native build) |
-| **Lore Map**: places, plans and memories on a map (MapLibre + free OpenStreetMap tiles) | ⬜ next |
+| **Lore Map** (D35): places on chapters, plans and ideas (Exact / About here ~5 km / Only me, rounded on the server; "Show my places on maps"); `/lorebook/map` with Mine, Crew, Memories, Adventures; MapLibre over OpenFreeMap tiles in LORE's night and day look; the Place row in the chapter, plan and idea forms | ✅ API: 23 tests in `map.test.ts` (no exact point leaks by any route, the switch, blocks, parity with the item routes, cap, waypoints, home, export, deletion, points travelling only with their author, idea names, all-day plans); review fixes in (D35); typecheck, full tests (299 API + 196 web copy) and build pass; MapLibre in its own lazy chunk (302 kB gzip), not precached; HTTP smoke test against a local API. 🟡 **Not verified:** nothing looked at in a browser or on a phone (the map, pins, clusters, the "N places here" sheet, the offline state, day/night switch, the picker, the kit Sheet's new focus handling); tiles in the Android and iOS web views; iOS starting the map's worker from a `blob:` URL |
+| Lore Map: Profile → Your data also offers "Show my places on maps" (today only on the map page) | ⬜ later |
+| Lore Map: a shared places table (one place for many chapters), and photos placed on the map | ⬜ later |
 | More signs: tides, opening hours, events happening nearby, sunset/golden hour | ⬜ |
 
 ## Live text: the owner's own words (D33, owner request 2026-11-18)
@@ -124,7 +126,7 @@ shared-history views between two people, profile customisation, event ratings, b
 
 ## Phase 3 — The living world
 
-Lore Map (places table; exact/approximate/hidden locations), traditions and their timelines, Hall of Lore,
+Lore Map (✅ first version, D35: exact/approximate/only-me places; a places table later), traditions and their timelines, Hall of Lore,
 crew challenges and rivalries, more event categories, media organisation, external calendar sync
 (Google first, then Apple/Outlook) as a separate integration layer.
 

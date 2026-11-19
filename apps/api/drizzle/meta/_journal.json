@@ -71,6 +71,13 @@
       "when": 1795010599525,
       "tag": "0009_live_text",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795044756543,
+      "tag": "0010_places",
+      "breakpoints": true
     }
   ]
 }

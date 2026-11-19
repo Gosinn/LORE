@@ -30,6 +30,8 @@ export const router = createBrowserRouter(guarded([
       { path: 'calendar', ...page(() => import('./pages/Calendar.tsx'), 'CalendarPage') },
       { path: 'create', ...page(() => import('./pages/Create.tsx'), 'CreatePage') },
       { path: 'lorebook', ...page(() => import('./pages/Lorebook.tsx'), 'Lorebook') },
+      // The Lore Map: its page is small; MapLibre is a chunk of its own that only this page loads.
+      { path: 'lorebook/map', ...page(() => import('./pages/LoreMap.tsx'), 'LoreMapPage') },
       { path: 'profile', ...page(() => import('./pages/Profile.tsx'), 'MyProfile') },
       { path: 'events/new', ...page(() => import('./pages/EventForm.tsx'), 'EventForm') },
       { path: 'events/:id', ...page(() => import('./pages/EventPage.tsx'), 'EventPage') },

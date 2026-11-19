@@ -218,6 +218,58 @@ export const SUPPORT_TOPIC_LABELS: Record<SupportTopic, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Places and the Lore Map (docs/DECISIONS.md D35). A chapter, plan or idea may have a place; who
+// gets its point is decided on the server (apps/api/src/lib/access.ts), never by the client.
+
+/**
+ * How a place is shared. Its author (whoever created the item) always has the exact point.
+ * - exact: everyone who can see the item gets the point.
+ * - approximate: everyone else gets the point rounded on the server to about 5 km (PLACE_GRID_DEG),
+ *   drawn as a circle. The exact point never reaches them.
+ * - only_me: only the author has it on a map; nobody else gets coordinates.
+ */
+export const PLACE_PRECISIONS = ['exact', 'approximate', 'only_me'] as const;
+export type PlacePrecision = (typeof PLACE_PRECISIONS)[number];
+
+export const PLACE_PRECISION_LABELS: Record<PlacePrecision, { label: string; hint: string }> = {
+  exact: { label: 'Exact', hint: 'Everyone who can see it sees the exact spot.' },
+  approximate: { label: 'About here (~5 km)', hint: 'Others see a circle about 8 km across. Only you see the spot.' },
+  only_me: { label: 'Only me', hint: 'Only you see it on a map.' },
+};
+
+/** A new place's precision when the Lorer doesn't pick one: a plan's meeting point is meant to be found. */
+export const PLACE_PRECISION_DEFAULTS = {
+  chapter: 'approximate',
+  idea: 'approximate',
+  event: 'exact',
+} as const satisfies Record<'chapter' | 'idea' | 'event', PlacePrecision>;
+
+/** The approximate grid: 0.05° of latitude (about 5.5 km), and the longitude step that matches it. */
+export const PLACE_GRID_DEG = 0.05;
+
+/**
+ * The map's modes. mine: everything connected to you · crew: one crew's shared plans, chapters and
+ * ideas · memories: chapters and past plans · adventures: plans ahead, ideas with a place, your
+ * Loracle waypoints.
+ */
+export const MAP_MODES = ['mine', 'crew', 'memories', 'adventures'] as const;
+export type MapMode = (typeof MAP_MODES)[number];
+
+export const MAP_MODE_LABELS: Record<MapMode, string> = {
+  mine: 'Mine',
+  crew: 'Crew',
+  memories: 'Memories',
+  adventures: 'Adventures',
+};
+
+/** What a pin is. Waypoints only ever reach the wish's owner, home only you. */
+export const MAP_FEATURE_KINDS = ['chapter', 'event', 'idea', 'waypoint', 'home'] as const;
+export type MapFeatureKind = (typeof MAP_FEATURE_KINDS)[number];
+
+/** At most this many pins per answer (no infinite lists); `hidden` counts the rest. Home is extra. */
+export const MAP_CAP = 400;
+
+// ---------------------------------------------------------------------------
 // The Loracle: wishes. A Lorer speaks a wish; the stones answer with a road (a quest).
 // The stone's mind is Claude (Anthropic), called only by the server. Phase A: one road
 // per wish, no deeper asks, no dawn lane, no crews. Everything here is private to the

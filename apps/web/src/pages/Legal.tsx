@@ -151,6 +151,11 @@ export function PrivacyPage() {
           how long it took and what it cost, never its text.
         </li>
         <li>
+          <strong>Places:</strong> a plan, idea or chapter can have a place you pick from a search: its name, its point on
+          the map, and how exactly others may see it (Exact, About here or Only me). We also keep whether “Show my places
+          on maps” is on. The Lore Map never uses where your device is. All of it is in your download.
+        </li>
+        <li>
           <strong>Safety:</strong> reports you send, and messages you write to us.
         </li>
         <li>
@@ -172,6 +177,14 @@ export function PrivacyPage() {
         You decide: each plan, idea and chapter shows who can see it (only you, the people in it, your friends, or a crew).
         Your private calendar, notes, reminders, wishes, quests and what you told The Loracle are only ever visible to
         you. If something is reported, the people who moderate LORE can see the reported content and the accounts involved, only to decide what to do.
+      </p>
+      <p>
+        A place is seen only by people who can already see the plan, idea or chapter, and only as exactly as you chose:
+        the exact spot (Exact), a circle about 8 km across worked out on our server so the exact point never reaches
+        them (About here), or not on a map at all (Only me). With “Show my places on maps” off, nobody else gets the
+        point of anything you created, and people you blocked or who blocked you never get your points. The name of a
+        plan’s or chapter’s place is its “Where”, which everyone who can see it still reads; an idea’s place name
+        goes only where its point does. Where you stand on the Lore Map is shown only to you.
       </p>
 
       <h2>Who helps us run LORE</h2>
@@ -195,6 +208,14 @@ export function PrivacyPage() {
           <strong>OpenStreetMap Nominatim</strong> finds the town you type for The Loracle, or the town at your rounded
           location (about a kilometre, never the exact point), and the places on a quest’s map. Our server asks it, so it
           receives only that town or place name or rounded point, never your name, account or device.
+        </li>
+        {/* OWNER: checked against openfreemap.org on 2026-11-19 (no key, no cookies, IP addresses left out of its
+            normal logs, which are deleted after 7 days; it may be served through Cloudflare). Check again before
+            publishing. */}
+        <li>
+          <strong>OpenFreeMap</strong> draws the Lore Map’s background (coasts, roads and place names from OpenStreetMap).
+          Your device loads these map pictures straight from OpenFreeMap, so, like any website, it sees your IP address
+          and which part of the world you’re looking at, but none of your places, plans or account. It sets no cookies.
         </li>
         <li>
           <strong>Apple</strong> handles buying LORE on the App Store under its own privacy policy. We don’t receive your
@@ -221,6 +242,13 @@ export function PrivacyPage() {
         </li>
         <li>
           <strong>Burn</strong> any quest: it is deleted at once.
+        </li>
+        <li>
+          <strong>Hide your places</strong> from everyone else at once with “Show my places on maps” on the Lore Map, or
+          change or remove any place from its plan, idea or chapter. When you delete your account, the points of your
+          “Only me” places are erased, and those of things you shared are kept no more exactly than others already saw
+          them (with “Show my places on maps” off, or anyone blocked either way, none are kept). Their names stay with
+          the shared plan or chapter.
         </li>
         <li>
           Depending on where you live (for example in the EU, the UK or California), you also have the right to ask what

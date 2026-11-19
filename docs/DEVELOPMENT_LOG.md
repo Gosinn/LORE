@@ -1,5 +1,118 @@
 # LORE — Development log
 
+## 2026-11-19 — The Lore Map: places with a chosen precision, on a map in LORE's look (D35)
+
+The roadmap's next step ("the journey must go on"): MASTER_BRIEF PART XVI, the Lore Map, reached through the
+Lorebook. Built in three parallel tracks (API and shared contract; the map page; the Place row in the forms),
+then joined and checked together. **Nothing of it has been looked at in a browser or on a phone.**
+
+**What changed**
+
+- **Places**: chapters, plans and ideas can have a place (name, point, precision Exact / About here ~5 km /
+  Only me); `users.show_places` ("Show my places on maps"). One migration, `0010_places.sql`. Who gets which
+  point is decided only in `lib/access.ts` (`placeFor`, `placeShown`); About here is rounded on the server, so
+  the exact digits never reach anyone but the author, by any route, map or export. The switch off, or a block
+  either way, withholds every point. Points travel idea → plan → chapter only with their author (never more
+  widely shared; see Review fixes). A plan's point moving notifies only when what its people get of it changed.
+  Account deletion clears Only me points and stores About here ones rounded. Export carries places.
+- **`GET /api/map`** (Mine, Crew, Memories, Adventures): one query per kind through the visibility predicates,
+  at most 400 pins nearest in time first and a `hidden` count; home and Loracle waypoints only to their owner;
+  no double pins (a plan with its chapter, a waypoint made a plan or idea).
+- **The map page** `/lorebook/map` with a Book | Map switch on the Lorebook: MapLibre GL over OpenFreeMap's
+  vector tiles, LORE's own night and day styles (switching with `data-daylight`), kit-drawn pins, About here
+  circles, clusters, an item sheet with Open, an accessible "Places on this map" list, the empty-state
+  invitation, "Your places" with the switch. MapLibre is its own lazy chunk; its worker runs from a `blob:`.
+- **The Place row** (`components/PlacePicker.tsx`) in the chapter, plan and idea forms (create and edit):
+  search with the Loracle's town geocoder, pick, precision chips, Remove place. It sends `place` only when it
+  was changed (an editor who isn't the author only has the rounded point). Chapters and plans keep the place's
+  name in "Where".
+- **Joining fixes**: removing a place no longer needs a second save to keep a typed "Where" (`place: null`
+  with a `locationName` keeps the name; test added), so a plan's people get one notice, not two; the precision
+  chips are proper radios (no `aria-pressed` beside `aria-checked`); MapLibre (1.1 MB) is kept out of the
+  service worker's precache, like the copy editor (the map needs a connection for its tiles anyway).
+- Docs: DECISIONS D35, ARCHITECTURE (the Lore Map; schema; privacy), ROADMAP, README, Privacy policy (new
+  paragraphs only: places, who sees them, OpenFreeMap, hiding your places), `deploy/ios/README.md`.
+
+**Checked**
+
+- `npm run typecheck` passes. `vite build` passes: MapLibre 1,102 kB (302.2 kB gzip) and its worker 551 kB,
+  loaded only by the map page (25.9 kB, 9.0 kB gzip; CSS 75.9 kB, 11.4 kB gzip); the Place row 5.3 kB
+  (2.1 kB gzip). Main bundle 505.70 kB / 157.97 kB gzip (was 504.05 / 157.51 at 9df0327, the shared vocabulary
+  and types); main CSS unchanged; no `maplibre` or `openfreemap` in it. Precache 82 entries (1,760 KiB; was
+  77, 1,648 KiB): the map page is in, MapLibre, its worker and every tile are not.
+- `npm test`: API 294/295, web copy 196/196. The one failure, `oracle.test.ts` "with no limit, sends you to far
+  shores", is about the calendar (the old Oracle engine needs a free Saturday in its window; `lib/oracle.ts`
+  is untouched), the same kind of wall-clock test D34's log noted. `map.test.ts`: 19 tests.
+- Live text: `copy:check --offline`: no text key gone (no words changed), only new ones.
+- HTTP smoke test against a local API (port 4100, a fresh PGlite folder, fake Loracle mind; stopped after):
+  26/26. A's chapter with an About here place: A gets the exact point on the chapter and on `/map`; friend B
+  gets 64.1, -21.984733 as a circle with no exact digit anywhere in the chapter, the list or any map mode;
+  Only me hides it from B and keeps it on A's map; the switch off hides it from B, on again shows the circle;
+  `place: null` with a name keeps the name; 401 / 400 / 404 for signed out, crew mode without a crew, a crew
+  you're not in.
+- OpenFreeMap: TileJSON and glyph URLs answered 200 and the terms were read on 2026-11-19 (free, no key,
+  attribution only). The map shows "OpenFreeMap © OpenMapTiles © OpenStreetMap contributors".
+
+**Review fixes** (a review pass over the joined work, each finding checked first; 20 findings, all real, two
+were the same offline issue and two the same picker-words issue):
+
+- **Points travel only with their author.** Plan → chapter and idea → plan copied the point into an item
+  someone else owned, where the author's blocks, switch and audience no longer applied (a blocked crew member got
+  the rounded point of the author's plan; a crew-only idea's exact point reached the planner's friends). Now a
+  point is carried only when its author makes the new item; the name still travels.
+- **An idea's place name goes only where its point goes** (Only me, the switch off, a block); planned by
+  someone who didn't get it, the plan falls back to the idea's own "where" note. A plan's or chapter's name is
+  its "Where", which always showed: the picker now says so under Only me, and the Privacy policy's new
+  passages no longer promise more than the code does (points, not names; deletion keeps names).
+- **No distance from home beside a point**: an Oracle plan's or vault idea's story and signs lose the
+  sentences that say how far (km, hours each way); the vault idea's note is the place's name. Points that plans
+  had before places existed start as Only me (a data line in the unshipped `0010_places.sql`).
+- **Account deletion** clears every point of the deleted person's when any block stood either way.
+- **The map's Memories and Adventures**: an all-day plan stays an adventure through its last day; a plan
+  marked done is a memory. A plan's point moving tells nobody while its author's switch is off
+  (`sharesPlaces` in `lib/access.ts`). A waypoint linked to a plan or idea whose point the viewer doesn't get
+  stays a waypoint; waypoints are no longer cut before the shared nearest-in-time cap.
+- **An empty place name is allowed** (a point whose "Where" was cleared could no longer change precision).
+- **The map page**: places at one spot are one circle, and a tap on a spot or on a cluster that never parts
+  lists them all in one sheet ("N places here"); About here circles are 4 km in radius so they hold every spot
+  that rounds to them (the words say about 8 km across); offline, the map says it needs a connection, with Try
+  again and a retry when the connection is back (it used to say the device can't draw maps); without WebGL2 the
+  frame shrinks to that one line; the frame uses `svh` (with a `vh` fallback), so it no longer jumps with the
+  phone's address bar or vanishes where `dvh` is unknown; the blank map's words fit each mode; the palette's
+  `label` colours were renamed (`ink`), since Live text had made two hex colours editable words.
+- **The kit's Sheet** moves focus in, keeps Tab inside and gives focus back on close (as ScrollSheet does),
+  everywhere it is used.
+- **The Place row for someone who isn't the author** (a co-organiser, a crew admin): words that name the
+  author, and no Only me (it would hide the place from them, not keep it to them).
+- Tests: `map.test.ts` 23 (was 19: points travel only with their author, idea names, all-day and done plans,
+  the empty name; the switch, block-at-deletion and hidden-link cases added to existing tests);
+  `oracle.test.ts` checks a chosen far plan and a saved idea carry no distance.
+- Checked after the fixes: typecheck passes; API tests 298/299, the one failure again the calendar-bound
+  "far shores" engine test (`generateFutures` untouched; only two helpers were added beside it); web copy
+  196/196; build passes (map page 27.50 kB, 9.56 kB gzip; MapLibre unchanged; main bundle 506.57 kB /
+  158.24 kB gzip, the Sheet's focus handling and the vocabulary); precache 82 entries (1,763 KiB), still no
+  MapLibre or tiles; `copy:check --offline`: 0 keys gone, 73 new, none from `lib/mapStyle`.
+
+**Completeness check** (the spec's sections 1 to 5 and MASTER_BRIEF PART XVI walked item by item against the
+code): everything is in. Two small fixes: Where you stand with no town name (a point where nothing is named)
+now shows "Where you stand" as its title on the map's list and sheet instead of a blank; and the Oracle's "far
+shores" engine test now runs on a fixed morning like the test above it (at night tonight's skies could
+outrank every far shore in all its deals, so it failed by the clock, not the code). OpenFreeMap's TileJSON
+(OpenMapTiles layers, z0 to z14) and the three Noto Sans glyph stacks answered again on 2026-11-19. Checked
+after: typecheck passes; `npm test` passes in full (API 299/299, web copy 196/196); build passes (map page
+27.57 kB, 9.57 kB gzip; MapLibre 302.17 kB gzip; main bundle 506.57 kB / 158.25 kB gzip; precache 82 entries,
+1,763 KiB, no MapLibre or OpenFreeMap in `sw.js`); `copy:check --offline`: 0 keys gone, 73 new.
+
+**Not verified**: the map and the picker in a browser or on a phone (pins, circles, clusters, the sheet, the
+day/night switch, keyboard and screen readers, phone widths), and so none of the review's web fixes either (the
+stacked-places sheet, the offline state, the Sheet's focus handling across the app); tiles in the Android and
+iOS web views; iOS starting the worker from a `blob:` URL. No Content-Security-Policy exists; one added later needs
+`worker-src blob:` and `https://tiles.openfreemap.org`.
+
+**Open for the owner**: the Privacy policy's "Last updated" date still says 18 November (changing it would
+orphan its live-text key; it can be changed in the app); whether "Show my places on maps" should also sit in
+Profile → Your data (today only on the map page).
+
 ## 2026-11-18 (late) — One base, the Loracle's kit, over worlds by night and by day (D34)
 
 The owner, on the bright Treasure Map: "when I click Loracle ,my head is sent back like "whoah"", "the buttons

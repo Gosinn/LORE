@@ -214,6 +214,11 @@ describe('the Oracle engine', () => {
   });
 
   it('with no limit, sends you to far shores: by air, a week away', () => {
+    // A fixed morning, as above: at night tonight's skies can outrank every far shore in all 24 deals.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-18T11:00:00Z') });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const now = new Date();
     let shores = 0;
     for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
@@ -341,6 +346,24 @@ describe('the Oracle API', () => {
     expect(res.status).toBe(201);
     const far = expectJourneys(res.body.futures);
     expect(far.length).toBeGreaterThan(0);
+
+    // Made a plan or kept as an idea, the place's point goes with it, so its distance from home doesn't
+    // (beside a point it draws a ring around where Cleo lives; docs/DECISIONS.md D35).
+    const index = res.body.futures.findIndex((f: any) => f.place && f.place.distanceKm > 250);
+    const future = res.body.futures[index];
+    const chosen = await cleo.post(`/api/oracle/readings/${res.body.id}/futures/${index}/choose`, {});
+    expect(chosen.status).toBe(201);
+    const plan = (await cleo.get(`/api/events/${chosen.body.futures[index].eventId}`)).body;
+    expect(plan.place).toMatchObject({ lat: future.place.lat, lon: future.place.lon });
+    expect(plan.description).toContain(`Where: ${future.place.name}.`);
+    expect(plan.description).not.toMatch(/\d\s*km\b|each way/i);
+    const other = res.body.futures.findIndex((f: any, i: number) => i !== index && f.place);
+    if (other >= 0) {
+      const saved = await cleo.post(`/api/oracle/readings/${res.body.id}/futures/${other}/save`);
+      const idea = (await cleo.get(`/api/ideas/${saved.body.futures[other].savedIdeaId}`)).body;
+      expect(idea.place).not.toBeNull();
+      expect(`${idea.description} ${idea.whereNote}`).not.toMatch(/\d\s*km\b|each way/i);
+    }
   });
 
   let readingId = '';

@@ -4,6 +4,7 @@
 import { and, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { PLACE_GRID_DEG, type PlacePoint, type PlacePrecision } from '#shared';
 import type { Config } from '../config.ts';
 import { requireUser } from '../context.ts';
 import type { Db } from '../db/index.ts';
@@ -57,6 +58,88 @@ export const chapterVisible = (viewerId: string) => sql`(
   or (${chapters.audience} <> 'only_me' and exists (select 1 from ${chapterPeople} where ${chapterPeople.chapterId} = ${chapters.id} and ${chapterPeople.userId} = ${viewerId}))
   or (${chapters.audience} = 'crew' and ${chapters.crewId} is not null and ${isActiveMember(chapters.crewId, viewerId)})
 )`;
+
+// ---------------------------------------------------------------------------
+// Places (the Lore Map, docs/DECISIONS.md D35). On top of seeing an item, who gets its point:
+// - its author (whoever created it) always, exactly, with their setting ('own');
+// - nobody else while the author's "Show my places on maps" is off, or across a block either way ('none');
+// - everyone else who sees the item by its place_precision ('shared'): exact → the point; approximate →
+//   the point rounded here (approximatePoint), never the exact one; only_me → nothing.
+// A former member's item (author null) is 'shared'; account deletion already rounded or cleared it.
+// Every response that carries an item's coordinates goes through placeFor, and the map's SQL
+// filter (placeShown) is the same rule.
+
+export type PlaceAccess = 'own' | 'shared' | 'none';
+
+/** The author's switch is off, or a block stands between author and viewer. */
+const placeWithheld = (author: Ref, viewerId: string) => sql`(
+  exists (select 1 from ${users} place_author where place_author.id = ${author} and not place_author.show_places)
+  or exists (select 1 from ${blocks} place_block where (place_block.blocker_id = ${author} and place_block.blocked_id = ${viewerId})
+                                                  or (place_block.blocker_id = ${viewerId} and place_block.blocked_id = ${author}))
+)`;
+
+/** How much of an item's place the viewer may have, as a column (`author` is the item's created_by). */
+export const placeAccess = (author: Ref, viewerId: string) => sql<PlaceAccess>`(case
+  when ${author} = ${viewerId} then 'own'
+  when ${author} is not null and ${placeWithheld(author, viewerId)} then 'none'
+  else 'shared' end)`;
+
+/** The item has a point this viewer gets: placeFor would not answer null. For the map's queries. */
+export const placeShown = (
+  t: { lat: AnyColumn; lon: AnyColumn; placePrecision: AnyColumn; createdBy: AnyColumn },
+  viewerId: string,
+) => sql`(${t.lat} is not null and ${t.lon} is not null and (
+  ${t.createdBy} = ${viewerId}
+  or (${t.placePrecision} <> 'only_me' and (${t.createdBy} is null or not ${placeWithheld(t.createdBy, viewerId)}))
+))`;
+
+/** placeAccess for one item, when the row was loaded without it. */
+export async function placeAccessFor(db: Db, authorId: string | null, viewerId: string): Promise<PlaceAccess> {
+  if (authorId === viewerId) return 'own';
+  if (!authorId) return 'shared';
+  const result = await db.execute<{ withheld: boolean }>(sql`select ${placeWithheld(sql`${authorId}::uuid`, viewerId)} as withheld`);
+  return result.rows[0]?.withheld ? 'none' : 'shared';
+}
+
+/**
+ * Whether anyone but the author gets an item's point at all, blocks aside: the author's "Show my places
+ * on maps" is on (a former member's item: yes, as placeAccess has it). For telling whether a change
+ * reached the others.
+ */
+export async function sharesPlaces(db: Db, authorId: string | null): Promise<boolean> {
+  if (!authorId) return true;
+  const [author] = await db.select({ showPlaces: users.showPlaces }).from(users).where(eq(users.id, authorId)).limit(1);
+  return author?.showPlaces !== false;
+}
+
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6 + 0; // + 0 turns -0 into 0
+
+/**
+ * An approximate place: the point rounded to a grid of PLACE_GRID_DEG of latitude (about 5.5 km)
+ * and, along each row, a whole number of equal longitude steps of about the same length (so the
+ * cells stay about 5 km wide away from the equator; at the poles a row is one cell). The same
+ * point always rounds to the same node, so asking again tells nothing more.
+ */
+export function approximatePoint(lat: number, lon: number): { lat: number; lon: number } {
+  const rLat = Math.min(90, Math.max(-90, Math.round(lat / PLACE_GRID_DEG) * PLACE_GRID_DEG));
+  const cells = Math.max(1, Math.floor((360 * Math.cos((rLat * Math.PI) / 180)) / PLACE_GRID_DEG));
+  const step = 360 / cells;
+  let rLon = Math.round((lon + 180) / step) * step - 180;
+  if (rLon >= 180) rLon -= 360;
+  return { lat: round6(rLat), lon: round6(rLon) };
+}
+
+/** An item's point as the viewer may have it (see above). The only way coordinates leave the server. */
+export function placeFor(
+  access: PlaceAccess,
+  p: { lat: number | null; lon: number | null; precision: PlacePrecision },
+): PlacePoint | null {
+  if (p.lat == null || p.lon == null || access === 'none') return null;
+  if (access === 'own') return { lat: p.lat, lon: p.lon, precision: p.precision };
+  if (p.precision === 'only_me') return null;
+  if (p.precision === 'approximate') return { ...approximatePoint(p.lat, p.lon), precision: 'approximate' };
+  return { lat: p.lat, lon: p.lon, precision: 'exact' };
+}
 
 // ---------------------------------------------------------------------------
 // Loaders that 404 instead of 403, so hidden things don't reveal they exist.

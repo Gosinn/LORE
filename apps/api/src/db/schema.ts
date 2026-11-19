@@ -36,6 +36,7 @@ import {
   MEMBERSHIP_STATUSES,
   NOTIFICATION_TYPES,
   PARTICIPANT_ROLES,
+  PLACE_PRECISIONS,
   ROAD_STATUSES,
   RSVP_STATUSES,
   WISH_FAILURES,
@@ -65,6 +66,8 @@ export const audience = pgEnum('audience', AUDIENCES);
 export const contributionType = pgEnum('contribution_type', CONTRIBUTION_TYPES);
 export const notificationType = pgEnum('notification_type', NOTIFICATION_TYPES);
 export const friendshipStatus = pgEnum('friendship_status', ['pending', 'accepted']);
+/** How a chapter's, plan's or idea's place is shared (lib/access.ts placeFor). */
+export const placePrecision = pgEnum('place_precision', PLACE_PRECISIONS);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const id = () => uuid('id').primaryKey().defaultRandom();
@@ -88,6 +91,8 @@ export const users = pgTable('users', {
   termsAcceptedAt: ts('terms_accepted_at'),
   /** Set by a moderator: a suspended account can't sign in. */
   suspendedAt: ts('suspended_at'),
+  /** "Show my places on maps". Off: no one else gets the coordinates of anything they created. */
+  showPlaces: boolean('show_places').notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -195,6 +200,11 @@ export const ideas = pgTable(
     whereNote: text('where_note'),
     whenNote: text('when_note'),
     budgetNote: text('budget_note'),
+    /** The place (the Lore Map): its name, its point, and how it is shared. */
+    locationName: text('location_name'),
+    lat: doublePrecision('lat'),
+    lon: doublePrecision('lon'),
+    placePrecision: placePrecision('place_precision').notNull().default('approximate'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -203,6 +213,7 @@ export const ideas = pgTable(
     index('ideas_crew_idx').on(t.crewId),
     index('ideas_created_by_idx').on(t.createdBy),
     check('ideas_audience', sql`${t.audience} in ('only_me', 'friends', 'crew')`),
+    check('ideas_place_point', sql`(${t.lat} is null) = (${t.lon} is null)`),
   ],
 );
 
@@ -240,9 +251,11 @@ export const events = pgTable(
     crewId: uuid('crew_id').references(() => crews.id, { onDelete: 'set null' }),
     audience: audience('audience').notNull().default('participants'),
     capacity: integer('capacity'),
-    /** Where it happens, when known (e.g. chosen from the Oracle); for the Lore Map. */
+    /** Where it happens, when known (picked as a place, or chosen from the Oracle); for the Lore Map. */
     lat: doublePrecision('lat'),
     lon: doublePrecision('lon'),
+    /** How the point is shared; a plan's meeting point is meant to be found. */
+    placePrecision: placePrecision('place_precision').notNull().default('exact'),
     ideaId: uuid('idea_id').references(() => ideas.id, { onDelete: 'set null' }),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     completedAt: ts('completed_at'),
@@ -632,6 +645,10 @@ export const chapters = pgTable(
     occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
     endedOn: date('ended_on', { mode: 'string' }),
     locationName: text('location_name'),
+    /** Where it happened (the Lore Map), and how the point is shared. */
+    lat: doublePrecision('lat'),
+    lon: doublePrecision('lon'),
+    placePrecision: placePrecision('place_precision').notNull().default('approximate'),
     crewId: uuid('crew_id').references(() => crews.id, { onDelete: 'set null' }),
     /** The event this chapter documents, if any. One chapter per event. */
     eventId: uuid('event_id')
@@ -648,6 +665,7 @@ export const chapters = pgTable(
     index('chapters_occurred_idx').on(t.occurredOn),
     check('chapters_audience', sql`${t.audience} in ('only_me', 'participants', 'crew')`),
     check('chapters_ends_after_start', sql`${t.endedOn} is null or ${t.endedOn} >= ${t.occurredOn}`),
+    check('chapters_place_point', sql`(${t.lat} is null) = (${t.lon} is null)`),
   ],
 );
 

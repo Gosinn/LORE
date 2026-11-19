@@ -4,9 +4,10 @@
 // shared history stays, anonymised ("a former member"). Anything that only they
 // could see goes. Shared things they ran are handed to someone else so nothing is
 // left without an organizer.
-import { and, asc, eq, inArray, isNull, ne, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, ne, notExists, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/index.ts';
 import {
+  blocks,
   chapterPeople,
   chapters,
   comments,
@@ -30,6 +31,7 @@ import {
   wishRoads,
   wishWaypoints,
 } from '../db/schema.ts';
+import { approximatePoint, placeAccess, placeFor } from './access.ts';
 import { wishJobsFor } from './loracle/jobs.ts';
 import { signedMediaPath } from './mediaUrls.ts';
 import type { MediaStorage } from './storage.ts';
@@ -162,6 +164,40 @@ export async function deleteAccount(db: Db, storage: MediaStorage, userId: strin
     // Their messages to support go with them (they hold their email address).
     await tx.delete(supportMessages).where(eq(supportMessages.userId, userId));
 
+    // Places on what survives of theirs (shared plans, chapters, crew ideas): once they're gone nobody
+    // is the author, so keep no point only they could have. "Only me" points go, approximate ones
+    // are kept rounded (what everyone else already got), and with "Show my places on maps" off no
+    // point stays at all. Nor with any block, either way: blocks go with the account, and a former
+    // member's point reaches everyone who sees the item (lib/access.ts), the people on either side of
+    // a block too, who never got it. Names stay, like the rest of the shared record.
+    const [owner] = await tx.select({ showPlaces: users.showPlaces }).from(users).where(eq(users.id, userId));
+    const [blocked] = await tx
+      .select({ id: blocks.blockerId })
+      .from(blocks)
+      .where(or(eq(blocks.blockerId, userId), eq(blocks.blockedId, userId)))
+      .limit(1);
+    const placeTables = [
+      { table: chapters, col: chapters },
+      { table: events, col: events },
+      { table: ideas, col: ideas },
+    ] as const;
+    for (const { table, col } of placeTables) {
+      const theirs = and(eq(col.createdBy, userId), isNotNull(col.lat));
+      if (!owner?.showPlaces || blocked) {
+        await tx.update(table).set({ lat: null, lon: null }).where(theirs);
+        continue;
+      }
+      await tx.update(table).set({ lat: null, lon: null }).where(and(theirs, eq(col.placePrecision, 'only_me')));
+      const approximate = await tx
+        .select({ id: col.id, lat: col.lat, lon: col.lon })
+        .from(table)
+        .where(and(theirs, eq(col.placePrecision, 'approximate')));
+      for (const r of approximate) {
+        if (r.lat == null || r.lon == null) continue;
+        await tx.update(table).set(approximatePoint(r.lat, r.lon)).where(eq(col.id, r.id));
+      }
+    }
+
     // The account itself. Sessions, friendships, blocks, memberships, RSVPs, chapter
     // listings, interest, personal calendar and notifications cascade; contributions,
     // comments and shared photos are kept with their author set to null.
@@ -179,6 +215,7 @@ export async function exportAccount(db: Db, userId: string) {
       displayName: users.displayName,
       email: users.email,
       bio: users.bio,
+      showPlacesOnMaps: users.showPlaces,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -197,6 +234,10 @@ export async function exportAccount(db: Db, userId: string) {
       startsAt: events.startsAt,
       endsAt: events.endsAt,
       locationName: events.locationName,
+      lat: events.lat,
+      lon: events.lon,
+      placePrecision: events.placePrecision,
+      placeAccess: placeAccess(events.createdBy, userId),
       status: events.status,
       myRole: eventParticipants.role,
       myRsvp: eventParticipants.rsvp,
@@ -214,6 +255,10 @@ export async function exportAccount(db: Db, userId: string) {
       whereNote: ideas.whereNote,
       whenNote: ideas.whenNote,
       budgetNote: ideas.budgetNote,
+      locationName: ideas.locationName,
+      lat: ideas.lat,
+      lon: ideas.lon,
+      placePrecision: ideas.placePrecision,
       createdAt: ideas.createdAt,
     })
     .from(ideas)
@@ -232,6 +277,10 @@ export async function exportAccount(db: Db, userId: string) {
       occurredOn: chapters.occurredOn,
       endedOn: chapters.endedOn,
       locationName: chapters.locationName,
+      lat: chapters.lat,
+      lon: chapters.lon,
+      placePrecision: chapters.placePrecision,
+      placeAccess: placeAccess(chapters.createdBy, userId),
     })
     .from(chapters)
     .where(
@@ -321,10 +370,21 @@ export async function exportAccount(db: Db, userId: string) {
     format: 'lore-export/1',
     profile: user,
     crews: crewRows,
-    events: eventRows,
-    ideas: { created: ideaRows, interestedIn: interested.map((i) => i.title) },
-    chapters: chapterRows.map((c) => ({
+    // Places: yours exactly, with how you share them; other people's only as you may see them (lib/access.ts).
+    events: eventRows.map(({ lat, lon, placePrecision, placeAccess: access, ...e }) => ({
+      ...e,
+      place: placeFor(access, { lat, lon, precision: placePrecision }),
+    })),
+    ideas: {
+      created: ideaRows.map(({ lat, lon, placePrecision, ...i }) => ({
+        ...i,
+        place: placeFor('own', { lat, lon, precision: placePrecision }),
+      })),
+      interestedIn: interested.map((i) => i.title),
+    },
+    chapters: chapterRows.map(({ lat, lon, placePrecision, placeAccess: access, ...c }) => ({
       ...c,
+      place: placeFor(access, { lat, lon, precision: placePrecision }),
       myContributions: mine
         .filter((m) => m.chapterId === c.id)
         .map(({ chapterId: _chapterId, mediaId, ...rest }) => ({

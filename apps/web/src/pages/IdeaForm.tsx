@@ -2,9 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { IDEA_AUDIENCES, IDEA_STATUSES, IDEA_STATUS_LABELS, type EventCategory, type IdeaDetail, type IdeaStatus } from '#shared';
 import { AudiencePicker, CategoryPicker, CrewSelect } from '../components/pickers.tsx';
+import { PlacePicker, placeError, placeInput, usePlace } from '../components/PlacePicker.tsx';
 import { ErrorNote, Field, Loading, TopBar } from '../components/ui.tsx';
 import { api, type ApiError } from '../lib/api.ts';
-import { useAction, useIdea } from '../lib/queries.ts';
+import { useAction, useIdea, useMe } from '../lib/queries.ts';
 
 type IdeaAudience = (typeof IDEA_AUDIENCES)[number];
 
@@ -29,6 +30,10 @@ function IdeaFormInner({ existing }: { existing?: IdeaDetail }) {
   const [whereNote, setWhere] = useState(existing?.whereNote ?? '');
   const [whenNote, setWhen] = useState(existing?.whenNote ?? '');
   const [budgetNote, setBudget] = useState(existing?.budgetNote ?? '');
+  // On the Lore Map: ideas start "About here". "Where" stays a free note; the place keeps its own name.
+  const me = useMe();
+  const place = usePlace(existing);
+  const placeIsMine = !existing || existing.createdBy?.id === me.data?.id;
 
   useEffect(() => {
     if (!crewId && audience === 'crew') setAudience('only_me');
@@ -45,6 +50,7 @@ function IdeaFormInner({ existing }: { existing?: IdeaDetail }) {
         whereNote: whereNote || null,
         whenNote: whenNote || null,
         budgetNote: budgetNote || null,
+        place: placeInput(place),
       };
       return existing
         ? api.patch<IdeaDetail>(`/ideas/${existing.id}`, { ...body, status })
@@ -80,6 +86,13 @@ function IdeaFormInner({ existing }: { existing?: IdeaDetail }) {
           <Field label="Where" hint="A destination, or a few options." htmlFor="where">
             <input id="where" className="input" value={whereNote} onChange={(e) => setWhere(e.target.value)} maxLength={200} />
           </Field>
+          <PlacePicker
+            value={place.value}
+            onChange={place.set}
+            kind="idea"
+            mine={placeIsMine}
+            error={placeError(fe)}
+          />
           <div className="two-col">
             <Field label="Best time" hint="“Winter”, “a long weekend”…" htmlFor="when">
               <input id="when" className="input" value={whenNote} onChange={(e) => setWhen(e.target.value)} maxLength={200} />

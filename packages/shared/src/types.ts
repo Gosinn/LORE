@@ -12,12 +12,14 @@ import type {
   Interest,
   LoracleMindState,
   MarkStatus,
+  MapFeatureKind,
   MembershipStatus,
   MoneyBand,
   OracleMode,
   NotificationType,
   ParticipantRole,
   PinPrecision,
+  PlacePrecision,
   ProvisionGroup,
   ReportReason,
   ReportTarget,
@@ -47,6 +49,11 @@ export interface Me extends UserSummary {
   isAdmin: boolean;
   /** May change LORE's words live and publish them (the owner; the same people as isAdmin for now). */
   canEditCopy: boolean;
+  /**
+   * "Show my places on maps" (default on; PATCH /me `{ showPlaces }`). Off: no one else gets the
+   * coordinates of anything you created, on any map or in any answer; your own map still works.
+   */
+  showPlaces: boolean;
 }
 
 export type FriendshipState = 'self' | 'none' | 'friends' | 'outgoing' | 'incoming' | 'blocked';
@@ -100,6 +107,22 @@ export interface CrewDetail extends CrewSummary {
   canInvite: boolean;
 }
 
+/**
+ * An item's point as this viewer may have it (precision applied on the server, lib/access.ts).
+ * Null: the item has no point, or this viewer may not have it (only_me, the author's "Show my places
+ * on maps" is off, or one of you blocked the other). The place's name is the item's `locationName`.
+ */
+export interface PlacePoint {
+  lat: number;
+  lon: number;
+  /**
+   * The author (whoever created the item): the exact point and their setting (exact | approximate |
+   * only_me). Anyone else: how the point they got is drawn: `exact`, or `approximate` (the point is
+   * already rounded to about 5 km; draw a circle, not a pin).
+   */
+  precision: PlacePrecision;
+}
+
 export interface EventSummary {
   id: string;
   title: string;
@@ -110,6 +133,8 @@ export interface EventSummary {
   allDay: boolean;
   timeZone: string;
   locationName: string | null;
+  /** Where it happens on a map, as this viewer may have it. Set with `place` on create/update. */
+  place: PlacePoint | null;
   crew: CrewRef | null;
   audience: Audience;
   myRsvp: RsvpStatus | null;
@@ -151,6 +176,10 @@ export interface IdeaSummary {
   status: IdeaStatus;
   crew: CrewRef | null;
   audience: Audience;
+  /** The place's name, when the idea has a place (set with `place`); `whereNote` stays free text. */
+  locationName: string | null;
+  /** Where it would happen on a map, as this viewer may have it. */
+  place: PlacePoint | null;
   interestedCount: number;
   iAmInterested: boolean;
   /** Null when the creator has since deleted their account. */
@@ -183,6 +212,8 @@ export interface ChapterSummary {
   occurredOn: string;
   endedOn: string | null;
   locationName: string | null;
+  /** Where it happened on a map, as this viewer may have it. Set with `place` on create/update. */
+  place: PlacePoint | null;
   crew: CrewRef | null;
   audience: Audience;
   cover: MediaRef | null;
@@ -664,6 +695,50 @@ export interface ModerationSummary {
   /** The oldest open report, to keep the 24-hour promise. */
   oldestOpenAt: string | null;
   openMessages: number;
+}
+
+// ---------------------------------------------------------------------------
+// The Lore Map (GET /map). Everything here is already filtered and rounded for the viewer.
+
+/**
+ * One thing on the map. `kind`: chapter (book), event (a plan: the calendar diamond), idea (star),
+ * waypoint (a Loracle waypoint: only ever the wish's owner's), home (where you stand: only yours,
+ * always included, first, and not counted in the cap).
+ */
+export interface MapFeature {
+  kind: MapFeatureKind;
+  /** The item's id (a waypoint's own id; `home` for home). */
+  id: string;
+  title: string;
+  /** Plans and ideas: their category's emoji. */
+  emoji?: string;
+  /** Chapters: YYYY-MM-DD · plans: an ISO instant (see allDay, timeZone) · waypoints: 'YYYY-MM' | 'YYYY-MM-DD'. */
+  date?: string;
+  endDate?: string;
+  /** Plans: shown as a day, not a time. */
+  allDay?: boolean;
+  /** Plans: the zone they were planned in. */
+  timeZone?: string;
+  placeName?: string;
+  lat: number;
+  lon: number;
+  /** How to draw it: `exact` a pin; `approximate` a circle about 8 km across (the point is already rounded). */
+  precision: 'exact' | 'approximate';
+  crewId?: string;
+  /** Who put it there, for someone else's chapter, plan or idea (omitted for yours and former members'). */
+  who?: string;
+  /** Your own chapter, plan or idea: how others get this place (you always see the exact spot). */
+  sharing?: PlacePrecision;
+  /** Where Open goes: /chapters/:id, /events/:id, /ideas/:id, /oracle/quest/:wishId, /oracle. */
+  href: string;
+}
+
+/** GET /map?mode=mine|crew|memories|adventures&crew=<id>. */
+export interface MapResponse {
+  /** Home first (when set), then nearest in time to now first, at most MAP_CAP besides home. */
+  features: MapFeature[];
+  /** How many more matched beyond the cap (no infinite lists). */
+  hidden: number;
 }
 
 /** Every Home section is a short, finite list. There is no feed. */

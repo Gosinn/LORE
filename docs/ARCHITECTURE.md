@@ -240,6 +240,50 @@ a **world**, the page's background, picked per device. Nothing here touches the 
   against almanac times, the choices, the boot script run in a sandbox, and the stylesheets' world colours
   against theme.ts.
 
+### The Lore Map (D35)
+
+Chapters, plans and ideas can have a place; `/lorebook/map` shows the ones the viewer may see.
+
+- **Data**: `GET /api/map?mode=mine|crew|memories|adventures&crew=<id>` (`routes/map.ts`) answers
+  `MapResponse { features: MapFeature[], hidden }` from `mapFeatures` in `lib/queries.ts`: one query per kind
+  (chapters, plans, ideas, Loracle waypoints), each through its visibility predicate and `placeShown`, nearest in
+  time first, at most `MAP_CAP` (400) in all; home (where you stand, `oracle_settings`) first and extra. A crew
+  you aren't an active member of is a 404. Canceled plans and archived ideas never show; a plan whose chapter
+  is on the same map shows once, as the chapter; a waypoint made a plan or kept as an idea whose pin this
+  viewer gets shows as that (the same visibility and `placeShown` rules). Memories: plans over (an all-day plan
+  at the end of its last day) or marked done; Adventures: the rest.
+- **Who gets which point**: `placeFor(access, …)` in `lib/access.ts` is the only way coordinates leave the
+  server (item routes, the map, the export); `placeAccess` (SQL) says `own` / `shared` / `none` per row
+  (`none`: the author's "Show my places on maps" is off, or a block either way). `approximatePoint` rounds to
+  `PLACE_GRID_DEG` (0.05°) of latitude and a whole number of equal longitude steps per row, so a point always
+  rounds to the same node. Writing goes through `lib/places.ts` (`placeColumns`, `carriedPlace`). A point is
+  carried into a new item (idea → plan, plan → chapter) only when its author makes it (`own` access): who gets a
+  point keys on `created_by`, so another owner's copy would escape the author's blocks, switch and audience.
+  An idea's `locationName` goes out only with its point (`ideaSummaries`); a plan's or chapter's is their
+  "Where" and always shows. `sharesPlaces` tells whether a plan's point moving reached anyone (its author's
+  switch). An Oracle plan or vault idea with a point has its story's and signs' distances from home left out
+  (`withoutDistance` in `lib/oracle.ts`).
+- **Inputs**: `place: { name, lat, lon, precision? } | null` on the create and update inputs of chapters,
+  plans and ideas (`PlaceInput`): an object sets name, point and precision (an empty name is stored as none);
+  `null` clears the point and the name (a `locationName` in the same request stays); left out changes nothing. `PATCH /me { showPlaces }`.
+- **Web**: `pages/LoreMap.tsx` (modes, crew picker, the item sheet, "Places on this map" as an accessible list,
+  "Your places" with the switch), `lib/map.ts` (`useLoreMap`, `useShowPlaces`), `lib/mapStyle.ts` (the night
+  and day styles on the OpenMapTiles schema, pins, circles and clusters drawn on a canvas in the kit's
+  colours), `styles/map-page.css`. MapLibre GL is a chunk of its own loaded only by this page, with its worker
+  started from a `blob:` copy; neither is precached, and tiles (`tiles.openfreemap.org`) never are, so offline
+  the frame says the map needs a connection (Try again, and again by itself on `online`); without WebGL2 it
+  shrinks to a line pointing at the list. About here circles are 4 km in radius (they hold the whole grid
+  cell), one per spot; a tap on a spot, or on a cluster that never parts (past `clusterMaxZoom` 13), lists
+  every place there in one sheet. The kit's `Sheet` (`components/ui.tsx`) moves focus in, keeps Tab inside and
+  gives focus back on close, like the Loracle's `ScrollSheet`.
+  `components/PlacePicker.tsx` is the Place row in the chapter, plan and idea forms: search with
+  `GET /oracle/geocode` (town-level names), pick, Exact / About here (~5 km) / Only me, Remove place. An editor
+  who isn't the author reads words that name the author and isn't offered Only me.
+- **Tests**: `apps/api/test/map.test.ts` (validation, defaults, precision by every route, the switch, blocks,
+  parity with the item routes, modes, crew 404, waypoints and home, the cap, points that travel only with their
+  author, idea names, all-day and done plans, export and deletion), and `oracle.test.ts` (no distance from home
+  beside a chosen or saved place). The page and the picker have no tests and haven't been seen in a browser.
+
 ## 3. Database schema
 
 Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` are generated from it
@@ -247,19 +291,19 @@ Defined in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/drizzle/` ar
 
 | Table | Purpose | Notable columns / rules |
 |---|---|---|
-| `users` | Accounts | `username` and `email` unique, lowercase; `password_hash` (scrypt); `avatar_media_id` |
+| `users` | Accounts | `username` and `email` unique, lowercase; `password_hash` (scrypt); `avatar_media_id`; `show_places` ("Show my places on maps", default on) |
 | `sessions` | Sign-in sessions | id = SHA-256 of the token (token itself never stored); sliding expiry |
 | `friendships` | Friend requests and friendships | one row per pair (unique on least/greatest ids); `pending` / `accepted` |
 | `blocks` | Blocks | blocking deletes any friendship between the two |
 | `crews` | Groups | `emoji`, `members_can_invite` |
 | `crew_members` | Membership | role `owner` / `admin` / `member`; status `invited` / `active` |
-| `ideas` | Idea Vault | status lifecycle; audience `only_me` / `friends` / `crew`; where/when/budget notes |
+| `ideas` | Idea Vault | status lifecycle; audience `only_me` / `friends` / `crew`; where/when/budget notes; a place: `location_name`, `lat`/`lon` (both or neither), `place_precision` (default `approximate`) |
 | `idea_interest` | "I'm in" on an idea | |
-| `events` | The LORE calendar | UTC instants + IANA `time_zone`; audience `participants` / `friends` / `crew`; `idea_id` link; `capacity` |
+| `events` | The LORE calendar | UTC instants + IANA `time_zone`; audience `participants` / `friends` / `crew`; `idea_id` link; `capacity`; `lat`/`lon` + `place_precision` (default `exact`) |
 | `event_participants` | Invitations and RSVPs | role `organizer` / `participant`; rsvp `invited` / `going` / `maybe` / `declined` |
 | `event_checklist_items` | Packing list | assignee |
 | `personal_entries` | Private calendar | never joined into any shared query |
-| `chapters` | Lorebook chapters | `occurred_on` date (+ optional `ended_on`); `event_id` unique (one chapter per event); own copy of title/date/place; audience `only_me` / `participants` / `crew`; cover photo |
+| `chapters` | Lorebook chapters | `occurred_on` date (+ optional `ended_on`); `event_id` unique (one chapter per event); own copy of title/date/place; `lat`/`lon` (both or neither) + `place_precision` (default `approximate`); audience `only_me` / `participants` / `crew`; cover photo |
 | `chapter_people` | Who a chapter is about | personal Lorebooks reference the same chapter, never copies |
 | `contributions` | Each person's piece of a chapter | `story` / `quote` (speaker user or name, context) / `photo` (media) |
 | `media` | Uploaded files | `storage_key`; scoped to at most one of chapter / event / crew (none = profile picture) |
@@ -283,7 +327,9 @@ rules. **Deletion rule** (brief part XXVIII): a person's own data cascades (sess
 contributions, their media); shared records others rely on (crews, events, ideas, chapters) survive with
 their creator set to null.
 
-Built for later connections without speculative tables: places (Lore Map), traditions, achievements,
+Places (the Lore Map, D35) are columns on the chapter, plan or idea they describe; a shared places table can
+come later. `0010_places.sql` also sets the points plans already had (never shown to anyone before) to Only me.
+Built for later connections without speculative tables: traditions, achievements,
 quotes as their own archive, and capsules each become a table that references the existing `events`,
 `chapters` and `users` rows. Nothing has to be duplicated.
 
@@ -343,6 +389,13 @@ every list and every single-item load uses them, so the UI never decides who see
 Hidden things return **404, not 403**, so their existence isn't revealed. Blocking removes friendships,
 hides each person from the other's search and profile, and stops requests and invitations.
 
+**Places** (D35) ride on the item's visibility and add one more filter: who gets the point. Exact: whoever
+sees the item. About here: the author exactly, everyone else a point rounded on the server (about 5 km).
+Only me: the author alone. Nobody else gets any point while the author's "Show my places on maps" is off, or
+across a block. A point is never copied into an item someone else owns. A plan's or chapter's place name is its
+"Where" and shows to whoever sees the item; an idea's goes only with its point. `placeFor` in `lib/access.ts` is the only way coordinates leave the server. The map never uses
+the device's location; where you stand is shown only to you.
+
 Photos are resized on the device before upload, which also strips EXIF metadata such as GPS location.
 The server identifies file types from their bytes, not from what the client claims.
 
@@ -365,7 +418,7 @@ Five primary destinations (brief part II), as a bottom tab bar on phones and a s
 | Home | `/`: the Loracle door (today's sign near where you stand, or "Where do you stand?"), needs your answer, coming up, still being planned, write it down, crews, ideas worth doing, on this day, recent lore. Finite, and ends with "That's everything." | events, ideas, chapters, crews, Idea Vault, `/oracle`, `/welcome/where` |
 | Calendar | `/calendar`: month and agenda views; LORE and personal layers | new event on a day, personal entries |
 | Create | `/create`: plan something, save an idea, write a chapter, start a crew | forms |
-| Lorebook | `/lorebook`: timeline by year, crew and year filters, search | chapters |
+| Lorebook | `/lorebook`: timeline by year, crew and year filters, search; Book \| Map switch to `/lorebook/map` (the Lore Map: Mine, Crew, Memories, Adventures) | chapters, plans, ideas, quests |
 | Profile | `/profile`: picture, bio, friends, crews, my lore, settings (Your world: night world, day and night) | `/friends`, `/u/:username` |
 
 Outside the tabs: `/welcome` (sign in, create account) and `/welcome/where` ("Where do you stand?", the step a

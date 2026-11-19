@@ -34,7 +34,7 @@ import {
 } from '../db/schema.ts';
 import { ideaVisible, idParam, isActiveCrewMember, loadVisibleIdea } from '../lib/access.ts';
 import { badRequest, HttpError, notFound } from '../lib/errors.ts';
-import { generateFutures, type FutureDraft } from '../lib/oracle.ts';
+import { generateFutures, signsWithoutDistance, withoutDistance, type FutureDraft } from '../lib/oracle.ts';
 import { iso } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
 
@@ -432,11 +432,13 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
       crewId = future.crew.id;
     }
     const ideaId = future.ideaId ? await loadVisibleIdea(db, me, future.ideaId).then((i) => i.id, () => null) : null;
+    // Everyone invited reads this, and the place's point is on the plan: its distance from home (km, or
+    // hours each way) would draw a ring around where the Lorer lives. It stays on their own sign and reading.
+    const story = future.place ? withoutDistance(future.story) : future.story;
+    const signs = future.place ? signsWithoutDistance(future.signs) : future.signs;
     const description = [
-      future.story,
-      `The signs: ${future.signs.join(' · ')}`,
-      // Everyone invited reads this, and the place's point is on the plan: its distance from home would
-      // draw a circle around where the Lorer lives. The distance stays on their own sign and reading.
+      story,
+      signs.length ? `The signs: ${signs.join(' · ')}` : null,
       future.place ? `Where: ${future.place.name}.` : null,
       future.place?.wikidataId ? `About the place: https://www.wikidata.org/wiki/${future.place.wikidataId}` : null,
       'Revealed by The Loracle.',
@@ -492,16 +494,24 @@ export async function oracleRoutes(app: FastifyInstance, { db, world }: AppConte
       minute: '2-digit',
       timeZone: future.timeZone,
     }).format(new Date(future.startsAt));
+    // The idea keeps the place's point, and its Lorer may share it later: no distance from home beside it
+    // (see the choose path). The reading keeps the distance.
+    const story = future.place ? withoutDistance(future.story) : future.story;
+    const signs = future.place ? signsWithoutDistance(future.signs) : future.signs;
     const [idea] = await db
       .insert(ideas)
       .values({
         title: future.title.slice(0, 120),
-        description: `${future.story}\n\nThe signs: ${future.signs.join(' · ')}`,
+        description: [story, signs.length ? `The signs: ${signs.join(' · ')}` : null].filter(Boolean).join('\n\n') || null,
         category: future.category,
         status: 'dreaming',
         audience: 'only_me',
-        whereNote: future.place ? `${future.place.name} (${future.place.distanceKm} km away)` : null,
+        whereNote: future.place ? future.place.name.slice(0, 200) : null,
         whenNote: `The stones suggested ${when}`,
+        // The place itself, for the Lore Map (shared approximately by default, like any idea's).
+        locationName: future.place?.name.slice(0, 200) ?? null,
+        lat: future.place?.lat ?? null,
+        lon: future.place?.lon ?? null,
         createdBy: me,
       })
       .returning({ id: ideas.id });

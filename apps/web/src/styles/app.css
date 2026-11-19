@@ -1180,6 +1180,10 @@ details.more-options[open] > summary::before {
   box-shadow: var(--shadow);
   animation: rise 0.2s ease;
 }
+/* The sheet takes focus when it opens (Sheet in components/ui.tsx); its own outline would only be noise. */
+.sheet:focus {
+  outline: none;
+}
 .sheet-head {
   display: flex;
   align-items: center;
