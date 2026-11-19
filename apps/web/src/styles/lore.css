@@ -170,6 +170,16 @@
   --world-top: #a9c4e2;
   --slab: rgb(26 22 18 / 0.94);
 }
+:root[data-theme='lore'][data-world='day-map'] {
+  --world-bg: #eadcbd;
+  --world-top: #efe2c4;
+  --slab: rgb(26 22 18 / 0.94);
+}
+:root[data-theme='lore'][data-world='leather-pack'] {
+  --world-bg: #4a2b16;
+  --world-top: #5c381e;
+  --slab: rgb(24 16 10 / 0.92);
+}
 :root[data-theme='lore'][data-world='celestial-vellum'] {
   --world-bg: #efe2c2;
   --world-top: #f4ead2;

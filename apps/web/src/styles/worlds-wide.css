@@ -29,7 +29,13 @@
   [data-world='celestial-vellum'] {
     --world-art: url('../assets/worlds/celestial-vellum-wide.svg') center / cover no-repeat;
   }
+  [data-world='leather-pack'] {
+    --world-art: url('../assets/worlds/leather-pack-wide.svg') center / cover no-repeat;
+  }
   /* The Profile thumbnails stay upright cuts (they are phone-shaped cards). */
+  .world-thumb[data-world='leather-pack'] {
+    --world-art: url('../assets/worlds/leather-pack.svg') center / cover no-repeat;
+  }
   .world-thumb[data-world='sea-chart'] {
     --world-art: url('../assets/worlds/sea-chart.svg') center / cover no-repeat;
   }
