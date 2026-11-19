@@ -12,36 +12,63 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>LORE</title>
     <script>
-      // The world this device wears, before the first paint (no flash). src/lib/theme.ts does the same, and keeps
-      // it current from there; a test (vite/test/theme.test.ts) keeps this table and these keys equal to theme.ts.
+      // The world this device wears, before the first paint (no flash). src/lib/theme.ts works it out and leaves it
+      // in 'lore.boot' ({ when, night: [world, bar], day: [world, bar] }), so this script never lists the worlds:
+      // a new world needs nothing here. A test (vite/test/theme.test.ts) checks it wears what theme.ts wears.
       (function () {
-        var BAR = {
-          'black-star-sky': '#030409',
-          'night-map': '#241b14',
-          'midnight-vellum': '#1f1a2c',
-          scroll: '#2a1708',
-          'treasure-map': '#14201e',
-          'mountain-range': '#060a18',
-          'northern-lights': '#03060e',
-          'green-hills': '#1a3a6e',
-        };
-        var world = 'black-star-sky';
+        var DEFAULT = ['black-star-sky', '#030409'];
+        var night = DEFAULT;
+        var day = DEFAULT;
+        var when = 'night';
         var half = 'night';
-        var picked = null;
-        var when = null;
+        var look = null;
         var sun = null;
+        var auto = null;
+        var oldWorld = null;
+        var oldWhen = null;
         var signedIn = null;
+        var json = function (key) {
+          try {
+            return JSON.parse(localStorage.getItem(key) || 'null');
+          } catch (e) {
+            return null;
+          }
+        };
         try {
-          picked = localStorage.getItem('lore.world');
-          when = localStorage.getItem('lore.daylight');
+          auto = localStorage.getItem('lore.auto');
+          oldWorld = localStorage.getItem('lore.world');
+          oldWhen = localStorage.getItem('lore.daylight');
           signedIn = localStorage.getItem('lore.in');
-          // The sun's answer when it was last worked out, and the next sunrises and sunsets from then.
-          sun = JSON.parse(localStorage.getItem('lore.sunNow') || 'null');
         } catch (e) {
-          // No storage (or a broken value): the defaults.
+          // No storage: the defaults.
         }
-        if (picked && picked !== 'green-hills' && Object.prototype.hasOwnProperty.call(BAR, picked)) world = picked;
-        if (when !== 'sun' && when !== 'night' && when !== 'day') when = 'phone';
+        look = json('lore.boot');
+        // The sun's answer when it was last worked out, and the next sunrises and sunsets from then.
+        sun = json('lore.sunNow');
+        var slot = function (s) {
+          return s && typeof s === 'object' && typeof s[0] === 'string' && typeof s[1] === 'string' ? s : null;
+        };
+        if (look && slot(look.night) && slot(look.day)) {
+          night = look.night;
+          day = look.day;
+          when = look.when;
+        } else if (auto === null) {
+          // The first start after the update of 2026-11-19, before theme.ts has run: the choices as they were kept
+          // then (lore.world the night world, lore.daylight when it's day), read as theme.ts's loadChoices reads
+          // them. These are the worlds there were; never add to this list.
+          var OLD = {
+            'black-star-sky': '#030409',
+            'night-map': '#241b14',
+            'midnight-vellum': '#1f1a2c',
+            scroll: '#2a1708',
+            'treasure-map': '#14201e',
+            'mountain-range': '#060a18',
+            'northern-lights': '#03060e',
+          };
+          if (oldWorld && Object.prototype.hasOwnProperty.call(OLD, oldWorld)) night = [oldWorld, OLD[oldWorld]];
+          day = ['green-hills', '#fbf3dc'];
+          when = oldWhen === 'phone' || oldWhen === 'sun' || oldWhen === 'day' ? oldWhen : 'night';
+        }
         if (when === 'sun') {
           var now = Date.now();
           if (sun && sun.until > now && sun.turns && sun.turns.length !== undefined) {
@@ -59,18 +86,18 @@
             // No answer from the phone: night.
           }
         }
+        var world = half === 'day' ? day : night;
         // Welcome and "Where do you stand?" wear the default world, by night; so does a start with no one signed in
         // on this device (a new install, or after signing out: it is on its way to Welcome).
         if (signedIn !== '1' || /^\/welcome(\/|$)/.test(location.pathname)) {
-          world = 'black-star-sky';
+          world = DEFAULT;
           half = 'night';
         }
-        if (half === 'day') world = 'green-hills';
         var root = document.documentElement;
-        root.setAttribute('data-world', world);
+        root.setAttribute('data-world', world[0]);
         root.setAttribute('data-daylight', half);
         var bar = document.querySelector('meta[name="theme-color"]');
-        if (bar) bar.setAttribute('content', BAR[world]);
+        if (bar) bar.setAttribute('content', world[1]);
       })();
     </script>
   </head>

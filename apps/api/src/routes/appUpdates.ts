@@ -35,7 +35,7 @@ export async function appUpdateRoutes(app: FastifyInstance, { config }: AppConte
     ? (JSON.parse(readFileSync(buildFile, 'utf8')) as { build?: string }).build ?? null
     : null;
 
-  // Built once per server origin, then kept in memory (the web app is ~1 MB zipped).
+  // Built once per server origin, then kept in memory (the web app is ~1 MB zipped, without the map's letters).
   const bundles = new Map<string, Bundle>();
   const origin = (req: FastifyRequest) => `${req.protocol}://${req.host}`;
 
@@ -44,6 +44,9 @@ export async function appUpdateRoutes(app: FastifyInstance, { config }: AppConte
     if (cached) return cached;
     const entries: ZipEntry[] = listFiles(publicDir)
       .map((rel) => rel.split(path.sep).join('/'))
+      // The map's letters (2.5 MB, about 1.3 MB zipped) stay on this server: the app fetches them from here
+      // (lib/api.ts serverFile), and the map needs a connection for its tiles anyway (DECISIONS.md D35).
+      .filter((name) => !name.startsWith('map-glyphs/'))
       .sort()
       .map((name) => {
         let data = readFileSync(path.join(publicDir, name));

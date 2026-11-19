@@ -4,9 +4,13 @@
 //
 // Types only from maplibre-gl: importing this file never pulls the map library into a chunk.
 //
-// Night: umber land, deep ink water, faint brass roads and coasts, carve-coloured labels with dark halos.
-// Day (html[data-daylight='day']): vellum land, grey-blue water, ink labels. No POI clutter, no sprite: the
-// only icons on the map are LORE's own.
+// The owner (2026-11-19): "I want the map to accurate BUT also in OUR OWN STYLE. ORIGINAL." So the data is the
+// real world (OpenStreetMap), drawn as an engraved chart: paper with grain, seas engraved in fine lines with
+// rings of water-lines along every coast, forests of tiny inked trees, stippled fields, hatched ice, peaks
+// drawn as little engraved mountains, roads as double ink lines, borders as dotted lines over a washed band,
+// towns marked with the sign of the One, the lines of latitude and longitude, names carved in LORE's own
+// letters. Night is brass ink on dark umber; day (html[data-daylight='day']) is sepia ink on vellum.
+// No POI clutter, no sprite: every mark on the map is drawn here.
 
 import type { ExpressionSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
 import type { MapFeatureKind } from '#shared';
@@ -18,14 +22,24 @@ export const PLACE_KINDS: readonly PlaceKind[] = ['chapter', 'event', 'idea', 'w
 
 /**
  * OpenFreeMap (free, no key, no cookies; attribution required). Checked 2026-11-19: the TileJSON (3.0.0,
- * OpenMapTiles schema 3.16, tiles z0 to z14, CORS open) points at the current weekly build; the three Noto Sans
- * glyph stacks below answer.
+ * OpenMapTiles schema 3.16, tiles z0 to z14, CORS open) points at the current weekly build.
  */
 export const TILEJSON_URL = 'https://tiles.openfreemap.org/planet';
+/** Noto Sans from OpenFreeMap: the fallback while LORE's own map letters are not served. */
 export const GLYPHS_URL = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
 
 // copy:ignore (font stacks on the glyph server, not words)
-const FONT = { regular: ['Noto Sans Regular'], bold: ['Noto Sans Bold'], italic: ['Noto Sans Italic'] };
+const NOTO = { carvedBold: ['Noto Sans Bold'], carved: ['Noto Sans Regular'], book: ['Noto Sans Regular'], bookItalic: ['Noto Sans Italic'] };
+let FONT = NOTO;
+let glyphs = GLYPHS_URL;
+/**
+ * LORE's own letters for the map (Cinzel for countries and regions, IM Fell English for places and water), served
+ * by the app as glyph files (tools/make-map-glyphs.mjs). Call once before the first style is built.
+ */
+export function useOwnMapLetters(urlTemplate: string, stacks: { carvedBold: string; carved: string; book: string; bookItalic: string }) {
+  glyphs = urlTemplate;
+  FONT = { carvedBold: [stacks.carvedBold], carved: [stacks.carved], book: [stacks.book], bookItalic: [stacks.bookItalic] };
+}
 
 // copy:ignore (a CSS font: the clusters' numbers are carved in Cinzel, like every number in the kit)
 export const CARVED_FONT = '700 13px Cinzel, Georgia, serif';
@@ -38,86 +52,110 @@ const NAME: ExpressionSpecification = ['coalesce', ['get', 'name:latin'], ['get'
 
 interface Palette {
   land: string;
+  grain: string;
+  grainDark: string;
   wood: string;
-  grass: string;
-  sand: string;
+  tree: string;
+  stipple: string;
   ice: string;
-  wetland: string;
-  park: string;
+  iceHatch: string;
   town: string;
   water: string;
-  river: string;
+  seaHatch: string;
+  ripple: string;
   coast: string;
+  river: string;
   border: string;
+  borderWash: string;
   borderFaint: string;
-  roadMajor: string;
-  roadMid: string;
-  roadMinor: string;
+  road: string;
+  roadInner: string;
+  roadFaint: string;
   rail: string;
   ferry: string;
+  graticule: string;
   building: string;
   ink: string;
   inkSoft: string;
   inkMute: string;
+  title: string;
   halo: string;
   waterLabel: string;
   waterHalo: string;
+  peak: string;
+  peakLight: string;
 }
 
 const NIGHT: Palette = {
-  land: '#231b14',
-  wood: '#262116',
-  grass: '#251d15',
-  sand: '#2d2418',
-  ice: '#36383d',
-  wetland: '#20201a',
-  park: '#262015',
+  land: '#211a13',
+  grain: 'rgba(240, 217, 168, 0.07)',
+  grainDark: 'rgba(0, 0, 0, 0.22)',
+  wood: '#221c13',
+  tree: 'rgba(201, 163, 98, 0.42)',
+  stipple: 'rgba(201, 163, 98, 0.2)',
+  ice: '#2b2c30',
+  iceHatch: 'rgba(207, 213, 239, 0.22)',
   town: '#2a2118',
-  water: '#0a1220',
-  river: '#0f1a2a',
-  coast: 'rgba(201, 163, 98, 0.32)',
-  border: 'rgba(201, 163, 98, 0.55)',
-  borderFaint: 'rgba(201, 163, 98, 0.26)',
-  roadMajor: 'rgba(214, 170, 100, 0.42)',
-  roadMid: 'rgba(214, 170, 100, 0.28)',
-  roadMinor: 'rgba(214, 170, 100, 0.15)',
-  rail: 'rgba(207, 197, 180, 0.2)',
-  ferry: 'rgba(143, 169, 192, 0.35)',
+  water: '#0b1320',
+  seaHatch: 'rgba(143, 169, 192, 0.13)',
+  ripple: 'rgba(214, 178, 110, 0.7)',
+  coast: 'rgba(214, 178, 110, 0.85)',
+  river: 'rgba(143, 169, 192, 0.55)',
+  border: 'rgba(233, 199, 102, 0.85)',
+  borderWash: 'rgba(255, 140, 70, 0.11)',
+  borderFaint: 'rgba(201, 163, 98, 0.4)',
+  road: 'rgba(214, 170, 100, 0.62)',
+  roadInner: '#211a13',
+  roadFaint: 'rgba(214, 170, 100, 0.3)',
+  rail: 'rgba(207, 197, 180, 0.35)',
+  ferry: 'rgba(143, 169, 192, 0.45)',
+  graticule: 'rgba(201, 163, 98, 0.16)',
   building: 'rgba(96, 78, 58, 0.45)',
-  ink: '#e9e1d3',
-  inkSoft: '#cfc5b4',
-  inkMute: '#b3aa9b',
-  halo: 'rgba(10, 8, 6, 0.92)',
-  waterLabel: '#8fa9c0',
-  waterHalo: 'rgba(6, 12, 22, 0.9)',
+  ink: '#ecdfc4',
+  inkSoft: '#d2c2a2',
+  inkMute: '#b3a587',
+  title: '#e9c766',
+  halo: 'rgba(16, 11, 7, 0.9)',
+  waterLabel: '#9fb6c8',
+  waterHalo: 'rgba(8, 14, 24, 0.85)',
+  peak: '#c9a362',
+  peakLight: '#3a2f22',
 };
 
 const DAY: Palette = {
-  land: '#efe5cd',
-  wood: '#e2dbbd',
-  grass: '#e8dfc3',
-  sand: '#efe1bf',
-  ice: '#f7f5ef',
-  wetland: '#e1dfc9',
-  park: '#e1dabb',
-  town: '#e7dabd',
-  water: '#a9bccb',
-  river: '#9fb4c5',
-  coast: 'rgba(60, 82, 102, 0.35)',
-  border: 'rgba(74, 54, 32, 0.55)',
-  borderFaint: 'rgba(74, 54, 32, 0.28)',
-  roadMajor: 'rgba(74, 54, 32, 0.4)',
-  roadMid: 'rgba(74, 54, 32, 0.27)',
-  roadMinor: 'rgba(74, 54, 32, 0.15)',
-  rail: 'rgba(42, 29, 16, 0.22)',
-  ferry: 'rgba(40, 70, 96, 0.4)',
-  building: 'rgba(140, 107, 61, 0.24)',
+  land: '#eee3c6',
+  grain: 'rgba(120, 84, 34, 0.07)',
+  grainDark: 'rgba(90, 60, 20, 0.09)',
+  wood: '#e6dcbb',
+  tree: 'rgba(58, 74, 36, 0.55)',
+  stipple: 'rgba(92, 84, 40, 0.28)',
+  ice: '#f6f3ea',
+  iceHatch: 'rgba(70, 96, 128, 0.32)',
+  town: '#e6d7b4',
+  water: '#c8d5d2',
+  seaHatch: 'rgba(40, 70, 90, 0.2)',
+  ripple: 'rgba(42, 62, 80, 0.7)',
+  coast: 'rgba(42, 29, 16, 0.85)',
+  river: 'rgba(40, 70, 96, 0.6)',
+  border: 'rgba(120, 36, 18, 0.8)',
+  borderWash: 'rgba(163, 48, 26, 0.12)',
+  borderFaint: 'rgba(74, 54, 32, 0.45)',
+  road: 'rgba(74, 54, 32, 0.68)',
+  roadInner: '#eee3c6',
+  roadFaint: 'rgba(74, 54, 32, 0.35)',
+  rail: 'rgba(42, 29, 16, 0.4)',
+  ferry: 'rgba(40, 70, 96, 0.5)',
+  graticule: 'rgba(74, 54, 32, 0.2)',
+  building: 'rgba(140, 107, 61, 0.28)',
   ink: '#2a1d10',
   inkSoft: '#4a3620',
   inkMute: '#68512f',
-  halo: 'rgba(248, 240, 220, 0.92)',
-  waterLabel: '#3d5566',
-  waterHalo: 'rgba(214, 226, 234, 0.75)',
+  title: '#7a2a14',
+  halo: 'rgba(246, 238, 216, 0.88)',
+  waterLabel: '#2f4a5c',
+  waterHalo: 'rgba(214, 226, 226, 0.7)',
+  peak: '#4a3620',
+  peakLight: '#f4ead2',
 };
 
 const cls = (...values: string[]): ExpressionSpecification => ['match', ['get', 'class'], values, true, false];
@@ -127,22 +165,224 @@ const widths = (...stops: [number, number][]): ExpressionSpecification =>
   ['interpolate', ['exponential', 1.4], ['zoom'], ...stops.flat()] as ExpressionSpecification;
 const sizes = (...stops: [number, number][]): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], ...stops.flat()] as ExpressionSpecification;
 
-/** The base map, night or day. Background, water, land, borders, faint roads, names; nothing to tap. */
+// ------------------------------------------------------------------------- the engraver's marks
+// Patterns and map symbols, drawn on small canvases and handed to map.addImage on every style load
+// (LoreMap.tsx), in the half's own inks.
+
+export const MAP_MARKS = ['lore-paper', 'lore-sea', 'lore-wood', 'lore-stipple', 'lore-ice', 'lore-town', 'lore-city', 'lore-peak'] as const;
+export type MapMark = (typeof MAP_MARKS)[number];
+
+function seeded(seed: number) {
+  let s = seed >>> 0;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+
+/** One of the map's own marks, in the inks of the half. */
+export function drawMapMark(mark: MapMark, half: MapHalf, ratio: number): DrawnImage {
+  const p = half === 'day' ? DAY : NIGHT;
+  const R = seeded(mark.length * 977 + (half === 'day' ? 7 : 3));
+  if (mark === 'lore-paper') {
+    // The land: paper with grain and the faintest engraved hatching.
+    const { ctx, done } = surface(128, 128, ratio);
+    ctx.fillStyle = p.land;
+    ctx.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 520; i++) {
+      ctx.fillStyle = i % 3 ? p.grain : p.grainDark;
+      ctx.fillRect(R() * 128, R() * 128, 0.6 + R() * 0.9, 0.6 + R() * 0.9);
+    }
+    ctx.strokeStyle = p.grain;
+    ctx.lineWidth = 0.5;
+    for (let x = -128; x < 128; x += 7) {
+      ctx.beginPath();
+      ctx.moveTo(x, 128);
+      ctx.lineTo(x + 128, 0);
+      ctx.stroke();
+    }
+    return done();
+  }
+  if (mark === 'lore-sea') {
+    // The sea, engraved in fine level lines.
+    const { ctx, done } = surface(48, 6, ratio);
+    ctx.strokeStyle = p.seaHatch;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(0, 3);
+    ctx.lineTo(48, 3);
+    ctx.stroke();
+    return done();
+  }
+  if (mark === 'lore-wood') {
+    // A forest: little inked trees, a few to a tile, never in rows.
+    const { ctx, done } = surface(44, 44, ratio);
+    ctx.strokeStyle = p.tree;
+    ctx.fillStyle = p.tree;
+    ctx.lineWidth = 0.9;
+    const spots = [
+      [8, 12],
+      [27, 7],
+      [38, 25],
+      [17, 31],
+      [33, 40],
+    ];
+    for (const [x, y] of spots) {
+      ctx.beginPath();
+      ctx.arc(x!, y! - 3.2, 3, Math.PI * 0.9, Math.PI * 2.1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x! - 2.6, y! - 2.2);
+      ctx.quadraticCurveTo(x!, y! - 0.6, x! + 2.6, y! - 2.2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x!, y! - 1.2);
+      ctx.lineTo(x!, y! + 2);
+      ctx.stroke();
+      ctx.fillRect(x! + 1.2, y! - 3.6, 1.2, 1.2);
+    }
+    return done();
+  }
+  if (mark === 'lore-stipple') {
+    // Fields and sand: a stipple of dots.
+    const { ctx, done } = surface(26, 26, ratio);
+    ctx.fillStyle = p.stipple;
+    for (let i = 0; i < 9; i++) {
+      ctx.beginPath();
+      ctx.arc(R() * 26, R() * 26, 0.55 + R() * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return done();
+  }
+  if (mark === 'lore-ice') {
+    // Ice and glaciers: crossed hatching.
+    const { ctx, done } = surface(16, 16, ratio);
+    ctx.strokeStyle = p.iceHatch;
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, 16);
+    ctx.lineTo(16, 0);
+    ctx.moveTo(-8, 8);
+    ctx.lineTo(8, -8);
+    ctx.moveTo(8, 24);
+    ctx.lineTo(24, 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(4, 4, 0.6, 0, Math.PI * 2);
+    ctx.arc(12, 12, 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = p.iceHatch;
+    ctx.fill();
+    return done();
+  }
+  if (mark === 'lore-town' || mark === 'lore-city') {
+    // Towns carry the sign of the One (the circle and point); cities ring it twice.
+    const big = mark === 'lore-city';
+    const s = big ? 16 : 12;
+    const { ctx, done } = surface(s, s, ratio);
+    const c = s / 2;
+    ctx.fillStyle = p.land;
+    ctx.strokeStyle = p.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.arc(c, c, big ? 6.2 : 4.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (big) {
+      ctx.beginPath();
+      ctx.arc(c, c, 4, 0, Math.PI * 2);
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(c, c, big ? 1.6 : 1.3, 0, Math.PI * 2);
+    ctx.fillStyle = p.ink;
+    ctx.fill();
+    return done();
+  }
+  // A peak: a little engraved mountain, its shadow side hatched.
+  const { ctx, done } = surface(22, 16, ratio);
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(1.5, 15);
+  ctx.lineTo(9, 2.5);
+  ctx.lineTo(12.5, 7.5);
+  ctx.lineTo(14.5, 5);
+  ctx.lineTo(20.5, 15);
+  ctx.closePath();
+  ctx.fillStyle = p.peakLight;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = p.peak;
+  ctx.lineWidth = 0.6;
+  for (let x = 9; x < 24; x += 2.1) {
+    ctx.beginPath();
+    ctx.moveTo(x, 2);
+    ctx.lineTo(x - 4.5, 16);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.strokeStyle = p.peak;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(1.5, 15);
+  ctx.lineTo(9, 2.5);
+  ctx.lineTo(12.5, 7.5);
+  ctx.lineTo(14.5, 5);
+  ctx.lineTo(20.5, 15);
+  ctx.stroke();
+  return done();
+}
+
+/** The lines of latitude and longitude every 10 degrees (straight lines in this projection: two points each). */
+function graticule() {
+  const features: { type: 'Feature'; properties: { major: boolean }; geometry: { type: 'LineString'; coordinates: [number, number][] } }[] = [];
+  for (let lon = -180; lon <= 180; lon += 10) {
+    features.push({ type: 'Feature', properties: { major: lon % 30 === 0 }, geometry: { type: 'LineString', coordinates: [[lon, -85], [lon, 85]] } });
+  }
+  for (let lat = -80; lat <= 80; lat += 10) {
+    features.push({ type: 'Feature', properties: { major: lat === 0 }, geometry: { type: 'LineString', coordinates: [[-180, lat], [180, lat]] } });
+  }
+  return { type: 'FeatureCollection' as const, features };
+}
+
+/** The base map, night or day: the real world, engraved. Nothing on it is tapped; the places go on top. */
 export function loreMapStyle(half: MapHalf): StyleSpecification {
   const p = half === 'day' ? DAY : NIGHT;
   const source = 'openmaptiles';
-  const textPaint = (color: string, halo = p.halo, width = 1.4) => ({ 'text-color': color, 'text-halo-color': halo, 'text-halo-width': width, 'text-halo-blur': 0.4 });
+  const textPaint = (color: string, halo = p.halo, width = 1.4) => ({ 'text-color': color, 'text-halo-color': halo, 'text-halo-width': width, 'text-halo-blur': 0.5 });
+  /** Water-lines along every coast, inside the water: offsets grow with the zoom. */
+  const ripple = (id: string, near: number, far: number, opacity: number): LayerSpecification => ({
+    id,
+    type: 'line',
+    source,
+    'source-layer': 'water',
+    minzoom: 3,
+    filter: notTunnel,
+    layout: { 'line-join': 'round' },
+    paint: {
+      'line-color': p.ripple,
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0, 4, opacity],
+      'line-width': widths([3, 0.7], [10, 1.2]),
+      // Kept within the tiles' 8 px buffer: farther out, the tiles' own cut edges would show as stray lines.
+      'line-offset': sizes([3, near], [8, far]),
+    },
+  });
 
   const layers: LayerSpecification[] = [
-    { id: 'background', type: 'background', paint: { 'background-color': p.land } },
+    { id: 'paper', type: 'background', paint: { 'background-color': p.land, 'background-pattern': 'lore-paper' } },
 
-    // Land: wood and grass a shade off the land, ice pale, towns faint.
-    { id: 'landcover-wood', type: 'fill', source, 'source-layer': 'landcover', filter: cls('wood', 'forest'), paint: { 'fill-color': p.wood } },
-    { id: 'landcover-grass', type: 'fill', source, 'source-layer': 'landcover', filter: cls('grass', 'farmland'), paint: { 'fill-color': p.grass, 'fill-opacity': 0.7 } },
-    { id: 'landcover-wetland', type: 'fill', source, 'source-layer': 'landcover', filter: cls('wetland'), paint: { 'fill-color': p.wetland } },
-    { id: 'landcover-sand', type: 'fill', source, 'source-layer': 'landcover', filter: cls('sand', 'rock'), paint: { 'fill-color': p.sand } },
+    // Land: forests of little trees, stippled fields and sand, hatched ice, faint towns.
+    { id: 'landcover-wood', type: 'fill', source, 'source-layer': 'landcover', filter: cls('wood', 'forest'), paint: { 'fill-color': p.wood, 'fill-opacity': 0.7 } },
+    { id: 'landcover-wood-trees', type: 'fill', source, 'source-layer': 'landcover', minzoom: 5, filter: cls('wood', 'forest'), paint: { 'fill-pattern': 'lore-wood' } },
+    {
+      id: 'landcover-fields',
+      type: 'fill',
+      source,
+      'source-layer': 'landcover',
+      minzoom: 7,
+      filter: cls('grass', 'farmland', 'wetland', 'sand', 'rock'),
+      paint: { 'fill-pattern': 'lore-stipple' },
+    },
     { id: 'landcover-ice', type: 'fill', source, 'source-layer': 'landcover', filter: cls('ice', 'glacier'), paint: { 'fill-color': p.ice } },
-    { id: 'park', type: 'fill', source, 'source-layer': 'park', paint: { 'fill-color': p.park, 'fill-opacity': 0.8 } },
+    { id: 'landcover-ice-hatch', type: 'fill', source, 'source-layer': 'landcover', filter: cls('ice', 'glacier'), paint: { 'fill-pattern': 'lore-ice' } },
     {
       id: 'landuse-town',
       type: 'fill',
@@ -150,18 +390,24 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'landuse',
       minzoom: 8,
       filter: cls('residential', 'suburb', 'quarter', 'neighbourhood', 'commercial', 'retail', 'industrial'),
-      paint: { 'fill-color': p.town, 'fill-opacity': sizes([8, 0], [10, 0.8]) },
+      paint: { 'fill-color': p.town, 'fill-opacity': sizes([8, 0], [10, 0.75]) },
     },
 
-    // Water, its coasts, rivers.
+    // The sea: engraved level lines, rings of water-lines along the coast, the coast inked.
     { id: 'water', type: 'fill', source, 'source-layer': 'water', filter: notTunnel, paint: { 'fill-color': p.water } },
+    { id: 'water-engraved', type: 'fill', source, 'source-layer': 'water', filter: notTunnel, paint: { 'fill-pattern': 'lore-sea' } },
+    ripple('water-ripple-3', 6, 7, 0.32),
+    ripple('water-ripple-2', 3.8, 4.6, 0.5),
+    ripple('water-ripple-1', 1.8, 2.2, 0.75),
     {
       id: 'waterway-river',
       type: 'line',
       source,
       'source-layer': 'waterway',
+      minzoom: 6,
       filter: ['all', cls('river', 'canal'), notTunnel],
-      paint: { 'line-color': p.river, 'line-width': widths([8, 0.8], [12, 2], [16, 5]) },
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': p.river, 'line-width': widths([6, 0.6], [12, 1.8], [16, 5]) },
     },
     {
       id: 'waterway-stream',
@@ -170,7 +416,7 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'waterway',
       minzoom: 12,
       filter: ['all', cls('stream'), notTunnel],
-      paint: { 'line-color': p.river, 'line-width': widths([12, 0.6], [16, 1.6]) },
+      paint: { 'line-color': p.river, 'line-width': widths([12, 0.5], [16, 1.4]) },
     },
     {
       id: 'water-coast',
@@ -178,7 +424,21 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       source,
       'source-layer': 'water',
       filter: notTunnel,
-      paint: { 'line-color': p.coast, 'line-width': widths([0, 0.4], [6, 0.8], [12, 1.2]) },
+      layout: { 'line-join': 'round' },
+      paint: { 'line-color': p.coast, 'line-width': widths([0, 0.5], [6, 1], [12, 1.6]) },
+    },
+
+    // The lines of latitude and longitude, as on every old chart.
+    {
+      id: 'graticule',
+      type: 'line',
+      source: 'lore-graticule',
+      maxzoom: 9,
+      paint: {
+        'line-color': p.graticule,
+        'line-width': ['case', ['get', 'major'], 0.9, 0.5],
+        'line-dasharray': [6, 4],
+      },
     },
 
     // Buildings: very faint, only close in.
@@ -191,15 +451,25 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       paint: { 'fill-color': p.building, 'fill-opacity': sizes([14, 0], [15, 1]) },
     },
 
-    // Borders: dashed. Sea borders are left out.
+    // Borders: a washed band, dotted down its middle. Sea borders are left out.
+    {
+      id: 'boundary-country-wash',
+      type: 'line',
+      source,
+      'source-layer': 'boundary',
+      minzoom: 2,
+      filter: ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]],
+      layout: { 'line-join': 'round' },
+      paint: { 'line-color': p.borderWash, 'line-width': widths([2, 3], [6, 7], [12, 14]), 'line-blur': 2 },
+    },
     {
       id: 'boundary-state',
       type: 'line',
       source,
       'source-layer': 'boundary',
-      minzoom: 3,
+      minzoom: 4,
       filter: ['all', ['>=', ['get', 'admin_level'], 3], ['<=', ['get', 'admin_level'], 4], ['!=', ['get', 'maritime'], 1]],
-      paint: { 'line-color': p.borderFaint, 'line-width': widths([3, 0.5], [10, 1.2]), 'line-dasharray': [2, 2] },
+      paint: { 'line-color': p.borderFaint, 'line-width': widths([4, 0.5], [10, 1]), 'line-dasharray': [3, 3] },
     },
     {
       id: 'boundary-country',
@@ -207,10 +477,11 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       source,
       'source-layer': 'boundary',
       filter: ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]],
-      paint: { 'line-color': p.border, 'line-width': widths([1, 0.6], [6, 1.1], [12, 1.8]), 'line-dasharray': [3, 2] },
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': p.border, 'line-width': widths([1, 1], [6, 1.6], [12, 2.4]), 'line-dasharray': [0.1, 2.4] },
     },
 
-    // Roads: faint brass (by day, faint ink); the small ones only close in. Ferries are a dashed sea line.
+    // Roads as an engraver draws them: the great ones a double ink line, the rest single, the small ones dashed.
     {
       id: 'road-ferry',
       type: 'line',
@@ -218,7 +489,7 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'transportation',
       minzoom: 6,
       filter: cls('ferry'),
-      paint: { 'line-color': p.ferry, 'line-width': widths([6, 0.6], [12, 1.4]), 'line-dasharray': [3, 3] },
+      paint: { 'line-color': p.ferry, 'line-width': widths([6, 0.6], [12, 1.2]), 'line-dasharray': [4, 3] },
     },
     {
       id: 'road-minor',
@@ -228,7 +499,7 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       minzoom: 12,
       filter: cls('minor', 'service', 'track', 'path'),
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': p.roadMinor, 'line-width': widths([12, 0.5], [16, 3]) },
+      paint: { 'line-color': p.roadFaint, 'line-width': widths([12, 0.5], [16, 1.6]), 'line-dasharray': [3, 2] },
     },
     {
       id: 'road-mid',
@@ -238,17 +509,27 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       minzoom: 8,
       filter: cls('secondary', 'tertiary'),
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': p.roadMid, 'line-width': widths([8, 0.4], [12, 1.2], [16, 5]) },
+      paint: { 'line-color': p.road, 'line-width': widths([8, 0.4], [12, 1.1], [16, 3]) },
     },
     {
-      id: 'road-major',
+      id: 'road-major-casing',
       type: 'line',
       source,
       'source-layer': 'transportation',
       minzoom: 5,
       filter: cls('motorway', 'trunk', 'primary'),
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': p.roadMajor, 'line-width': widths([5, 0.4], [10, 1.4], [16, 7]) },
+      paint: { 'line-color': p.road, 'line-width': widths([5, 0.6], [8, 2.2], [12, 4.4], [16, 10]) },
+    },
+    {
+      id: 'road-major-inner',
+      type: 'line',
+      source,
+      'source-layer': 'transportation',
+      minzoom: 7.5,
+      filter: cls('motorway', 'trunk', 'primary'),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': p.roadInner, 'line-width': widths([7.5, 0], [8, 0.8], [12, 2.4], [16, 7]) },
     },
     {
       id: 'rail',
@@ -257,10 +538,11 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'transportation',
       minzoom: 10,
       filter: cls('rail'),
-      paint: { 'line-color': p.rail, 'line-width': widths([10, 0.6], [16, 1.6]), 'line-dasharray': [2, 2] },
+      paint: { 'line-color': p.rail, 'line-width': widths([10, 0.8], [16, 2]), 'line-dasharray': [0.6, 2.4] },
     },
 
-    // Names: water in italics, peaks close in, then the places from small to large (the large win collisions).
+    // Names: the seas in italics spread wide, peaks as little mountains, towns under the sign of the One, then
+    // regions and countries in carved capitals (the large win collisions).
     {
       id: 'water-name-ocean',
       type: 'symbol',
@@ -269,9 +551,9 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       filter: ['all', ['==', ['geometry-type'], POINT], cls('ocean', 'sea')],
       layout: {
         'text-field': NAME,
-        'text-font': FONT.italic,
-        'text-size': sizes([1, 11], [6, 15]),
-        'text-letter-spacing': 0.18,
+        'text-font': FONT.bookItalic,
+        'text-size': sizes([1, 12], [6, 17]),
+        'text-letter-spacing': 0.32,
         'text-max-width': 6,
       },
       paint: textPaint(p.waterLabel, p.waterHalo, 1),
@@ -283,7 +565,7 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'water_name',
       minzoom: 8,
       filter: ['all', ['==', ['geometry-type'], POINT], ['!', cls('ocean', 'sea')]],
-      layout: { 'text-field': NAME, 'text-font': FONT.italic, 'text-size': 12, 'text-max-width': 6 },
+      layout: { 'text-field': NAME, 'text-font': FONT.bookItalic, 'text-size': 12.5, 'text-letter-spacing': 0.08, 'text-max-width': 6 },
       paint: textPaint(p.waterLabel, p.waterHalo, 1),
     },
     {
@@ -291,8 +573,19 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       type: 'symbol',
       source,
       'source-layer': 'mountain_peak',
-      minzoom: 11,
-      layout: { 'text-field': NAME, 'text-font': FONT.italic, 'text-size': 11.5, 'text-max-width': 7 },
+      minzoom: 8,
+      layout: {
+        'icon-image': 'lore-peak',
+        'icon-anchor': 'bottom',
+        'text-field': ['step', ['zoom'], '', 11, NAME],
+        'text-font': FONT.bookItalic,
+        'text-size': 11.5,
+        'text-anchor': 'top',
+        'text-offset': [0, 0.25],
+        'text-max-width': 7,
+        'text-optional': true,
+        'symbol-sort-key': ['coalesce', ['get', 'rank'], 99],
+      },
       paint: textPaint(p.inkMute),
     },
     {
@@ -302,7 +595,7 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'place',
       minzoom: 12,
       filter: cls('hamlet', 'suburb', 'neighbourhood', 'quarter', 'isolated_dwelling', 'locality'),
-      layout: { 'text-field': NAME, 'text-font': FONT.regular, 'text-size': 11.5, 'text-max-width': 7 },
+      layout: { 'text-field': NAME, 'text-font': FONT.bookItalic, 'text-size': 12, 'text-max-width': 7 },
       paint: textPaint(p.inkMute),
     },
     {
@@ -312,7 +605,7 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'place',
       minzoom: 10,
       filter: cls('village'),
-      layout: { 'text-field': NAME, 'text-font': FONT.regular, 'text-size': sizes([10, 11], [14, 14]), 'text-max-width': 7 },
+      layout: { 'text-field': NAME, 'text-font': FONT.book, 'text-size': sizes([10, 12], [14, 15]), 'text-max-width': 7 },
       paint: textPaint(p.inkSoft),
     },
     {
@@ -322,7 +615,16 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       'source-layer': 'place',
       minzoom: 6,
       filter: cls('town'),
-      layout: { 'text-field': NAME, 'text-font': FONT.regular, 'text-size': sizes([6, 11], [12, 15]), 'text-max-width': 7 },
+      layout: {
+        'icon-image': 'lore-town',
+        'text-field': NAME,
+        'text-font': FONT.book,
+        'text-size': sizes([6, 12], [12, 16]),
+        'text-anchor': 'left',
+        'text-offset': [0.75, 0],
+        'text-max-width': 7,
+        'text-optional': true,
+      },
       paint: textPaint(p.inkSoft),
     },
     {
@@ -333,10 +635,14 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       minzoom: 3,
       filter: cls('city'),
       layout: {
+        'icon-image': 'lore-city',
         'text-field': NAME,
-        'text-font': FONT.regular,
-        'text-size': sizes([4, 11], [8, 15], [12, 19]),
+        'text-font': FONT.book,
+        'text-size': sizes([4, 12.5], [8, 16], [12, 20]),
+        'text-anchor': 'left',
+        'text-offset': [0.8, 0],
         'text-max-width': 7,
+        'text-optional': true,
         'symbol-sort-key': ['coalesce', ['get', 'rank'], 99],
       },
       paint: textPaint(p.ink),
@@ -351,10 +657,10 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       filter: cls('state', 'province'),
       layout: {
         'text-field': NAME,
-        'text-font': FONT.regular,
-        'text-size': sizes([4, 9.5], [8, 12]),
+        'text-font': FONT.carved,
+        'text-size': sizes([4, 10], [8, 13]),
         'text-transform': 'uppercase',
-        'text-letter-spacing': 0.12,
+        'text-letter-spacing': 0.22,
         'text-max-width': 8,
       },
       paint: textPaint(p.inkMute, p.halo, 1.2),
@@ -369,14 +675,14 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
       filter: cls('country'),
       layout: {
         'text-field': NAME,
-        'text-font': FONT.bold,
-        'text-size': sizes([1, 9.5], [4, 13], [7, 17]),
+        'text-font': FONT.carvedBold,
+        'text-size': sizes([1, 10], [4, 14], [7, 19]),
         'text-transform': 'uppercase',
-        'text-letter-spacing': 0.14,
+        'text-letter-spacing': 0.24,
         'text-max-width': 7,
         'symbol-sort-key': ['coalesce', ['get', 'rank'], 99],
       },
-      paint: textPaint(p.ink, p.halo, 1.6),
+      paint: textPaint(p.title, p.halo, 1.6),
     },
     {
       id: 'place-continent',
@@ -391,10 +697,11 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
         [
           'in',
           ['coalesce', ['get', 'name:en'], ['get', 'name']],
+          // copy:ignore (OpenStreetMap's own names to match against, not words LORE shows)
           ['literal', ['Africa', 'Antarctica', 'Asia', 'Europe', 'North America', 'South America', 'Oceania', 'Australia']],
         ],
       ],
-      layout: { 'text-field': NAME, 'text-font': FONT.bold, 'text-size': 11, 'text-transform': 'uppercase', 'text-letter-spacing': 0.3 },
+      layout: { 'text-field': NAME, 'text-font': FONT.carvedBold, 'text-size': 12, 'text-transform': 'uppercase', 'text-letter-spacing': 0.4 },
       paint: textPaint(p.inkSoft, p.halo, 1.4),
     },
   ];
@@ -402,8 +709,11 @@ export function loreMapStyle(half: MapHalf): StyleSpecification {
   return {
     version: 8,
     name: half === 'day' ? 'lore-day' : 'lore-night',
-    glyphs: GLYPHS_URL,
-    sources: { [source]: { type: 'vector', url: TILEJSON_URL } },
+    glyphs,
+    sources: {
+      [source]: { type: 'vector', url: TILEJSON_URL },
+      'lore-graticule': { type: 'geojson', data: graticule() },
+    },
     layers,
   };
 }

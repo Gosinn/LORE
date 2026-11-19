@@ -62,7 +62,7 @@
 
   /* The world (styles/worlds.css paints it; these are its base colour, the colour along its top edge, and
      the slab tint that suits it). Black star sky unless data-world says otherwise. --world-top is also the
-     browser bar's colour (lib/theme.ts WORLD_BAR, AppShell). */
+     browser bar's colour (lib/theme.ts WORLDS[].bar, AppShell). */
   --world-bg: #030409;
   --world-top: #030409;
   --slab: rgb(16 16 22 / 0.9);
@@ -156,8 +156,23 @@
 /* By day the slabs are the same dark stone, a little denser so muted text keeps 4.8:1 over the sun. */
 :root[data-theme='lore'][data-world='green-hills'],
 :root[data-theme='lore'][data-daylight='day'] {
-  --world-bg: #4f83ad;
-  --world-top: #1a3a6e;
+  --world-bg: #ecd9a0;
+  --world-top: #fbf3dc;
+  --slab: rgb(26 22 18 / 0.94);
+}
+:root[data-theme='lore'][data-world='sea-chart'] {
+  --world-bg: #cfdcd3;
+  --world-top: #cfdcd3;
+  --slab: rgb(26 22 18 / 0.94);
+}
+:root[data-theme='lore'][data-world='dawn-peaks'] {
+  --world-bg: #e9d9cc;
+  --world-top: #a9c4e2;
+  --slab: rgb(26 22 18 / 0.94);
+}
+:root[data-theme='lore'][data-world='celestial-vellum'] {
+  --world-bg: #efe2c2;
+  --world-top: #f4ead2;
   --slab: rgb(26 22 18 / 0.94);
 }
 

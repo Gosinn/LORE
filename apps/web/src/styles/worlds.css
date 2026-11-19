@@ -5,9 +5,9 @@
 
    The contract (lib/theme.ts puts these on <html>; index.html's boot script does it before the first paint):
      data-theme="lore"              the one look (any other value hides the backdrop: a retired look paints its own)
-     data-world="<id>"              the world on screen: black-star-sky (default), night-map, midnight-vellum,
-                                    scroll, treasure-map, mountain-range, northern-lights, or green-hills by day
-     data-daylight="night" | "day"  which half of the day it is (day always shows green-hills)
+     data-world="<id>"              the world on screen (lib/theme.ts WORLDS: the dark ones and the light ones;
+                                    black-star-sky by default)
+     data-daylight="night" | "day"  that world's tone: day on a light world, night on a dark one
    This file paints the worlds: --world-art (each world's art as background layers, on any [data-world]
    element: <html> and the Profile thumbnails) and --world-bg for the thumbnails. lore.css owns the rest of the
    world tokens on <html> (--world-bg, --world-top, --slab per world, --bg = --world-bg) and all text that sits
@@ -73,10 +73,25 @@
   --world-bg: #050a14;
   --world-art: url('../assets/worlds/northern-lights.svg') center / cover no-repeat;
 }
-/* By day: the green hills under the engraved sun (spec 5). */
+/* The light worlds. The green hills: the gnostic cosmos over an engraved earth (redrawn 2026-11-19). */
 [data-world='green-hills'] {
-  --world-bg: #4f83ad;
+  --world-bg: #ecd9a0;
   --world-art: url('../assets/worlds/green-hills.svg') center / cover no-repeat;
+}
+/* The treasure map by day: a pale sea, sepia ink. */
+[data-world='sea-chart'] {
+  --world-bg: #cfdcd3;
+  --world-art: url('../assets/worlds/sea-chart.svg') center / cover no-repeat;
+}
+/* The great peak at sunrise. */
+[data-world='dawn-peaks'] {
+  --world-bg: #e9d9cc;
+  --world-art: url('../assets/worlds/dawn-peaks.svg') center / cover no-repeat;
+}
+/* An engraved armillary sphere on vellum. */
+[data-world='celestial-vellum'] {
+  --world-bg: #efe2c2;
+  --world-art: url('../assets/worlds/celestial-vellum.svg') center / cover no-repeat;
 }
 
 /* ---------------------------------------------------------- the backdrop
@@ -140,14 +155,51 @@ body:has(.oracle-page) > .world {
 }
 
 /* ------------------------------------------------------ Profile → Your world
-   A radio group of the night worlds (small live thumbnails of the art), then the day world with "When". The
-   picked world is the raised stone block with glow letters; one tap applies (lib/theme.ts). The panel is a
-   .slab, so lore.css gives it the stone and the night inks wherever it sits. */
+   The Auto switch, then every world as small live thumbnails of the art, under "Dark" and "Light" (one radio
+   group; with Auto on, "By night" among the dark ones, "By day" among the light ones, then "When"). The picked
+   world is the raised stone block with glow letters; one tap applies (lib/theme.ts). The panel is a .slab, so
+   lore.css gives it the stone and the night inks wherever it sits. */
 
 .your-world {
   display: grid;
   gap: 12px;
   padding: 12px 12px 14px;
+}
+/* Auto: a chip that is a switch (role="switch"). Off it is a well, on the raised block (lore.css's
+   .chip[aria-checked='true']); its lamp is the ember that is lit or not, so the state isn't the block alone. */
+.world-auto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+.chip.world-switch {
+  gap: 8px;
+}
+.world-lamp {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #0d0b09;
+  box-shadow:
+    inset 0 1px 2px #000,
+    0 1px 0 rgb(255 255 255 / 0.07);
+}
+.world-switch[aria-checked='true'] .world-lamp {
+  background: radial-gradient(circle at 40% 35%, #ffe2c2, #ff9a5a 55%, #c4501f);
+  box-shadow: 0 0 8px rgb(255 120 60 / 0.8);
+}
+.world-auto .world-hint {
+  flex: 1 1 14em;
+}
+/* "Dark" and "Light": one radio group, two headed piles. */
+.world-tone {
+  display: grid;
+  gap: 8px;
+}
+.world-tone + .world-tone {
+  margin-top: 4px;
 }
 .world-set {
   display: grid;
@@ -234,16 +286,6 @@ body:has(.oracle-page) > .world {
 .world-when:has(> .world-radio:focus-visible) {
   outline: 2px solid var(--glow);
   outline-offset: 3px;
-}
-/* The day world: one, shown beside "When". */
-.world-day {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-.world-day .world-pick {
-  cursor: default;
 }
 .world-when {
   position: relative;

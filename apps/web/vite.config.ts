@@ -71,7 +71,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Only the owner loads the text editor. The Lore Map's MapLibre (about 1.1 MB) needs a
         // connection for its tiles anyway, so installed apps don't keep a copy (D35); tiles are never cached.
-        globIgnores: ['**/node_modules/**/*', '**/copy-editor-*', '**/maplibre-gl-*'],
+        // Nor are its letters (public/map-glyphs, 2.5 MB, tools/make-map-glyphs.mjs): the map fetches only the
+        // ranges a view needs and the browser's HTTP cache keeps them (.pbf isn't in globPatterns; this is in
+        // case a pattern ever widens).
+        globIgnores: ['**/node_modules/**/*', '**/copy-editor-*', '**/maplibre-gl-*', '**/map-glyphs/**'],
       },
     }),
   ],

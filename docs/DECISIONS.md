@@ -55,16 +55,38 @@ pickers), then joined.
   Places at one spot (the same town picked twice, About here places rounded to one node) are one circle, and
   a tap lists them all; a cluster that never parts lists its places instead of zooming in on a pile. Loracle waypoints
   reach only the wish's owner; where you stand only you. The map never uses the device's location.
-- **OpenFreeMap tiles** (`https://tiles.openfreemap.org/planet`, OpenMapTiles schema; glyphs from the same
-  host): free, no key, no sign-up, commercial use allowed, attribution only (checked 2026-11-19 by reading
+- **OpenFreeMap tiles** (`https://tiles.openfreemap.org/planet`, OpenMapTiles schema; at first glyphs from the
+  same host, now LORE's own, below): free, no key, no sign-up, commercial use allowed, attribution only (checked 2026-11-19 by reading
   their site; the URLs answered 200). The device loads tiles straight from them, so they see the viewer's IP
   address and the area viewed; said so in the Privacy policy and the App Privacy notes. Tiles are never
   cached by the service worker. MapLibre GL (BSD) draws them with LORE's own night and day styles
   (`lib/mapStyle.ts`); its 300 kB (gzip) chunk loads only with the map and isn't precached either (it needs a
   connection for the tiles anyway): offline, the map says it needs a connection and tries again when one
   is back. No Content-Security-Policy exists today; one added later needs `worker-src blob:` and the tile host.
+- **The map's letters are LORE's own** (the owner, 2026-11-19: "accurate BUT also in OUR OWN STYLE. ORIGINAL").
+  MapLibre draws labels from glyph files (signed distance fields, `glyphs.proto`); the app serves its own in
+  `apps/web/public/map-glyphs` (24 files, 2.5 MB), made by `npm run map-glyphs` (`tools/make-map-glyphs.mjs`:
+  opentype.js reads the fonts, the distance fields are computed from the outlines; same output every run) from
+  the fonts the app already ships: Cinzel as `LORE-Carved-Regular` and `LORE-Carved-Bold`, IM Fell English as
+  `LORE-Book-Regular` and `LORE-Book-Italic`. Ranges 0-1023, 7680-7935 and 8192-8447: Latin with every
+  extension, modifier letters, combining marks, Greek, punctuation. A letter the font lacks (IM Fell is Latin-1
+  only: Ł, ő, ș, Vietnamese; Cinzel has no Greek) is drawn from Noto Serif at the font's cap height, so no Latin
+  name loses a letter (serif, to sit with Cinzel and IM Fell); the script downloads Noto Serif from the Noto
+  project's own repository (pinned commit, SHA-256 checked) into a folder outside the repo. The stacks carry
+  LORE's names, not the fonts', because IM Fell's licence reserves the name "IM FELL" and the files mix in Noto;
+  all three are SIL OFL, notices in `map-glyphs/OFL.txt`. The capitals sit where MapLibre's Noto Sans capitals
+  sit (MapLibre centres every font with one fixed offset), so labels stay centred on their points. A character
+  outside these ranges is drawn by MapLibre itself in the browser's sans-serif (it warns once in the console).
+  The glyphs aren't precached by the service worker (the browser's HTTP cache keeps them), and the Android live
+  update leaves them out (`routes/appUpdates.ts`; they would add about 1.3 MB to every update, more than doubling
+  it, and the map needs a connection for its tiles anyway): the native app fetches them from the server, which
+  serves them with the web app and already answers the app's origin with CORS. So the style's URL template is
+  `serverFile('/map-glyphs/{fontstack}/{range}.pbf')` (`lib/api.ts`: the server in the native app, this page's
+  origin on the web and in development), joined as a string because `new URL()` would escape the braces. Not
+  verified on a phone.
 - **Not verified**: nothing of the map or the pickers has been looked at in a browser or on a phone; tiles in
-  the Android and iOS web views, and iOS starting MapLibre's worker from a `blob:` URL, are untested.
+  the Android and iOS web views, and iOS starting MapLibre's worker from a `blob:` URL, are untested. LORE's own
+  map letters have only been decoded and laid out in tests and a test render, not seen on the map.
 
 **D34 · One base everywhere, the Loracle's own kit; the variety is the world behind it, by night and by
 day.** Replaces D32's look; D32's retire rule stands. The owner (2026-11-18, docs/OWNER_VOICE.md "The look"):
@@ -94,7 +116,7 @@ three rounds of candidates; the approved page is `D:\LORE-devenv\previews\index.
   layer-list worlds in `styles/worlds.css`. The choice is kept on the device (`lore.world`, `lore.daylight`),
   not on the account: no database change (a migration would have collided with live text's numbering;
   ROADMAP has "sync across devices").
-- **When it's day**: Follow my phone (light/dark, the default), Follow the sun where I stand (sunrise and
+- **When it's day** *(replaced 2026-11-19 by Auto, see the note at the end of D34)*: Follow my phone (light/dark, the default), Follow the sun where I stand (sunrise and
   sunset worked out on the device from the Loracle's home point rounded to 0.1°; nothing asked of a server;
   without a home point the phone decides; midnight sun and polar night handled), Always night, Always day.
   Card dress by day is the owner's pick: the same dark stone slabs as at night. Light vellum slabs are ready
@@ -126,6 +148,35 @@ three rounds of candidates; the approved page is `D:\LORE-devenv\previews\index.
   worlds keep the preview's bare halo; on the black star sky the "more" links take the paler glow (4.9:1).
   The black star sky's two SVG filters are bounded to the screen (fewer pixels to draw, nothing visible
   changes). **Nothing of this has been looked at in a browser or on a phone yet.**
+- **Note, 2026-11-19: what you pick is what you see; Auto only when you choose it.** The owner: "make the day
+  night thing simpler. becuase I cant just choose the gnostic day one , i have to coose "day mode". let's make
+  more light ones then, but ONLY if the user chooses auto mode , then whatever they choose, that will be.."
+  - **Every world is one tap**, dark or light, in one radio group under "Dark" and "Light" (Profile → Your
+    world); the world tapped is the world shown, always. **Auto** (a switch, off by default) is the only thing
+    that changes the world by itself: with it on, the dark worlds pick the world "By night", the light ones
+    the world "By day", and "When" is Follow my phone or Follow the sun where I stand. Always night and Always
+    day are gone (a fixed world is that). Turning Auto on puts the picked world in its own half's slot;
+    turning it off keeps the world on screen as the picked one, so the switch doesn't jump.
+  - **`data-daylight` is the tone of the world on screen**: `day` on a light world (the day-mode text rules,
+    ink on a vellum plate, apply to any light world), `night` on a dark one. `data-theme` and `data-world` are
+    unchanged.
+  - **One list of worlds**: `WORLDS` in `lib/theme.ts` (`id`, `label`, `tone`, `bar`; `label` because the
+    live-text transform reads that key as words, so the owner can reword a world's name). Profile, the
+    store and the tests read it. A world = its art, a block in `worlds.css`, a block in `lore.css` (a light one
+    after the green hills' block, which also holds `[data-daylight='day']`) and one line in `WORLDS`.
+  - **The first paint needs no list**: `applyLook()` leaves `lore.boot` (`{ when, night: [id, bar], day: [id,
+    bar] }`) and index.html wears that, with the sun's cache as before. Only the first start after this update
+    reads the old keys, with the old seven worlds frozen in index.html. A test runs the boot script against
+    theme.ts for every world with Auto off and every night/day pair with Auto on, on a dark and a light phone.
+  - **Defaults and the old choices.** New: the black star sky, Auto off. Kept before (no `lore.auto`): Follow
+    my phone or the sun → Auto on with the same driver, the kept night world and the green hills; Always night
+    → that night world; Always day → the green hills; a night world with nothing said about the day → that
+    world (it wasn't a choice of Auto). Written the new way (`lore.auto`, `lore.world`, `lore.nightWorld`,
+    `lore.dayWorld`, `lore.daylight` = the driver) on the next start.
+  - The status bar's icons follow the world's `bar` (light icons on a dark top edge: every world today), so a
+    light world with a pale sky would get dark icons. Live text: "Always night" and "Always day" leave the
+    catalog; "Auto", its one line, "Dark" and "Light" are new; no existing words changed.
+  - **Not verified** in a browser or on a phone.
 
 **D33 · Live text: the owner rewords LORE in the app and publishes it.** The owner (2026-11-18): "I want the
 ability to change all text myself manually and then a button to commit in real time. instead of writing to you

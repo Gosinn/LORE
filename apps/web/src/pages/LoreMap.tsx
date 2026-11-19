@@ -21,9 +21,11 @@ import {
   CARVED_FONT,
   CLUSTER_IMAGE,
   drawCluster,
+  drawMapMark,
   drawMedal,
   drawPin,
   imageRatio,
+  MAP_MARKS,
   loreMapStyle,
   medalImage,
   pinImage,
@@ -33,11 +35,23 @@ import {
   PLACE_LAYERS,
   radiusAtZoom0,
   TAP_LAYERS,
+  useOwnMapLetters,
   type MapHalf,
   type PlaceKind,
 } from '../lib/mapStyle.ts';
+import { serverFile } from '../lib/api.ts';
 import { useCrews, useMe } from '../lib/queries.ts';
 import { LorebookSwitch } from './Lorebook.tsx';
+
+// LORE's own letters on the map (tools/make-map-glyphs.mjs): Cinzel for countries and regions, IM Fell English
+// for places and water. Served by the app's server, so the native apps fetch them from it too.
+// copy:ignore (glyph file paths and font stack names, not words)
+useOwnMapLetters(serverFile('/map-glyphs/{fontstack}/{range}.pbf'), {
+  carved: 'LORE-Carved-Regular',
+  carvedBold: 'LORE-Carved-Bold',
+  book: 'LORE-Book-Regular',
+  bookItalic: 'LORE-Book-Italic',
+});
 
 // ---------------------------------------------------------------------------------------------- data
 // GET /map through lib/map.ts (shapes in #shared: MapFeature, MapResponse). While another mode loads, the
@@ -228,6 +242,12 @@ function MapCanvas({
       const m = map;
       // Every style load (the first, and each day/night switch) starts empty: the places go back on.
       m.on('style.load', () => {
+        // The engraver's marks (paper, sea lines, trees, stipple, ice, towns, peaks) in this half's inks.
+        for (const mark of MAP_MARKS) {
+          if (m.hasImage(mark)) m.removeImage(mark);
+          const drawn = drawMapMark(mark, halfRef.current, ratio);
+          m.addImage(mark, drawn.data, { pixelRatio: drawn.pixelRatio });
+        }
         for (const kind of PLACE_KINDS) {
           if (!m.hasImage(pinImage(kind))) m.addImage(pinImage(kind), drawPin(kind, ratio).data, { pixelRatio: ratio });
           if (!m.hasImage(medalImage(kind))) m.addImage(medalImage(kind), drawMedal(kind, ratio).data, { pixelRatio: ratio });
@@ -246,8 +266,12 @@ function MapCanvas({
       // A cluster's count is drawn when it is first needed. MapLibre 6 asks a resolver before it gives up on an
       // image (the old `styleimagemissing` event only fires after the warning, too late for this frame).
       m.setMissingStyleImageResolver((id) => {
-        if (id.startsWith(CLUSTER_IMAGE) && !m.hasImage(id)) {
+        if (m.hasImage(id)) return;
+        if (id.startsWith(CLUSTER_IMAGE)) {
           m.addImage(id, drawCluster(id.slice(CLUSTER_IMAGE.length), ratio).data, { pixelRatio: ratio });
+        } else if ((MAP_MARKS as readonly string[]).includes(id)) {
+          const drawn = drawMapMark(id as (typeof MAP_MARKS)[number], halfRef.current, ratio);
+          m.addImage(id, drawn.data, { pixelRatio: drawn.pixelRatio });
         }
       });
 
@@ -348,6 +372,7 @@ function MapCanvas({
   return (
     <>
       <div ref={box} className="lore-map-canvas" />
+      <div className="lore-map-rose" aria-hidden="true" />
       {state === 'loading' && (
         <div className="lore-map-state">
           <Loading />

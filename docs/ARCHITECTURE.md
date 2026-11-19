@@ -205,20 +205,25 @@ Every screen wears the Loracle's own kit (stone buttons, wells, slabs, stamps; C
 a **world**, the page's background, picked per device. Nothing here touches the API or the database.
 
 - **What `<html>` carries**: `data-theme="lore"` (the one look; retired looks keep their CSS, D32/D34),
-  `data-world` (the world on screen: one of seven night worlds, or `green-hills` by day) and `data-daylight`
-  (`night` or `day`). `data-cards="vellum"` is a prepared, unused hook for light cards by day.
-- **Who sets it**: `index.html`'s boot script before the first paint (stored choice, the phone's light/dark,
-  the sun's cached answer; Welcome, and any start with no one signed in on the device, pinned to the default
-  world by night), then `lib/theme.ts` (`applyLook()`, a small store with `useLook()`), kept current by
+  `data-world` (the world on screen, from the one list `WORLDS` in `lib/theme.ts`: dark ones and light ones)
+  and `data-daylight` (that world's tone: `day` on a light world, else `night`). `data-cards="vellum"` is a
+  prepared, unused hook for light cards by day.
+- **What a Lorer picks** (Profile → Your world): one world, always (Auto off, the default), or Auto: a dark
+  world by night and a light one by day, by the phone's light/dark or the sun (D34's note of 2026-11-19).
+- **Who sets it**: `index.html`'s boot script before the first paint (the hint `lore.boot` that `applyLook()`
+  leaves, so the script lists no worlds; the phone's light/dark, the sun's cached answer; Welcome, and any
+  start with no one signed in on the device, pinned to the default world by night), then `lib/theme.ts`
+  (`applyLook()`, a small store with `useLook()`), kept current by
   `components/World.tsx`: the phone's switch, the app coming to the front, other tabs' choices (never their
-  sun cache, which every tab writes), and a timer at the next sunrise or sunset. "Follow the sun" reads the
+  sun cache or boot hint, which every tab writes), and a timer at the next sunrise or sunset. "Follow the sun" reads the
   Loracle's home point once from `GET /loracle` (rounded to 0.1° and kept in `lore.sun`); the sun's position is
   NOAA's equations, on the device. The cache for the boot script (`lore.sunNow`) holds the answer and the next
   14 turns (about a week; near the polar night, the last half for 48 h past the last turn), on whole minutes,
   and is rewritten only when it changes. World.tsx reads who is signed in from the query cache (as the copy
   gate does: `qc.clear()` doesn't tell a `useMe()` observer) and keeps the `lore.in` hint and the home point in
-  step with it. Choices live in `localStorage` (`lore.world`, `lore.daylight`, `lore.sun`, `lore.sunNow`,
-  `lore.in`), every access in try/catch.
+  step with it. Choices live in `localStorage` (`lore.auto`, `lore.world`, `lore.nightWorld`, `lore.dayWorld`,
+  `lore.daylight` (Auto's driver), `lore.sun`, `lore.sunNow`, `lore.boot`, `lore.in`), every access in
+  try/catch.
 - **The stylesheets, in this order** (main.tsx): `app.css` (base tokens, components, the temple), `map.css`
   (retired; its rules are guarded by `data-theme='map'` except the shared compass rose, trail, Welcome and
   Home door), `worlds.css` (each world's art as `--world-art` on any `[data-world]` element, the backdrop,
@@ -234,7 +239,7 @@ a **world**, the page's background, picked per device. Nothing here touches the 
 - **The backdrop** is one element, `<div class="world" aria-hidden="true">` in `index.html` outside React:
   `position: fixed; z-index: -1; height: 100lvh; contain: strict; will-change: transform`, so scrolling and
   the phone's toolbars never resize or repaint it. Body's `--bg` (the world's base colour) is the canvas under it.
-- **The browser bar** wears the world's top edge (`WORLD_BAR` in theme.ts = `--world-top` in lore.css; AppShell
+- **The browser bar** wears the world's top edge (`WORLDS[].bar` in theme.ts = `--world-top` in lore.css; AppShell
   reads `--world-top` on navigation, theme.ts on a world change); stone (`#24211e`) inside the Loracle.
 - **Tests** (`apps/web/vite/test/theme.test.ts`, outside `src` so its names aren't live-text words): the sun
   against almanac times, the choices, the boot script run in a sandbox, and the stylesheets' world colours
@@ -419,7 +424,7 @@ Five primary destinations (brief part II), as a bottom tab bar on phones and a s
 | Calendar | `/calendar`: month and agenda views; LORE and personal layers | new event on a day, personal entries |
 | Create | `/create`: plan something, save an idea, write a chapter, start a crew | forms |
 | Lorebook | `/lorebook`: timeline by year, crew and year filters, search; Book \| Map switch to `/lorebook/map` (the Lore Map: Mine, Crew, Memories, Adventures) | chapters, plans, ideas, quests |
-| Profile | `/profile`: picture, bio, friends, crews, my lore, settings (Your world: night world, day and night) | `/friends`, `/u/:username` |
+| Profile | `/profile`: picture, bio, friends, crews, my lore, settings (Your world: any world, or Auto by night and by day) | `/friends`, `/u/:username` |
 
 Outside the tabs: `/welcome` (sign in, create account) and `/welcome/where` ("Where do you stand?", the step a
 new account takes before Home: device location, recommended and rounded to about a kilometre, or a town by

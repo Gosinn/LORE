@@ -10,20 +10,23 @@ import { canEditCopy, setCopyEditorOn, useCopyEditorOn } from '../lib/copy/gate.
 import { prepareImage } from '../lib/images.ts';
 import { useAction, useChapters, useCrews, useFriendRequests, useFriends, useLoracle, useMe } from '../lib/queries.ts';
 import {
-  DAY_WORLD,
-  DAYLIGHTS,
-  DAYLIGHT_LABELS,
-  NIGHT_WORLDS,
+  DARK_WORLDS,
+  DRIVERS,
+  DRIVER_LABELS,
+  LIGHT_WORLDS,
   THEMES,
   THEME_LABELS,
-  WORLD_LABELS,
-  chooseDaylight,
+  chooseAuto,
+  chooseDayWorld,
+  chooseDriver,
+  chooseNightWorld,
   chooseTheme,
   chooseWorld,
   loadTheme,
   rollColors,
   useLook,
   type ThemeChoice,
+  type World,
 } from '../lib/theme.ts';
 
 export function MyProfile() {
@@ -230,65 +233,98 @@ export function MyProfile() {
 }
 
 /**
- * Your world (WORLDS spec 2.2, 5): the night world (one of seven, small live thumbnails of the art), the day world,
- * and when it's day. One tap applies; the choice stays on this device (lib/theme.ts). Native radios, so arrow
- * keys and screen readers work as for any radio group. Styles: styles/worlds.css.
+ * Your world (DECISIONS D34 and its note of 2026-11-19): every world, dark and light, as small live thumbnails of
+ * the art. With Auto off (the default) they are one radio group, and the world tapped is the world shown, always.
+ * With Auto on the dark ones pick the world by night, the light ones the world by day, and "When" says what tells
+ * day from night. One tap applies; the choices stay on this device (lib/theme.ts, whose WORLDS list this follows:
+ * a new world shows up here by itself). Native radios, so arrow keys and screen readers work as for any radio
+ * group. Styles: styles/worlds.css.
  */
 function YourWorld() {
   const look = useLook();
   const id = useId();
+  const tiles = <W extends World>(worlds: readonly W[], name: string, picked: string, pick: (world: W['id']) => void) => (
+    <div className="world-grid">
+      {worlds.map((w) => (
+        <label key={w.id} className="world-pick">
+          <input type="radio" className="world-radio" name={name} value={w.id} checked={picked === w.id} onChange={() => pick(w.id)} />
+          <span className="world-thumb" data-world={w.id} aria-hidden />
+          <span className="world-name">{w.label}</span>
+        </label>
+      ))}
+    </div>
+  );
   return (
     <div className="slab your-world">
-      <span className="label">Your world</span>
-      <fieldset className="world-set">
-        <legend className="world-legend">By night</legend>
-        <div className="world-grid">
-          {NIGHT_WORLDS.map((w) => (
-            <label key={w} className="world-pick">
-              <input
-                type="radio"
-                className="world-radio"
-                name={`${id}-night`}
-                value={w}
-                checked={look.world === w}
-                onChange={() => chooseWorld(w)}
-              />
-              <span className="world-thumb" data-world={w} aria-hidden />
-              <span className="world-name">{WORLD_LABELS[w]}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <p className="world-legend">By day</p>
-      <div className="world-day">
-        <div className="world-pick">
-          <span className="world-thumb" data-world={DAY_WORLD} aria-hidden />
-          <span className="world-name">{WORLD_LABELS[DAY_WORLD]}</span>
-        </div>
-        <fieldset className="world-set">
-          <legend className="world-legend">When</legend>
-          <div className="chips wrap">
-            {DAYLIGHTS.map((d) => (
-              <label key={d} className={`chip world-when${look.daylight === d ? ' on' : ''}`}>
-                <input
-                  type="radio"
-                  className="world-radio"
-                  name={`${id}-when`}
-                  value={d}
-                  checked={look.daylight === d}
-                  onChange={() => chooseDaylight(d)}
-                />
-                <span className="world-when-name">{DAYLIGHT_LABELS[d]}</span>
-              </label>
-            ))}
-          </div>
-          {look.daylight === 'sun' && !look.sunKnown && (
-            <p className="tiny muted world-hint">
-              Until you say where you stand, your phone decides. <Link to="/welcome/where?next=/profile">Say where you stand</Link>
-            </p>
-          )}
-        </fieldset>
+      <span className="label" id={`${id}-title`}>
+        Your world
+      </span>
+      <div className="world-auto">
+        <button
+          type="button"
+          role="switch"
+          className="chip world-switch"
+          aria-checked={look.auto}
+          aria-describedby={`${id}-auto`}
+          onClick={() => chooseAuto(!look.auto)}
+        >
+          <span className="world-lamp" aria-hidden />
+          Auto
+        </button>
+        <p className="tiny muted world-hint" id={`${id}-auto`}>
+          A dark world by night and a light one by day, changing by itself.
+        </p>
       </div>
+      {look.auto ? (
+        <>
+          <fieldset className="world-set">
+            <legend className="world-legend">By night</legend>
+            {tiles(DARK_WORLDS, `${id}-night`, look.night, chooseNightWorld)}
+          </fieldset>
+          <fieldset className="world-set">
+            <legend className="world-legend">By day</legend>
+            {tiles(LIGHT_WORLDS, `${id}-day`, look.day, chooseDayWorld)}
+          </fieldset>
+          <fieldset className="world-set">
+            <legend className="world-legend">When</legend>
+            <div className="chips wrap">
+              {DRIVERS.map((d) => (
+                <label key={d} className={`chip world-when${look.driver === d ? ' on' : ''}`}>
+                  <input
+                    type="radio"
+                    className="world-radio"
+                    name={`${id}-when`}
+                    value={d}
+                    checked={look.driver === d}
+                    onChange={() => chooseDriver(d)}
+                  />
+                  <span className="world-when-name">{DRIVER_LABELS[d]}</span>
+                </label>
+              ))}
+            </div>
+            {look.driver === 'sun' && !look.sunKnown && (
+              <p className="tiny muted world-hint">
+                Until you say where you stand, your phone decides. <Link to="/welcome/where?next=/profile">Say where you stand</Link>
+              </p>
+            )}
+          </fieldset>
+        </>
+      ) : (
+        <fieldset className="world-set" aria-labelledby={`${id}-title`}>
+          <div className="world-tone" role="group" aria-labelledby={`${id}-dark`}>
+            <p className="world-legend" id={`${id}-dark`}>
+              Dark
+            </p>
+            {tiles(DARK_WORLDS, `${id}-world`, look.world, chooseWorld)}
+          </div>
+          <div className="world-tone" role="group" aria-labelledby={`${id}-light`}>
+            <p className="world-legend" id={`${id}-light`}>
+              Light
+            </p>
+            {tiles(LIGHT_WORLDS, `${id}-world`, look.world, chooseWorld)}
+          </div>
+        </fieldset>
+      )}
     </div>
   );
 }

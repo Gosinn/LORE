@@ -15,8 +15,9 @@ The stone's mind is Claude (Anthropic); wishes are private to the one who cast t
 Every screen wears **one base, the Loracle's own**: carved stone buttons with ember letters, a copper Create,
 wells to type into, dark slabs for cards, Cinzel and IM Fell English, so stepping into the Loracle never jumps.
 Behind it is **your world**, picked in Profile: a black star sky (the default), a night map, midnight vellum, a
-scroll, a treasure map, a mountain range or the northern lights, and by day the green hills under an engraved
-sun; day follows your phone, the real sun where you stand, or stays put. The stone wall itself belongs to the
+scroll, a treasure map, a mountain range or the northern lights, or the green hills under an engraved sun; one
+tap and it stays. Or switch on Auto: a dark world by night and a light one by day, following your phone or the
+real sun where you stand. The stone wall itself belongs to the
 Loracle alone, and the older looks (the Treasure Map too) are retired, not deleted. On Home,
 the door to the Loracle carries one small sign a day: something worth doing near where you stand, if you told
 the stones where that is (a new account is asked right after sign-up; location is recommended, never required).

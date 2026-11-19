@@ -12,6 +12,8 @@ import './styles/app.css';
 import './styles/map.css';
 // The worlds: the backdrop behind everything and each world's art (lib/theme.ts picks one).
 import './styles/worlds.css';
+// Wide cuts of the scenic worlds for screens wider than tall.
+import './styles/worlds-wide.css';
 // The one look: the Loracle's own kit on every screen, and the text that sits on the world. Last.
 import './styles/lore.css';
 

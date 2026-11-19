@@ -1,5 +1,97 @@
 # LORE — Development log
 
+## 2026-11-19 — Your world, simpler: one tap is your world; Auto only when you choose it (D34 note)
+
+The owner: "make the day night thing simpler. becuase I cant just choose the gnostic day one , i have to coose
+"day mode". let's make more light ones then, but ONLY if the user chooses auto mode , then whatever they choose,
+that will be.." **Not looked at in a browser or on a phone.**
+
+**What changed**
+
+- **Profile → Your world**: every world as a thumbnail under "Dark" and "Light", one radio group: the world
+  tapped is the world shown, always (the green hills too). An **Auto** switch (a kit chip with `role="switch"`
+  and an ember lamp; off by default) with one line: with it on, the dark worlds become "By night", the light
+  ones "By day", and "When" offers Follow my phone / Follow the sun where I stand. Always night and Always day
+  are gone (a fixed world is that). Turning Auto on puts the picked world in its half's slot; turning it off
+  keeps the world on screen.
+- **`lib/theme.ts`**: one list, `WORLDS` (`id`, `label`, `tone: 'dark' | 'light'`, `bar`), from which Profile,
+  the store and the tests read (`DARK_WORLDS`, `LIGHT_WORLDS`, `worldOf`). New choices `auto`, `world`, `night`,
+  `day`, `driver` (`lore.auto`, `lore.world`, `lore.nightWorld`, `lore.dayWorld`, `lore.daylight`).
+  `data-daylight` is now the tone of the world on screen (`day` on any light world). Old stored choices are read
+  as they were meant and rewritten once: Follow my phone/sun → Auto on with that night world and the green
+  hills; Always night → that world; Always day → the green hills; a night world alone → that world. The status
+  bar's icons follow the world's `bar` (all dark today, so nothing changes yet).
+- **`index.html`** no longer lists the worlds: `applyLook()` leaves `lore.boot` (`{ when, night, day }`, each
+  `[id, bar]`) and the first paint wears it. The seven old worlds stay frozen in it only for the first start
+  after this update, before theme.ts has rewritten the old keys.
+- Live text: "Always night" and "Always day" leave the catalog; "Auto", its line, "Dark" and "Light" are new;
+  every world's name keeps its key (same file, same words); no existing words changed.
+- Docs: DECISIONS (D34 note), ARCHITECTURE, ROADMAP, README.
+
+**To add a world**: its art in `assets/worlds/`; `[data-world='<id>'] { --world-bg; --world-art }` in
+`styles/worlds.css`; `:root[data-theme='lore'][data-world='<id>'] { --world-bg; --world-top; --slab }` in
+`styles/lore.css` (a light one after the green hills' block); one line in `WORLDS`. The theme tests check all
+of it, that order too, and pin no count of worlds, so nothing in them needs editing.
+
+**Checked**
+
+- `npm run typecheck` passes. `vite build` passes (main bundle 507.91 kB / 158.84 kB gzip; Profile 17.10 kB /
+  5.55 kB gzip).
+- Theme tests: 57 pass (defaults; every old stored value, read and written once; a fixed light world is
+  `day` on a dark phone and a dark one `night` on a light phone; Auto with the phone and with the sun; the boot
+  script wears exactly what theme.ts wears for every world with Auto off and every night/day pair with Auto on,
+  on either phone, and for every old stored value on the first start). `npm test`: API 299 pass; the web suite's
+  only failures at the time were the map track's work in progress (`mapGlyphs.test.ts`, live-text coverage of
+  `lib/mapStyle.ts`).
+- **Not verified**: the switch, the piles and the thumbnails at 320–375 px in a browser or on a phone.
+
+## 2026-11-19 — The Lore Map's own letters (D35)
+
+The owner: "I want the map to accurate BUT also in OUR OWN STYLE. ORIGINAL." The map's names were in
+OpenFreeMap's Noto Sans; MapLibre can only draw labels from glyph files, so LORE now makes its own from the fonts
+it already ships. **Not looked at on the map in a browser or on a phone**: decoded and laid out in tests and in a
+test render only.
+
+**What changed**
+
+- `tools/make-map-glyphs.mjs` (`npm run map-glyphs`; new dev dependency opentype.js 2.0.0, pure JS): reads
+  @fontsource's Cinzel (400, 700; latin and latin-ext) and IM Fell English (roman, italic) WOFF files and writes
+  MapLibre glyph files (`glyphs.proto`, 24 px, 3 px border, radius 8, edge at 192: node-fontnik's and
+  MapLibre's numbers) to `apps/web/public/map-glyphs/{stack}/{range}.pbf`. The distance field is computed from
+  the outlines (no canvas); edges inside overlapping contours (Noto's Ş, ç, Ų) are left out so no seam shows
+  through a letter. Same bytes every run.
+- Stacks `LORE-Carved-Regular`, `LORE-Carved-Bold` (Cinzel), `LORE-Book-Regular`, `LORE-Book-Italic` (IM Fell);
+  ranges 0-255, 256-511, 512-767, 768-1023, 7680-7935, 8192-8447. Missing letters come from Noto Serif (Regular,
+  Bold, Italic) at the LORE font's cap height: 332 own + 1,047 Noto glyphs per Cinzel stack, 211 + 1,168 per IM
+  Fell stack. Noto Serif is downloaded once by the script from github.com/notofonts (pinned commit, SHA-256
+  checked) into `D:\LORE-devenv\fonts\noto-serif` (`--fonts <dir>` or `LORE_GLYPH_FONTS` elsewhere), not the repo.
+- Capitals are placed where MapLibre's Noto Sans capitals sit (baseline 26 px in every stack), so labels stay
+  centred on their points. The OFL notices (Cinzel, IM Fell, Noto) are in `map-glyphs/OFL.txt`.
+- Not precached: `.pbf` isn't in the service worker's patterns, and `vite.config.ts` now also ignores
+  `map-glyphs/**` in case a pattern widens. No runtime cache rule (the map needs a connection for its tiles; the
+  browser's HTTP cache keeps the letters).
+- Test `apps/web/vite/test/mapGlyphs.test.ts` (in `npm run test:copy`): a protobuf reader of its own decodes
+  every file; one stack per file with the right name and range; ids in range, sorted; bitmap size
+  (w+6)×(h+6); þ ð æ ö Þ Ð Æ Ö drawn in all four stacks with a real distance field; every letter of a list of
+  European and Vietnamese place names present; capitals centred; licence present.
+
+**Checked**
+
+- Generator: 24 files, 2,469 KiB (2.5 MB with the licence; about 1.36 MB gzipped), 5.4 s; a second run gives
+  the same bytes. All 5,515 glyphs also decode with `pbf` (MapLibre's own reader) with the bitmap sizes MapLibre
+  expects; a test render of "ÍSLAND · ÞINGVELLIR · ÆGISÍÐA", "Seyðisfjörður Þórsmörk", "Łódź Brașov Hà Nội"
+  in the four stacks looked right (Noto letters sit in with IM Fell).
+- `npm run typecheck` passes; the new test passes (6 tests); `vite build` passes, copies `map-glyphs` into
+  `dist`, and the service worker's precache doesn't list them.
+- After review: the Android live update leaves `map-glyphs/` out (`routes/appUpdates.ts`; it would have added
+  about 1.3 MB to every update) and the native app fetches the letters from the server: the style's template is
+  `serverFile('/map-glyphs/{fontstack}/{range}.pbf')` (`lib/api.ts`; this page's origin on the web). The
+  generator now finds, downloads and checks every font first and writes to `apps/web/.map-glyphs.tmp`, which
+  replaces `public/map-glyphs` only when every file is written, so a failed run (offline, a bad download) leaves
+  the committed letters as they were (tried with a wrong Noto file: exit 1, folder unchanged); a bad download is
+  no longer kept. A rerun gave the same bytes. **Not verified**: the app fetching the letters from the server
+  on a phone.
+
 ## 2026-11-19 — The Lore Map: places with a chosen precision, on a map in LORE's look (D35)
 
 The roadmap's next step ("the journey must go on"): MASTER_BRIEF PART XVI, the Lore Map, reached through the

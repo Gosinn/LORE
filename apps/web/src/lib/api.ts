@@ -19,6 +19,14 @@ const BASE = (
   document.querySelector<HTMLMetaElement>('meta[name="lore-api-base"]')?.content ||
   ''
 ).replace(/\/$/, '');
+
+/**
+ * A file the server serves beside the API that the native app does not carry: the map's letters
+ * (`serverFile('/map-glyphs/{fontstack}/{range}.pbf')`; the live-update zip leaves them out, routes/appUpdates.ts).
+ * From the server in the native app, from this page's own origin on the web and in development. Joined as a string,
+ * so a URL template's {braces} stay as they are (`new URL()` would escape them).
+ */
+export const serverFile = (path: string) => `${BASE || location.origin}${path}`;
 const TOKEN_KEY = 'lore.token';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

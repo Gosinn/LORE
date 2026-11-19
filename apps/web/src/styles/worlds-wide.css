@@ -1,0 +1,66 @@
+/* --------------------------------------------------------------- WORLDS, WIDE (D34)
+   The scenic worlds are drawn twice: upright for phones (assets/worlds/<world>.svg) and wide for computers and
+   sideways tablets (<world>-wide.svg, 1600 x 900), each composed for its own shape. On a screen wider than it is
+   tall the wide cut is the world, full bleed; the blurred side-strips of the first desktop pass (worlds.css) are
+   switched off. Owner (2026-11-19): "the gnostic day is currently only portrait mode". */
+
+@media (min-aspect-ratio: 1/1) {
+  [data-world='black-star-sky'] {
+    --world-art: url('../assets/worlds/black-star-sky-wide.svg') center / cover no-repeat;
+  }
+  [data-world='treasure-map'] {
+    --world-art: url('../assets/worlds/treasure-map-wide.svg') center / cover no-repeat;
+  }
+  [data-world='mountain-range'] {
+    --world-art: url('../assets/worlds/mountain-range-wide.svg') center / cover no-repeat;
+  }
+  [data-world='northern-lights'] {
+    --world-art: url('../assets/worlds/northern-lights-wide.svg') center / cover no-repeat;
+  }
+  [data-world='green-hills'] {
+    --world-art: url('../assets/worlds/green-hills-wide.svg') center / cover no-repeat;
+  }
+  [data-world='sea-chart'] {
+    --world-art: url('../assets/worlds/sea-chart-wide.svg') center / cover no-repeat;
+  }
+  [data-world='dawn-peaks'] {
+    --world-art: url('../assets/worlds/dawn-peaks-wide.svg') center / cover no-repeat;
+  }
+  [data-world='celestial-vellum'] {
+    --world-art: url('../assets/worlds/celestial-vellum-wide.svg') center / cover no-repeat;
+  }
+  /* The Profile thumbnails stay upright cuts (they are phone-shaped cards). */
+  .world-thumb[data-world='sea-chart'] {
+    --world-art: url('../assets/worlds/sea-chart.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='dawn-peaks'] {
+    --world-art: url('../assets/worlds/dawn-peaks.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='celestial-vellum'] {
+    --world-art: url('../assets/worlds/celestial-vellum.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='black-star-sky'] {
+    --world-art: url('../assets/worlds/black-star-sky.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='treasure-map'] {
+    --world-art: url('../assets/worlds/treasure-map.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='mountain-range'] {
+    --world-art: url('../assets/worlds/mountain-range.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='northern-lights'] {
+    --world-art: url('../assets/worlds/northern-lights.svg') center / cover no-repeat;
+  }
+  .world-thumb[data-world='green-hills'] {
+    --world-art: url('../assets/worlds/green-hills.svg') center / cover no-repeat;
+  }
+
+  html[data-theme='lore']:is([data-world='black-star-sky'], [data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world {
+    background: var(--world-art, none);
+    background-color: var(--world-bg, #030409);
+  }
+  html[data-theme='lore']:is([data-world='black-star-sky'], [data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world::before,
+  html[data-theme='lore']:is([data-world='black-star-sky'], [data-world='treasure-map'], [data-world='mountain-range'], [data-world='northern-lights'], [data-world='green-hills']) .world::after {
+    content: none;
+  }
+}

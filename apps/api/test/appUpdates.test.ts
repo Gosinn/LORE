@@ -40,6 +40,9 @@ beforeAll(async () => {
   writeFileSync(path.join(publicDir, 'build.json'), JSON.stringify({ build: BUILD, version: '0.2.0' }));
   writeFileSync(path.join(publicDir, 'index.html'), '<head><meta name="lore-api-base" content="" /></head>');
   writeFileSync(path.join(publicDir, 'assets', 'app-x1.js'), 'console.log("LORE")');
+  mkdirSync(path.join(publicDir, 'map-glyphs', 'LORE-Book-Regular'), { recursive: true });
+  writeFileSync(path.join(publicDir, 'map-glyphs', 'LORE-Book-Regular', '0-255.pbf'), 'glyphs');
+  writeFileSync(path.join(publicDir, 'map-glyphs', 'OFL.txt'), 'licence');
   t = await createTestApp({ config: { publicDir } });
 });
 afterAll(async () => {
@@ -74,6 +77,7 @@ describe('live updates', () => {
     expect(createHash('sha256').update(res.rawPayload).digest('hex')).toBe(checksum);
 
     const files = readZip(res.rawPayload);
+    // The map's letters stay on the server (the app fetches them from there).
     expect([...files.keys()]).toEqual(['assets/app-x1.js', 'build.json', 'index.html']);
     expect(files.get('index.html')).toMatch(/<meta name="lore-api-base" content="http:\/\/localhost[^"]*" \/>/);
     expect(files.get('assets/app-x1.js')).toBe('console.log("LORE")');
