@@ -379,7 +379,7 @@ describe('before the first cast', () => {
     const c = await lorer('carla');
     const state = (await c.get('/api/loracle')).body;
     expect(state.mind).toBe('awake');
-    expect(state.examples).toHaveLength(5);
+    expect(state).not.toHaveProperty('examples');
     expect(state.settings).toMatchObject({
       realm: REALM,
       radiusKm: NO_LIMIT_KM,

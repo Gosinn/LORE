@@ -648,7 +648,6 @@ export const LORACLE_LINES = {
   wishStart: 'I wish ',
   wishLabel: 'Your wish',
   wishEmpty: 'Tell the stones what you wish for.',
-  examples: 'Or take up one of these',
   cast: 'Cast it',
   privacy: "Only you will see this. The stone's mind is Claude, by Anthropic. It reads your wish, never your name.",
 
@@ -851,68 +850,6 @@ export const LORACLE_LINES = {
 } as const;
 export type LoracleLine = keyof typeof LORACLE_LINES;
 
-/**
- * Example wishes, five shown at a time, chosen by ISO week (`loracleExamples`). Proper quests
- * only: the Loracle is never for day trips. Tapping one fills the field; it never casts.
- */
-export const LORACLE_EXAMPLES: readonly string[] = [
-  'I wish to become the Lethwei champion of the world.',
-  'I wish to sail across an ocean.',
-  'I wish to find the village my grandmother left.',
-  'I wish to play my own song on a real stage.',
-  'I wish to walk the Silk Road from end to end.',
-  'I wish to cook in a real kitchen in Japan.',
-  'I wish to cross Greenland on skis.',
-  'I wish to forge my own sword.',
-  'I wish to ride a horse across Mongolia.',
-  'I wish to dance flamenco in Seville.',
-  'I wish to build a boat with my own hands and sail it.',
-  'I wish to learn to fight from a true master.',
-  'I wish to dive down to a wreck on the sea floor.',
-  'I wish to run a hundred miles in one go.',
-  'I wish to dig up something no one has seen for a thousand years.',
-  'I wish to sail around Cape Horn with a crew.',
-  'I wish to become a blacksmith.',
-  'I wish to herd reindeer with the Sámi through a winter.',
-  'I wish to learn to fly a plane.',
-  'I wish to paddle the length of a great river.',
-  'I wish to train with the monks of Shaolin.',
-  'I wish to swim the English Channel.',
-  'I wish to bring my father to the place he was born.',
-  'I wish to become a mountain guide.',
-  'I wish to make a film that strangers will weep at.',
-  'I wish to walk the Camino to the end of the world.',
-  'I wish to sing in a choir in Georgia.',
-  'I wish to become a falconer.',
-  'I wish to work a season on a fishing boat in the far north.',
-  'I wish to paint a wall that a whole town will see.',
-  'I wish to stand on the roof of Africa.',
-  'I wish to wrestle at a Naadam in Mongolia.',
-  'I wish to sleep in a snow cave I dug with my own hands.',
-  'I wish to write a book in a lighthouse.',
-  'I wish to find the wreck my great-grandfather sailed on.',
-  'I wish to speak the tongue my grandparents were made to forget.',
-  'I wish to cross a desert with a caravan.',
-  'I wish to carve a figurehead for a real ship.',
-  'I wish to race a dog sled across Alaska.',
-  'I wish to become a stonemason and leave my mark on a cathedral.',
-];
-
-/** ISO-8601 week number (1–53) of a date, read in UTC; for picking the week's examples. */
-export function isoWeek(at: Date): number {
-  const d = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
-  const weekday = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - weekday);
-  const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1);
-  return Math.ceil(((d.getTime() - yearStart) / 86_400_000 + 1) / 7);
-}
-
-/** The five example wishes for an ISO week. Week 1 shows the first five. */
-export function loracleExamples(week: number): string[] {
-  const n = LORACLE_EXAMPLES.length;
-  const start = ((((week - 1) * 5) % n) + n) % n;
-  return Array.from({ length: 5 }, (_, i) => LORACLE_EXAMPLES[(start + i) % n]!);
-}
 
 /**
  * Crisis lines for the care screen, by ISO 3166-1 alpha-2 country code. Static: the care screen

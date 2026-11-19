@@ -37,11 +37,9 @@ import {
   EMERGENCY_NUMBERS,
   FIND_A_HELPLINE,
   InkWaypointInput,
-  isoWeek,
   LinkWaypointInput,
   LORACLE_LINES,
   LoracleSettingsInput,
-  loracleExamples,
   NO_LIMIT_KM,
   PlanWaypointInput,
   PROVISION_GROUPS,
@@ -662,7 +660,7 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
 
   // --- Routes ----------------------------------------------------------------
 
-  /** The stone's face: its mind, the Lorer's answers to its questions, the examples and the quest log. */
+  /** The stone's face: its mind, the Lorer's answers to its questions and the quest log. */
   app.get('/loracle', async (req): Promise<LoracleState> => {
     const me = requireUser(req);
     jobs.sweepSoon();
@@ -677,7 +675,6 @@ export async function loracleRoutes(app: FastifyInstance, { db, world, config, m
       mind: mindState(mind),
       consented: !!row?.loracleConsentAt,
       settings: toSettings(row),
-      examples: loracleExamples(isoWeek(new Date())),
       wishes: active,
       letGo,
       crewQuests,

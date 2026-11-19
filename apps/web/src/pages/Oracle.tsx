@@ -8,8 +8,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   LORACLE_LINES,
   fillLine,
-  isoWeek,
-  loracleExamples,
   type CareView,
   type CastResult,
   type LoracleContext,
@@ -109,9 +107,6 @@ function StoneFace({ state }: { state: LoracleState }) {
   const [line, setLine] = useState<string | null>(null);
   const [consentFor, setConsentFor] = useState<CastBody | null>(null);
   const [withdrawn, setWithdrawn] = useState(false);
-  // Built here from the editable table (same week as the server), so the owner's live edits show. The API
-  // still sends `examples` for older app builds.
-  const examples = loracleExamples(isoWeek(new Date()));
   // Phase C: quests other Lorers showed to my crews (absent from a phase A server mid-deploy).
   const crewQuests = state.crewQuests ?? [];
 
@@ -222,7 +217,6 @@ function StoneFace({ state }: { state: LoracleState }) {
       ) : (
         <WishWell
           settings={state.settings}
-          examples={examples}
           text={text}
           setText={setText}
           ctx={ctx}

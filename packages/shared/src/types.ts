@@ -780,8 +780,6 @@ export interface LoracleState {
   /** The Lorer agreed to send wishes to Anthropic (the consent sheet). */
   consented: boolean;
   settings: LoracleSettings;
-  /** Five example wishes for this ISO week. */
-  examples: string[];
   /** Newest first, at most 30: everything but the let-go. */
   wishes: WishSummary[];
   /** Newest first, at most 10. */

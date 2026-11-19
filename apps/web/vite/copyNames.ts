@@ -132,7 +132,7 @@ export const SINKS: ReadonlySet<string> = new Set(['confirm', 'alert', 'prompt']
  * Module-level constants that are tables (rule 9) although their name doesn't say so and their file
  * belongs to another layer. Prefer `// copy:table` in the source.
  */
-export const TABLE_NAMES: ReadonlySet<string> = new Set(['LORACLE_EXAMPLES']);
+export const TABLE_NAMES: ReadonlySet<string> = new Set<string>();
 
 /**
  * Safety data: never editable live (spec section 9), even though `CRISIS_LINES` ends in `_LINES`.

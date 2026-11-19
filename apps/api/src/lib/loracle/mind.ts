@@ -104,6 +104,23 @@ export interface MindLog {
 
 const silentLog: MindLog = { info() {}, warn() {}, error() {} };
 
+/**
+ * What the API said when it refused a request: its error type and message (e.g. which parameter it
+ * rejected), cut short. The API's messages name parameters, never the request's text. Without this the
+ * owner's log said only "error" and a status, and a request Claude refused could not be told apart.
+ */
+export function apiReason(err: unknown): { errorType?: string; reason?: string } {
+  const inner = err instanceof Error && err.name === 'CutOff' ? (err as Error & { cause?: unknown }).cause : err;
+  if (!inner || typeof inner !== 'object') return {};
+  const body = (inner as { error?: { error?: { type?: unknown; message?: unknown } } }).error?.error;
+  const type = typeof body?.type === 'string' ? body.type : (inner as { type?: unknown }).type;
+  const message = typeof body?.message === 'string' ? body.message : inner instanceof Error ? inner.message : undefined;
+  return {
+    ...(typeof type === 'string' ? { errorType: type } : {}),
+    ...(typeof message === 'string' ? { reason: message.slice(0, 400) } : {}),
+  };
+}
+
 export interface ClaudeMindOptions {
   /** Inject a client (tests); otherwise one Anthropic client is made lazily from config.apiKey. */
   client?: MindClient;
@@ -181,7 +198,10 @@ export function claudeMind(config: LoracleConfig, opts: ClaudeMindOptions = {}):
     if (err instanceof MindError) return err.spend === spend ? err : new MindError(err.failure, { spend, requestId: err.requestId, cause: err });
     const { failure, requestId } = failureOf(err, signal);
     const status = (err as { status?: unknown })?.status;
-    log[failure === 'error' ? 'error' : 'warn']({ loracle: 'failure', failure, requestId, status: typeof status === 'number' ? status : null }, 'loracle request failed');
+    log[failure === 'error' ? 'error' : 'warn'](
+      { loracle: 'failure', failure, requestId, status: typeof status === 'number' ? status : null, ...apiReason(err) },
+      'loracle request failed',
+    );
     return new MindError(failure, { spend, requestId, cause: err });
   };
 

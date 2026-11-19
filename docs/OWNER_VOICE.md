@@ -86,3 +86,9 @@ On the day (D34):
 On publishing (one tap, no password asked again):
 
 > no waddling, time is precious
+
+## No example wishes (2026-11-19)
+
+On the five example scrolls under the wish field (one read "I wish to find the wreck my great-grandfather sailed on."):
+
+> delete and do not make any recommendations for what to long for, makes no sense at all. this image for example makes no sense.

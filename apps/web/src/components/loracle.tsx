@@ -111,7 +111,6 @@ export const MORE = {
   realmKeep: 'Keep my town',
   realmNoCountry: 'The stones cannot tell which land that town is in. Choose a bigger town nearby.',
   passportSame: 'Same as the land where I stand',
-  examplesTake: 'Take up this wish',
   logListening: 'The stone is drawing it.',
   logMoon: 'Written down. It will be read at the new moon.',
   logFaded: 'The fog won. Try again when you like.',
@@ -727,11 +726,10 @@ export const saysSomething = (wish: string) =>
 
 /**
  * Speak: the stone asks, the Lorer answers in one big serif field ("I wish …"). The runes under it
- * glow brighter as the wish grows; five example scrolls fill the field (never cast it).
+ * glow brighter as the wish grows. The stone suggests nothing: the wish is the Lorer's own.
  */
 export function WishWell({
   settings,
-  examples,
   text,
   setText,
   ctx,
@@ -742,7 +740,6 @@ export function WishWell({
   error,
 }: {
   settings: LoracleSettings;
-  examples: string[];
   text: string;
   setText: (t: string) => void;
   ctx: LoracleContext;
@@ -772,12 +769,6 @@ export function WishWell({
     if (!el) return;
     requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
   };
-  const take = (example: string) => {
-    setText(example);
-    field.current?.focus();
-    caretToEnd();
-  };
-
   return (
     <section className="stone-tablet wish-well" aria-labelledby={`${fieldId}-ask`}>
       <h2 id={`${fieldId}-ask`} className="well-ask">
@@ -811,19 +802,6 @@ export function WishWell({
         />
       </div>
       <RuneRow className="wish-runes" style={{ '--rune-glow': glow.toFixed(3) } as CSSProperties} />
-
-      <div className="wish-examples">
-        <p className="examples-kicker">{L.examples}</p>
-        <ul>
-          {examples.slice(0, 5).map((ex, i) => (
-            <li key={i}>
-              <button type="button" className="example-scroll" onClick={() => take(ex)} aria-label={`${MORE.examplesTake}: ${ex}`}>
-                {ex}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
 
       {!realm && (
         <div className="realm-first">
