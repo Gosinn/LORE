@@ -28,10 +28,19 @@ const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url)
  * PGlite database (real Postgres compiled to WebAssembly, persisted to disk).
  * Tests: pass neither for a throwaway in-memory database.
  */
+/**
+ * node-postgres treats sslmode=prefer/require/verify-ca as verify-full (full certificate and host checks)
+ * and prints a SECURITY WARNING on every start saying so (Neon's URLs carry sslmode=require). Saying
+ * verify-full outright keeps exactly that behaviour, the strictest one, and keeps the log clean.
+ */
+export function strictSsl(url: string): string {
+  return url.replace(/([?&]sslmode=)(prefer|require|verify-ca)(?=&|$)/, '$1verify-full');
+}
+
 export async function openDatabase(opts: { url?: string; pgliteDir?: string }): Promise<Database> {
   if (opts.url) {
     const pool = new pg.Pool({
-      connectionString: opts.url,
+      connectionString: strictSsl(opts.url),
       max: 10,
       // Hosted Postgres (e.g. Neon) asks for SCRAM channel binding in its URLs;
       // node-postgres ignores the URL parameter but supports the option.
