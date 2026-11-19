@@ -40,6 +40,7 @@ import type { Db } from '../../db/index.ts';
 import { loracleSpend, oracleSettings, wishAsks, wishes, wishRoads, wishWaypoints } from '../../db/schema.ts';
 import type { WorldData } from '../world.ts';
 import { drawPins, type Pin } from './draw.ts';
+import { describeFailure, noteFailure } from './recent.ts';
 import { localDay } from './time.ts';
 import {
   MindError,
@@ -862,6 +863,7 @@ export function createWishJobs(opts: {
           },
           'loracle: road attempt failed',
         );
+        noteFailure({ at: new Date().toISOString(), kind: 'road', failure, attempt: claimed.attempts, ms: Date.now() - startedAt, ...describeFailure(err) });
         keepLedger = (await failAttempt(r.job, runId, failure, claimed.attempts)) === 'retry';
         return;
       }
@@ -1079,6 +1081,7 @@ export function createWishJobs(opts: {
         if (r.reason || lost) return;
         const failure: WishFailure = timeout.aborted ? 'timeout' : err instanceof MindError ? err.failure : 'error';
         log.warn({ wishId, askId, failure, attempts: claimed.attempts, ms: Date.now() - startedAt }, 'loracle: deeper ask failed');
+        noteFailure({ at: new Date().toISOString(), kind: 'ask', failure, attempt: claimed.attempts, ms: Date.now() - startedAt, ...describeFailure(err) });
         await failAsk(r.job, runId, failure, claimed.attempts);
         return;
       }

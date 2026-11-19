@@ -32,6 +32,7 @@ import {
 } from '../db/schema.ts';
 import { idParam, loadVisibleChapter, loadVisibleEvent, loadVisibleIdea, loadVisibleWish, requireOwner } from '../lib/access.ts';
 import { badRequest, forbidden, notFound } from '../lib/errors.ts';
+import { recentFailures, type LoracleFailureNote } from '../lib/loracle/recent.ts';
 import { letGoOnBlock } from '../lib/loracle/sharing.ts';
 import { iso, isoOrNull, userColumns, toUserSummary, userSummaries } from '../lib/queries.ts';
 import { parse } from '../lib/validate.ts';
@@ -180,6 +181,12 @@ export async function safetyRoutes(app: FastifyInstance, { db, config, storage }
   });
 
   // --- Moderation ------------------------------------------------------------------
+
+  /** The Loracle's last failures since the server started (in memory; owner only; no wish text). */
+  app.get('/admin/loracle/failures', async (req): Promise<{ failures: LoracleFailureNote[] }> => {
+    await requireAdmin(req);
+    return { failures: recentFailures() };
+  });
 
   app.get('/admin/summary', async (req): Promise<ModerationSummary> => {
     await requireAdmin(req);

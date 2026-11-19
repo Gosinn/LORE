@@ -50,6 +50,10 @@ describe('safety: terms, reports, moderation, support', () => {
     expect((await ana.get('/api/auth/me')).body.isAdmin).toBe(false);
     expect((await ana.get('/api/admin/reports')).status).toBe(404);
     expect((await ana.get('/api/admin/summary')).status).toBe(404);
+    expect((await ana.get('/api/admin/loracle/failures')).status).toBe(404);
+    const failures = await mod.get('/api/admin/loracle/failures');
+    expect(failures.status).toBe(200);
+    expect(Array.isArray(failures.body.failures)).toBe(true);
   });
 
   it('only lets you report what you can see', async () => {

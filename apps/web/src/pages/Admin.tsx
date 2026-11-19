@@ -13,15 +13,35 @@ import { api } from '../lib/api.ts';
 import { timeAgo } from '../lib/dates.ts';
 import { useAction, useMe, useModerationSummary } from '../lib/queries.ts';
 
-/** Moderators only: reports to decide on within 24 hours, and the contact form's inbox. */
+/** The Loracle's last failures (GET /admin/loracle/failures; apps/api/src/lib/loracle/recent.ts). */
+interface LoracleFailureNote {
+  at: string;
+  kind: 'road' | 'ask';
+  failure: string;
+  attempt: number;
+  ms: number;
+  status: number | null;
+  errorType: string | null;
+  reason: string | null;
+  where: string | null;
+  requestId: string | null;
+}
+
+/** Moderators only: reports to decide on within 24 hours, the contact form's inbox, and the Loracle's failures. */
 export function AdminPage() {
   const me = useMe();
-  const [tab, setTab] = useState<'open' | 'closed' | 'messages'>('open');
+  const [tab, setTab] = useState<'open' | 'closed' | 'messages' | 'loracle'>('open');
   const summary = useModerationSummary(!!me.data?.isAdmin);
   const reports = useQuery({
     queryKey: ['admin', 'reports', tab],
     queryFn: () => api.get<ModerationReport[]>(`/admin/reports${tab === 'closed' ? '?status=closed' : ''}`),
-    enabled: !!me.data?.isAdmin && tab !== 'messages',
+    enabled: !!me.data?.isAdmin && tab !== 'messages' && tab !== 'loracle',
+  });
+  const loracle = useQuery({
+    queryKey: ['admin', 'loracle'],
+    queryFn: () => api.get<{ failures: LoracleFailureNote[] }>('/admin/loracle/failures'),
+    enabled: !!me.data?.isAdmin && tab === 'loracle',
+    refetchInterval: tab === 'loracle' ? 10_000 : false,
   });
   const messages = useQuery({
     queryKey: ['admin', 'support'],
@@ -58,9 +78,44 @@ export function AdminPage() {
         <button aria-pressed={tab === 'messages'} onClick={() => setTab('messages')}>
           Messages
         </button>
+        <button aria-pressed={tab === 'loracle'} onClick={() => setTab('loracle')}>
+          Loracle
+        </button>
       </div>
 
-      {tab === 'messages' ? (
+      {tab === 'loracle' ? (
+        loracle.isLoading ? (
+          <Loading />
+        ) : loracle.error ? (
+          <ErrorNote error={loracle.error} />
+        ) : loracle.data?.failures.length ? (
+          <div className="stack">
+            <p className="tiny muted">Since the server last woke. Newest first. No wish text is kept here.</p>
+            {loracle.data.failures.map((f, i) => (
+              <article key={`${f.at}-${i}`} className="card stack mod-card">
+                <div className="row">
+                  <span className="pill pill-danger">{f.failure}</span>
+                  <span className="grow tiny muted">
+                    {f.kind} · attempt {f.attempt} · {Math.round(f.ms / 100) / 10} s · {timeAgo(f.at)}
+                  </span>
+                </div>
+                {(f.status !== null || f.errorType) && (
+                  <p className="small">
+                    <strong>
+                      {f.status ?? ''} {f.errorType ?? ''}
+                    </strong>
+                  </p>
+                )}
+                {f.reason && <blockquote className="mod-snapshot">{f.reason}</blockquote>}
+                {f.where && <p className="tiny muted">{f.where}</p>}
+                {f.requestId && <p className="tiny muted">{f.requestId}</p>}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <Empty title="No Loracle failures since the server last woke." />
+        )
+      ) : tab === 'messages' ? (
         messages.isLoading ? (
           <Loading />
         ) : messages.data?.length ? (
